@@ -1,0 +1,288 @@
+Perform a complete feature audit of the current Nexora application against the original Nexora requirements.
+
+IMPORTANT:
+
+* Do NOT make any code changes yet.
+* Do NOT add new features yet.
+* Only inspect the existing implementation and report what is actually implemented.
+* Do not assume a feature exists just because the UI has a placeholder for it.
+* Distinguish between fully functional, partially implemented, UI-only, and missing features.
+
+Create a checklist with these categories:
+
+## 1. Branch Management
+
+Check whether the admin can:
+
+* Add a branch
+* Edit a branch
+* Delete a branch
+* Enable/disable a branch
+* Reorder branches
+* Set branch name
+* Set branch short name
+* Set branch description
+* View resource count per branch
+* View subject count per branch
+
+Also verify that branch data is actually used throughout the application.
+
+## 2. Year Management
+
+Check whether the admin can:
+
+* Add a year
+* Edit a year
+* Delete a year
+* Reorder years
+* Associate years with a specific branch
+
+Verify that different branches can have their own academic structures.
+
+## 3. Semester Management
+
+Check whether the admin can:
+
+* Add semester
+* Edit semester
+* Delete semester
+* Reorder semesters
+* Associate semester with the correct year
+
+## 4. Subject Management
+
+Check whether the admin can:
+
+* Add subject
+* Edit subject
+* Delete subject
+* Set subject name
+* Set subject description
+* Associate subject with the correct semester
+* Ensure subjects belong to the correct branch through the hierarchy
+
+## 5. Resource Management
+
+Check whether the admin can:
+
+* Add resource
+* Edit resource
+* Delete resource
+* Search resources
+* Filter resources
+* Set resource title
+* Set description
+* Select branch
+* Select year
+* Select semester
+* Select subject
+* Select resource type
+* Add Google Drive URL
+* Validate Google Drive URL
+* Mark resource as New
+* Mark resource as Featured
+* Mark resource as Verified
+
+## 6. Student Website
+
+Check:
+
+* Homepage
+* Branch selection
+* Year selection
+* Semester selection
+* Subject pages
+* Resource pages/cards
+* Breadcrumbs
+* Search
+* Filters
+* Recently Added
+* Featured Resources
+* Resource Categories
+* Verified badge
+* New badge
+* Empty states
+* Google Drive opening
+
+## 7. Student Contribution System
+
+Check whether students can:
+
+* Open Contribute Material
+* Select branch
+* Select year
+* Select semester
+* Select subject
+* Select resource type
+* Enter title
+* Enter description
+* Enter Google Drive URL
+* Enter optional name
+* Enter optional email
+* Submit material
+
+Check whether submissions have:
+
+* Pending status
+* Under Review status
+* Approved status
+* Rejected status
+* Admin notes
+* Submission date
+* Review date
+* Reviewer information
+
+## 8. Admin Submission Review
+
+Check whether admins can:
+
+* View pending submissions
+* Open submitted material
+* View contributor information
+* View branch/year/semester/subject
+* Approve submission
+* Reject submission
+* Enter rejection reason
+* Publish approved submission
+* Mark approved material as Verified
+* View submission history
+
+Most importantly verify:
+
+Student submission → Pending → Admin approval → Published → Verified
+
+And:
+
+Student submission → Pending → Admin rejection → NOT published
+
+## 9. Search and Filtering
+
+Check whether search/filtering supports:
+
+* Branch
+* Year
+* Semester
+* Subject
+* Resource type
+* Resource title
+* Description
+* Verified-only
+* New
+* Featured
+
+Check whether multiple filters can work together.
+
+## 10. Authentication
+
+Check:
+
+* Admin login
+* Admin logout
+* Protected admin routes
+* Unauthorized users blocked
+* Student browsing without login
+
+If authentication is currently only simulated/UI-based, explicitly report that.
+
+## 11. Database
+
+Check whether the application currently uses:
+
+* Supabase PostgreSQL
+* Browser localStorage
+* React state
+* Mock data
+* Any other storage
+
+For every important piece of data, identify where it is currently stored.
+
+Check whether these tables actually exist:
+
+* branches
+* years
+* semesters
+* subjects
+* resources
+* submissions
+
+Do not assume they exist.
+
+## 12. Security
+
+Check:
+
+* Row Level Security
+* Admin authorization
+* Student permissions
+* Protection of submissions
+* Protection of admin operations
+* Supabase service-role key exposure
+* Environment variables
+
+## 13. Google Drive
+
+Check:
+
+* Google Drive URL validation
+* External opening
+* No PDF storage in Supabase
+* No unnecessary file duplication
+
+## 14. UI/Responsive
+
+Check:
+
+* Mobile
+* Tablet
+* Desktop
+* 360px width
+* 390px width
+* No horizontal overflow
+* Forms
+* Navigation
+* Admin dashboard
+* Loading states
+* Error states
+* Empty states
+
+## 15. Report Format
+
+For EVERY feature, use one of:
+
+✅ Fully implemented
+
+⚠️ Partially implemented
+
+🟡 UI only / not functional
+
+❌ Missing
+
+Then provide:
+
+### Fully Implemented
+
+List features that genuinely work.
+
+### Partially Implemented
+
+Explain exactly what is missing.
+
+### UI Only
+
+Explain what exists visually but has no real functionality.
+
+### Missing
+
+List everything that needs to be built.
+
+### Critical Issues
+
+List anything that prevents Nexora from being production-ready.
+
+### Recommended Implementation Order
+
+Give the safest order to implement all missing functionality.
+
+IMPORTANT:
+Do not modify the project during this audit.
+Only inspect and report.

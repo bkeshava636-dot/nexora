@@ -1,0 +1,1314 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Admin authentication
+  - name: branches
+    description: Branch catalog management
+  - name: years
+    description: Year catalog management
+  - name: semesters
+    description: Semester catalog management
+  - name: subjects
+    description: Subject catalog management
+  - name: resources
+    description: Resource catalog management
+  - name: submissions
+    description: Student resource submissions
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Admin login
+      description: Authenticates an admin and starts a session (session cookie is set on the response).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthStatus"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Admin logout
+      description: Ends the current admin session.
+      responses:
+        "204":
+          description: Logged out
+
+  /auth/me:
+    get:
+      operationId: getCurrentAdmin
+      tags: [auth]
+      summary: Current session status
+      description: Returns whether the caller has an authenticated admin session.
+      responses:
+        "200":
+          description: Session status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthStatus"
+
+  /branches:
+    get:
+      operationId: listBranches
+      tags: [branches]
+      summary: List branches
+      parameters:
+        - $ref: "#/components/parameters/IncludeInactive"
+      responses:
+        "200":
+          description: Branches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Branch"
+    post:
+      operationId: createBranch
+      tags: [branches]
+      summary: Create a branch
+      security: [{ adminSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BranchInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Branch"
+
+  /branches/reorder:
+    post:
+      operationId: reorderBranches
+      tags: [branches]
+      summary: Reorder branches
+      security: [{ adminSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderInput"
+      responses:
+        "200":
+          description: Reordered branches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Branch"
+
+  /branches/{id}:
+    get:
+      operationId: getBranch
+      tags: [branches]
+      summary: Get a branch by id
+      parameters:
+        - $ref: "#/components/parameters/BranchId"
+      responses:
+        "200":
+          description: Branch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Branch"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateBranch
+      tags: [branches]
+      summary: Update a branch
+      security: [{ adminSession: [] }]
+      parameters:
+        - $ref: "#/components/parameters/BranchId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BranchUpdate"
+      responses:
+        "200":
+          description: Updated branch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Branch"
+    delete:
+      operationId: deleteBranch
+      tags: [branches]
+      summary: Delete a branch
+      security: [{ adminSession: [] }]
+      parameters:
+        - $ref: "#/components/parameters/BranchId"
+      responses:
+        "204":
+          description: Deleted
+
+  /years:
+    get:
+      operationId: listYears
+      tags: [years]
+      summary: List years
+      parameters:
+        - name: branchId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Years
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Year"
+    post:
+      operationId: createYear
+      tags: [years]
+      summary: Create a year
+      security: [{ adminSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YearInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Year"
+
+  /years/reorder:
+    post:
+      operationId: reorderYears
+      tags: [years]
+      summary: Reorder years within a branch
+      security: [{ adminSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderInput"
+      responses:
+        "200":
+          description: Reordered years
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Year"
+
+  /years/{id}:
+    get:
+      operationId: getYear
+      tags: [years]
+      summary: Get a year by id
+      parameters:
+        - $ref: "#/components/parameters/YearId"
+      responses:
+        "200":
+          description: Year
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Year"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateYear
+      tags: [years]
+      summary: Update a year
+      security: [{ adminSession: [] }]
+      parameters:
+        - $ref: "#/components/parameters/YearId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YearUpdate"
+      responses:
+        "200":
+          description: Updated year
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Year"
+    delete:
+      operationId: deleteYear
+      tags: [years]
+      summary: Delete a year
+      security: [{ adminSession: [] }]
+      parameters:
+        - $ref: "#/components/parameters/YearId"
+      responses:
+        "204":
+          description: Deleted
+
+  /semesters:
+    get:
+      operationId: listSemesters
+      tags: [semesters]
+      summary: List semesters
+      parameters:
+        - name: yearId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Semesters
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Semester"
+    post:
+      operationId: createSemester
+      tags: [semesters]
+      summary: Create a semester
+      security: [{ adminSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SemesterInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Semester"
+
+  /semesters/reorder:
+    post:
+      operationId: reorderSemesters
+      tags: [semesters]
+      summary: Reorder semesters within a year
+      security: [{ adminSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReorderInput"
+      responses:
+        "200":
+          description: Reordered semesters
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Semester"
+
+  /semesters/{id}:
+    get:
+      operationId: getSemester
+      tags: [semesters]
+      summary: Get a semester by id
+      parameters:
+        - $ref: "#/components/parameters/SemesterId"
+      responses:
+        "200":
+          description: Semester
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Semester"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateSemester
+      tags: [semesters]
+      summary: Update a semester
+      security: [{ adminSession: [] }]
+      parameters:
+        - $ref: "#/components/parameters/SemesterId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SemesterUpdate"
+      responses:
+        "200":
+          description: Updated semester
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Semester"
+    delete:
+      operationId: deleteSemester
+      tags: [semesters]
+      summary: Delete a semester
+      security: [{ adminSession: [] }]
+      parameters:
+        - $ref: "#/components/parameters/SemesterId"
+      responses:
+        "204":
+          description: Deleted
+
+  /subjects:
+    get:
+      operationId: listSubjects
+      tags: [subjects]
+      summary: List subjects
+      parameters:
+        - name: semesterId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Subjects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Subject"
+    post:
+      operationId: createSubject
+      tags: [subjects]
+      summary: Create a subject
+      security: [{ adminSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubjectInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subject"
+
+  /subjects/{id}:
+    get:
+      operationId: getSubject
+      tags: [subjects]
+      summary: Get a subject by id
+      parameters:
+        - $ref: "#/components/parameters/SubjectId"
+      responses:
+        "200":
+          description: Subject
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subject"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateSubject
+      tags: [subjects]
+      summary: Update a subject
+      security: [{ adminSession: [] }]
+      parameters:
+        - $ref: "#/components/parameters/SubjectId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubjectUpdate"
+      responses:
+        "200":
+          description: Updated subject
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subject"
+    delete:
+      operationId: deleteSubject
+      tags: [subjects]
+      summary: Delete a subject
+      security: [{ adminSession: [] }]
+      parameters:
+        - $ref: "#/components/parameters/SubjectId"
+      responses:
+        "204":
+          description: Deleted
+
+  /resources:
+    get:
+      operationId: listResources
+      tags: [resources]
+      summary: List resources
+      description: Supports filtering by catalog position, type, and flags, plus free-text search over title/description.
+      parameters:
+        - name: branchId
+          in: query
+          schema:
+            type: integer
+        - name: yearId
+          in: query
+          schema:
+            type: integer
+        - name: semesterId
+          in: query
+          schema:
+            type: integer
+        - name: subjectId
+          in: query
+          schema:
+            type: integer
+        - name: resourceType
+          in: query
+          schema:
+            $ref: "#/components/schemas/ResourceType"
+        - name: isVerified
+          in: query
+          schema:
+            type: boolean
+        - name: isNew
+          in: query
+          schema:
+            type: boolean
+        - name: isFeatured
+          in: query
+          schema:
+            type: boolean
+        - name: query
+          in: query
+          description: Free-text search across title and description
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Resources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Resource"
+    post:
+      operationId: createResource
+      tags: [resources]
+      summary: Create a resource
+      security: [{ adminSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+
+  /resources/{id}:
+    get:
+      operationId: getResource
+      tags: [resources]
+      summary: Get a resource by id
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      responses:
+        "200":
+          description: Resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateResource
+      tags: [resources]
+      summary: Update a resource
+      security: [{ adminSession: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceUpdate"
+      responses:
+        "200":
+          description: Updated resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+    delete:
+      operationId: deleteResource
+      tags: [resources]
+      summary: Delete a resource
+      security: [{ adminSession: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      responses:
+        "204":
+          description: Deleted
+
+  /submissions:
+    get:
+      operationId: listSubmissions
+      tags: [submissions]
+      summary: List submissions
+      security: [{ adminSession: [] }]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/SubmissionStatus"
+      responses:
+        "200":
+          description: Submissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Submission"
+    post:
+      operationId: createSubmission
+      tags: [submissions]
+      summary: Submit a resource for review
+      description: Public endpoint used by students to contribute a resource.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmissionInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Submission"
+
+  /submissions/{id}:
+    get:
+      operationId: getSubmission
+      tags: [submissions]
+      summary: Get a submission by id
+      security: [{ adminSession: [] }]
+      parameters:
+        - $ref: "#/components/parameters/SubmissionId"
+      responses:
+        "200":
+          description: Submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Submission"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateSubmission
+      tags: [submissions]
+      summary: Update a submission's status or notes
+      security: [{ adminSession: [] }]
+      parameters:
+        - $ref: "#/components/parameters/SubmissionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmissionUpdate"
+      responses:
+        "200":
+          description: Updated submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Submission"
+
+  /submissions/{id}/approve:
+    post:
+      operationId: approveSubmission
+      tags: [submissions]
+      summary: Approve a submission
+      description: Marks the submission approved and creates the corresponding resource in the catalog.
+      security: [{ adminSession: [] }]
+      parameters:
+        - $ref: "#/components/parameters/SubmissionId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApproveSubmissionInput"
+      responses:
+        "200":
+          description: Approved submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Submission"
+
+  /submissions/{id}/reject:
+    post:
+      operationId: rejectSubmission
+      tags: [submissions]
+      summary: Reject a submission
+      security: [{ adminSession: [] }]
+      parameters:
+        - $ref: "#/components/parameters/SubmissionId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RejectSubmissionInput"
+      responses:
+        "200":
+          description: Rejected submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Submission"
+
+components:
+  securitySchemes:
+    adminSession:
+      type: apiKey
+      in: cookie
+      name: nexora_session
+      description: Signed, httpOnly admin session cookie set by POST /auth/login.
+
+  parameters:
+    BranchId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    YearId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    SemesterId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    SubjectId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    ResourceId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    SubmissionId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    IncludeInactive:
+      name: includeInactive
+      in: query
+      description: Include inactive branches. Only honored for authenticated admin sessions.
+      schema:
+        type: boolean
+
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+
+    LoginInput:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required:
+        - username
+        - password
+
+    AuthStatus:
+      type: object
+      properties:
+        authenticated:
+          type: boolean
+        username:
+          type: string
+      required:
+        - authenticated
+
+    ReorderInput:
+      type: object
+      description: New display order for a set of sibling records.
+      properties:
+        order:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              displayOrder:
+                type: integer
+            required:
+              - id
+              - displayOrder
+      required:
+        - order
+
+    ResourceType:
+      type: string
+      enum:
+        - "Lecture notes"
+        - "Previous year paper"
+        - "Lab manual"
+        - "Assignment"
+        - "Reference"
+
+    SubmissionStatus:
+      type: string
+      enum:
+        - pending
+        - approved
+        - rejected
+
+    Branch:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        shortName:
+          type: string
+        description:
+          type: string
+        displayOrder:
+          type: integer
+        isActive:
+          type: boolean
+        subjectCount:
+          type: integer
+          description: Derived count of subjects under this branch.
+        resourceCount:
+          type: integer
+          description: Derived count of resources under this branch.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - shortName
+        - description
+        - displayOrder
+        - isActive
+        - subjectCount
+        - resourceCount
+        - createdAt
+        - updatedAt
+
+    BranchInput:
+      type: object
+      properties:
+        name:
+          type: string
+        shortName:
+          type: string
+        description:
+          type: string
+        displayOrder:
+          type: integer
+        isActive:
+          type: boolean
+      required:
+        - name
+        - shortName
+
+    BranchUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        shortName:
+          type: string
+        description:
+          type: string
+        displayOrder:
+          type: integer
+        isActive:
+          type: boolean
+
+    Year:
+      type: object
+      properties:
+        id:
+          type: integer
+        branchId:
+          type: integer
+        name:
+          type: string
+        displayOrder:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - branchId
+        - name
+        - displayOrder
+        - createdAt
+        - updatedAt
+
+    YearInput:
+      type: object
+      properties:
+        branchId:
+          type: integer
+        name:
+          type: string
+        displayOrder:
+          type: integer
+      required:
+        - branchId
+        - name
+
+    YearUpdate:
+      type: object
+      properties:
+        branchId:
+          type: integer
+        name:
+          type: string
+        displayOrder:
+          type: integer
+
+    Semester:
+      type: object
+      properties:
+        id:
+          type: integer
+        yearId:
+          type: integer
+        name:
+          type: string
+        displayOrder:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - yearId
+        - name
+        - displayOrder
+        - createdAt
+        - updatedAt
+
+    SemesterInput:
+      type: object
+      properties:
+        yearId:
+          type: integer
+        name:
+          type: string
+        displayOrder:
+          type: integer
+      required:
+        - yearId
+        - name
+
+    SemesterUpdate:
+      type: object
+      properties:
+        yearId:
+          type: integer
+        name:
+          type: string
+        displayOrder:
+          type: integer
+
+    Subject:
+      type: object
+      properties:
+        id:
+          type: integer
+        semesterId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - semesterId
+        - name
+        - description
+        - createdAt
+        - updatedAt
+
+    SubjectInput:
+      type: object
+      properties:
+        semesterId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+      required:
+        - semesterId
+        - name
+
+    SubjectUpdate:
+      type: object
+      properties:
+        semesterId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+
+    Resource:
+      type: object
+      properties:
+        id:
+          type: integer
+        subjectId:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        resourceType:
+          $ref: "#/components/schemas/ResourceType"
+        googleDriveUrl:
+          type: string
+        isNew:
+          type: boolean
+        isFeatured:
+          type: boolean
+        isVerified:
+          type: boolean
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        verifiedBy:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        subjectName:
+          type: string
+          description: Derived from the related subject for display convenience.
+        semesterName:
+          type: string
+        yearName:
+          type: string
+        branchId:
+          type: integer
+        branchName:
+          type: string
+      required:
+        - id
+        - subjectId
+        - title
+        - description
+        - resourceType
+        - googleDriveUrl
+        - isNew
+        - isFeatured
+        - isVerified
+        - createdAt
+        - updatedAt
+
+    ResourceInput:
+      type: object
+      properties:
+        subjectId:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        resourceType:
+          $ref: "#/components/schemas/ResourceType"
+        googleDriveUrl:
+          type: string
+        isNew:
+          type: boolean
+        isFeatured:
+          type: boolean
+        isVerified:
+          type: boolean
+      required:
+        - subjectId
+        - title
+        - resourceType
+        - googleDriveUrl
+
+    ResourceUpdate:
+      type: object
+      properties:
+        subjectId:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        resourceType:
+          $ref: "#/components/schemas/ResourceType"
+        googleDriveUrl:
+          type: string
+        isNew:
+          type: boolean
+        isFeatured:
+          type: boolean
+        isVerified:
+          type: boolean
+
+    Submission:
+      type: object
+      properties:
+        id:
+          type: integer
+        branchId:
+          type: integer
+          nullable: true
+        yearId:
+          type: integer
+          nullable: true
+        semesterId:
+          type: integer
+          nullable: true
+        subjectId:
+          type: integer
+          nullable: true
+        resourceType:
+          $ref: "#/components/schemas/ResourceType"
+        title:
+          type: string
+        description:
+          type: string
+        googleDriveUrl:
+          type: string
+        studentName:
+          type: string
+        studentEmail:
+          type: string
+        status:
+          $ref: "#/components/schemas/SubmissionStatus"
+        adminNote:
+          type: string
+          nullable: true
+        rejectionReason:
+          type: string
+          nullable: true
+        submittedAt:
+          type: string
+          format: date-time
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        reviewedBy:
+          type: string
+          nullable: true
+      required:
+        - id
+        - resourceType
+        - title
+        - description
+        - googleDriveUrl
+        - studentName
+        - studentEmail
+        - status
+        - submittedAt
+
+    SubmissionInput:
+      type: object
+      properties:
+        branchId:
+          type: integer
+        yearId:
+          type: integer
+        semesterId:
+          type: integer
+        subjectId:
+          type: integer
+        resourceType:
+          $ref: "#/components/schemas/ResourceType"
+        title:
+          type: string
+        description:
+          type: string
+        googleDriveUrl:
+          type: string
+        studentName:
+          type: string
+        studentEmail:
+          type: string
+      required:
+        - resourceType
+        - title
+        - googleDriveUrl
+        - studentName
+        - studentEmail
+
+    SubmissionUpdate:
+      type: object
+      properties:
+        status:
+          $ref: "#/components/schemas/SubmissionStatus"
+        adminNote:
+          type: string
+        rejectionReason:
+          type: string
+
+    ApproveSubmissionInput:
+      type: object
+      properties:
+        adminNote:
+          type: string
+        isFeatured:
+          type: boolean
+        isVerified:
+          type: boolean
+
+    RejectSubmissionInput:
+      type: object
+      properties:
+        rejectionReason:
+          type: string

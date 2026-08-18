@@ -1,0 +1,1371 @@
+# NEXORA — College Academic Resource Platform
+
+Build a modern, fast, responsive academic resource platform called **Nexora** for engineering students.
+
+**Tagline:** Your Next Academic Resource Hub
+
+Nexora should be a centralized platform where students can discover and access:
+
+* Notes
+* Previous Year Question Papers (PYQs)
+* Question Banks
+* Model Question Papers
+* Important Questions
+* Lab Manuals
+* Lab Programs
+* Assignments
+* Study Materials
+* Other academic resources
+
+The platform must support multiple engineering branches, all 4 years, and all 8 semesters.
+
+---
+
+# 1. CORE ACADEMIC STRUCTURE
+
+The most important hierarchy of Nexora is:
+
+```text
+Branch
+   ↓
+Year
+   ↓
+Semester
+   ↓
+Subject
+   ↓
+Resource
+```
+
+Example:
+
+```text
+Computer Science and Engineering (CSE)
+        ↓
+    2nd Year
+        ↓
+   3rd Semester
+        ↓
+ Data Structures
+        ↓
+      PYQs
+```
+
+Do NOT hardcode this structure into the frontend.
+
+Everything must be dynamically managed through the database/admin panel.
+
+---
+
+# 2. BRANCHES
+
+Nexora must support multiple engineering branches.
+
+Example branches:
+
+* Computer Science and Engineering (CSE)
+* Information Science and Engineering (ISE)
+* Electronics and Communication Engineering (ECE)
+* Electrical and Electronics Engineering (EEE)
+* Mechanical Engineering (ME)
+* Civil Engineering (CE)
+* Artificial Intelligence and Machine Learning (AIML)
+* Artificial Intelligence and Data Science (AIDS)
+
+These are only examples.
+
+Admins must be able to add any branch in the future without modifying source code.
+
+## Admin Branch Management
+
+Admins should be able to:
+
+* Add branch
+* Edit branch
+* Delete branch
+* Enable/disable branch
+* Reorder branches
+* View resource count
+* View subject count
+
+Branch fields:
+
+```text
+name
+short_name
+description
+display_order
+is_active
+created_at
+updated_at
+```
+
+---
+
+# 3. YEARS AND SEMESTERS
+
+Each branch should have:
+
+```text
+1st Year
+├── 1st Semester
+└── 2nd Semester
+
+2nd Year
+├── 3rd Semester
+└── 4th Semester
+
+3rd Year
+├── 5th Semester
+└── 6th Semester
+
+4th Year
+├── 7th Semester
+└── 8th Semester
+```
+
+Admins must be able to manage the academic structure dynamically.
+
+Do not hardcode subjects.
+
+---
+
+# 4. STORAGE ARCHITECTURE
+
+## Google Drive = Actual File Storage
+
+Google Drive will store the actual academic files:
+
+* PDFs
+* Notes
+* PYQs
+* Question Banks
+* Lab Manuals
+* Assignments
+* Other documents
+
+**Do NOT store academic PDFs in Supabase Storage.**
+
+The website should store only the Google Drive URL.
+
+Example:
+
+```text
+https://drive.google.com/...
+```
+
+When students click **Open PDF**, open the Google Drive file.
+
+Do not download or duplicate PDFs onto the website.
+
+## Supabase = Metadata Database
+
+Supabase PostgreSQL stores:
+
+* Branch
+* Year
+* Semester
+* Subject
+* Resource title
+* Resource type
+* Description
+* Google Drive URL
+* Verification status
+* New status
+* Featured status
+* Dates
+* Submission information
+
+---
+
+# 5. TECHNOLOGY STACK
+
+Use:
+
+* React
+* Vite
+* Tailwind CSS
+* Lucide React
+* Supabase PostgreSQL
+* Supabase Auth
+* Vercel
+* Google Drive
+
+Keep the architecture simple and suitable for free-tier hosting.
+
+Do not introduce unnecessary backend infrastructure.
+
+---
+
+# 6. BRANDING
+
+Brand name:
+
+# Nexora
+
+Tagline:
+
+> Your Next Academic Resource Hub
+
+Create a simple, modern text/icon logo.
+
+Use the branding consistently across:
+
+* Navbar
+* Homepage
+* Footer
+* Admin dashboard
+* Login page
+* Browser title
+* Favicon
+* Empty states
+
+The design should feel like a modern education/SaaS platform.
+
+---
+
+# 7. DESIGN SYSTEM
+
+Create a:
+
+* Modern
+* Minimal
+* Premium-looking
+* Fast
+* Mobile-first
+* Responsive
+* Student-friendly
+* Professional
+
+interface.
+
+Use:
+
+* Clean typography
+* Good spacing
+* Rounded cards
+* Subtle shadows
+* Clear hierarchy
+* Accessible colors
+* Consistent icons
+
+Avoid excessive animations, gradients, or visual clutter.
+
+The website must work especially well on Android phones.
+
+---
+
+# 8. HOMEPAGE
+
+Create a modern homepage.
+
+## Navbar
+
+Include:
+
+* Nexora logo
+* Home
+* Resources
+* Search
+* Contribute
+* Admin/Login
+
+## Hero
+
+Display:
+
+> Your Next Academic Resource Hub
+
+Supporting text:
+
+> Find notes, PYQs, question banks, lab materials and other academic resources — organized by branch, year and semester.
+
+Include a prominent search bar:
+
+```text
+Search notes, PYQs, subjects...
+```
+
+## Branch Selection
+
+The homepage should prominently display available branches.
+
+Example:
+
+```text
+Choose Your Branch
+
+CSE
+Computer Science & Engineering
+
+ISE
+Information Science & Engineering
+
+ECE
+Electronics & Communication
+
+EEE
+Electrical & Electronics
+
+ME
+Mechanical Engineering
+```
+
+Only show active branches.
+
+Do not hardcode the branch list.
+
+## Other Homepage Sections
+
+Include:
+
+* Recently Added
+* Featured Resources
+* Popular Resources
+* Resource Categories
+* Contribute Material
+* Footer
+
+---
+
+# 9. STUDENT NAVIGATION
+
+Students should navigate:
+
+```text
+Home
+ ↓
+Branch
+ ↓
+Year
+ ↓
+Semester
+ ↓
+Subject
+ ↓
+Resource
+ ↓
+Google Drive
+```
+
+Example:
+
+```text
+Home
+→ CSE
+→ 2nd Year
+→ 3rd Semester
+→ Data Structures
+→ PYQs
+→ Open PDF
+→ Google Drive
+```
+
+Use breadcrumbs throughout the website.
+
+---
+
+# 10. RESOURCE CATEGORIES
+
+Support:
+
+* Notes
+* PYQs
+* Question Banks
+* Model Question Papers
+* Important Questions
+* Lab Manuals
+* Lab Programs
+* Assignments
+* Study Materials
+* Other
+
+Use appropriate Lucide icons.
+
+---
+
+# 11. SUBJECT PAGE
+
+Example:
+
+```text
+Data Structures
+CSE • 3rd Semester
+```
+
+Display resources as modern cards.
+
+Example:
+
+```text
+📄 PYQ
+
+Data Structures — 2025
+
+Previous Year Question Paper
+
+✓ Verified
+
+[Open PDF ↗]
+```
+
+Each card should display:
+
+* Resource type
+* Title
+* Description
+* New badge
+* Verified badge
+* Featured indicator
+* Open button
+
+---
+
+# 12. VERIFIED MATERIAL SYSTEM
+
+Every published resource should have:
+
+```text
+is_verified
+verified_at
+verified_by
+```
+
+Only admins can mark a resource as verified.
+
+Students must never be able to mark their own material as verified.
+
+When verified, display:
+
+> ✓ Verified
+
+This badge represents that the Nexora admin team has reviewed the material.
+
+---
+
+# 13. STUDENT CONTRIBUTIONS
+
+Students should be able to submit useful academic materials.
+
+Add a prominent:
+
+> * Contribute Material
+
+button.
+
+Students can submit:
+
+* Notes
+* PYQs
+* Question Banks
+* Model Papers
+* Lab Manuals
+* Lab Programs
+* Assignments
+* Study Materials
+* Other
+
+Student submissions must **never be published automatically**.
+
+---
+
+# 14. STUDENT SUBMISSION FORM
+
+Create a form containing:
+
+```text
+Branch
+Year
+Semester
+Subject
+Resource Type
+Resource Title
+Description
+Google Drive URL
+Student Name
+Email
+```
+
+Student Name and Email can be optional.
+
+Validate the Google Drive URL.
+
+After submission show:
+
+> Thank you! Your material has been submitted for review. It will appear on Nexora after admin verification.
+
+---
+
+# 15. STUDENT SUBMISSION WORKFLOW
+
+Use:
+
+```text
+Student Submission
+       ↓
+Pending
+       ↓
+Admin Review
+       ↓
+ ┌───────────┐
+ │           │
+Approve    Reject
+ │           │
+ ↓           ↓
+Verified   Not Published
+ │
+ ↓
+Published Resource
+```
+
+Only approved resources should be visible publicly.
+
+---
+
+# 16. SUBMISSIONS DATABASE
+
+Create a separate `submissions` table.
+
+Fields:
+
+```text
+id
+branch_id
+year_id
+semester_id
+subject_id
+resource_type
+title
+description
+google_drive_url
+student_name
+student_email
+status
+admin_note
+submitted_at
+reviewed_at
+reviewed_by
+```
+
+Status values:
+
+```text
+pending
+under_review
+approved
+rejected
+```
+
+---
+
+# 17. ADMIN DASHBOARD
+
+Create a protected admin dashboard.
+
+## Dashboard sections
+
+### Overview
+
+Show:
+
+* Total resources
+* Verified resources
+* Pending submissions
+* Total branches
+* Total subjects
+* Recently added resources
+
+### Branch Management
+
+Admin can:
+
+* Add
+* Edit
+* Delete
+* Enable/disable
+* Reorder branches
+
+### Academic Structure
+
+Admin can manage:
+
+* Years
+* Semesters
+* Subjects
+
+### Resources
+
+Admin can:
+
+* Add
+* Edit
+* Delete
+* Search
+* Filter
+* Mark New
+* Mark Featured
+* Mark Verified
+
+### Submissions
+
+Admin can:
+
+* View pending submissions
+* Review
+* Approve
+* Reject
+* Add rejection reason
+* View submission history
+
+---
+
+# 18. ADMIN RESOURCE FORM
+
+Create:
+
+```text
+Branch
+Year
+Semester
+Subject
+Resource Title
+Resource Type
+Description
+Google Drive URL
+New? Yes/No
+Featured? Yes/No
+Verified? Yes/No
+```
+
+Admins can manually add verified resources.
+
+Student submissions become verified only after approval.
+
+---
+
+# 19. ADMIN SUBMISSION REVIEW
+
+Create a clean review interface.
+
+Example:
+
+```text
+Data Structures PYQ 2025
+
+CSE
+2nd Year
+3rd Semester
+Data Structures
+PYQ
+
+Submitted by:
+Student Name
+
+Google Drive:
+[Open Material]
+
+Description:
+Previous year question paper.
+
+[Approve & Publish]
+[Reject]
+```
+
+If rejected, allow the admin to enter a reason.
+
+---
+
+# 20. ADMIN NOTIFICATIONS
+
+Show pending submissions prominently:
+
+```text
+🔔 5 Pending Submissions
+```
+
+Add notification badges in the admin dashboard.
+
+Do not require a paid notification service.
+
+Email notifications can be added later as an optional feature.
+
+---
+
+# 21. SEARCH
+
+Create global search.
+
+Search across:
+
+* Branch
+* Year
+* Semester
+* Subject
+* Resource title
+* Description
+* Resource type
+
+Example:
+
+```text
+Search: Data Structures
+```
+
+should return all relevant Data Structures resources.
+
+Add filters:
+
+```text
+Branch
+Year
+Semester
+Subject
+Resource Type
+Verified Only
+```
+
+---
+
+# 22. DUPLICATE DETECTION
+
+When a student submits material, check for possible duplicates using:
+
+* Branch
+* Semester
+* Subject
+* Resource title
+* Resource type
+
+If a possible duplicate exists:
+
+> A similar resource may already exist. Please check before submitting.
+
+Do not automatically reject the submission.
+
+Admin makes the final decision.
+
+---
+
+# 23. DATABASE STRUCTURE
+
+Use Supabase PostgreSQL.
+
+## branches
+
+```text
+id
+name
+short_name
+description
+display_order
+is_active
+created_at
+updated_at
+```
+
+## years
+
+```text
+id
+branch_id
+name
+display_order
+created_at
+updated_at
+```
+
+## semesters
+
+```text
+id
+year_id
+name
+display_order
+created_at
+updated_at
+```
+
+## subjects
+
+```text
+id
+semester_id
+name
+description
+created_at
+updated_at
+```
+
+## resources
+
+```text
+id
+subject_id
+title
+description
+resource_type
+google_drive_url
+is_new
+is_featured
+is_verified
+verified_at
+verified_by
+created_at
+updated_at
+```
+
+## submissions
+
+```text
+id
+branch_id
+year_id
+semester_id
+subject_id
+resource_type
+title
+description
+google_drive_url
+student_name
+student_email
+status
+admin_note
+submitted_at
+reviewed_at
+reviewed_by
+```
+
+Use:
+
+* Foreign keys
+* Proper indexes
+* Constraints
+* Timestamps
+
+---
+
+# 24. DATABASE RELATIONSHIPS
+
+The final relationship must be:
+
+```text
+Branch
+  ↓
+Year
+  ↓
+Semester
+  ↓
+Subject
+  ↓
+Resource
+```
+
+Do not duplicate branch/year/semester information unnecessarily in resources.
+
+Use proper relational references.
+
+---
+
+# 25. AUTHENTICATION & SECURITY
+
+Students should be able to browse resources without logging in.
+
+Admin dashboard must require authentication.
+
+Use Supabase Auth.
+
+Only authorized admins can:
+
+* Create resources
+* Edit resources
+* Delete resources
+* Add/edit/delete subjects
+* Manage academic structure
+* Approve submissions
+* Reject submissions
+* Mark resources verified
+
+Students can only create submissions.
+
+Never expose the Supabase service-role key in frontend code.
+
+Use environment variables.
+
+Implement Row Level Security correctly.
+
+Pending and rejected submissions must not be publicly accessible.
+
+---
+
+# 26. GOOGLE DRIVE
+
+The website should store only Google Drive URLs.
+
+Create helper functionality to:
+
+* Validate Google Drive URLs
+* Handle invalid URLs
+* Open Google Drive resources
+* Handle missing links gracefully
+
+Do not scrape Google Drive.
+
+Do not download files automatically.
+
+Do not store the PDFs in Supabase Storage.
+
+---
+
+# 27. EMPTY STATES
+
+Create friendly empty states.
+
+Examples:
+
+```text
+No resources available yet.
+
+We're working on adding materials for this semester.
+```
+
+Search:
+
+```text
+No resources found.
+
+Try a different search term.
+```
+
+Submissions:
+
+```text
+No pending submissions.
+```
+
+---
+
+# 28. ERROR HANDLING
+
+Handle:
+
+* Database errors
+* Invalid Google Drive URLs
+* Authentication errors
+* Network errors
+* Empty results
+* Failed submissions
+* Permission errors
+
+Show user-friendly messages.
+
+Do not expose technical errors to students.
+
+---
+
+# 29. PERFORMANCE
+
+Keep Nexora lightweight.
+
+Do not load PDFs directly into the website.
+
+Open Google Drive externally.
+
+Use:
+
+* Lazy loading where appropriate
+* Pagination for large lists
+* Database indexes
+* Efficient queries
+* Optimized React components
+
+The website should remain fast even with thousands of resources.
+
+---
+
+# 30. RESPONSIVE DESIGN
+
+Support:
+
+* Android phones
+* iPhones
+* Tablets
+* Laptops
+* Desktop
+
+Design mobile-first.
+
+Make cards, buttons and forms touch-friendly.
+
+---
+
+# 31. PROJECT STRUCTURE
+
+Use:
+
+```text
+src/
+├── components/
+├── pages/
+├── layouts/
+├── hooks/
+├── lib/
+├── services/
+├── types/
+├── utils/
+└── assets/
+```
+
+Create reusable components.
+
+Do not put the entire application into a few large files.
+
+---
+
+# 32. ENVIRONMENT VARIABLES
+
+Create:
+
+```text
+.env.example
+```
+
+Use environment variables for Supabase configuration.
+
+Never commit `.env` containing secrets.
+
+---
+
+# 33. SEO
+
+Add:
+
+* Proper page titles
+* Meta descriptions
+* Favicon
+* Open Graph metadata
+* Semantic HTML
+
+Examples:
+
+```text
+Nexora — Your Next Academic Resource Hub
+Nexora — CSE 3rd Semester Resources
+Nexora — Data Structures Notes & PYQs
+```
+
+---
+
+# 34. ACCESSIBILITY
+
+Implement:
+
+* Semantic HTML
+* Accessible forms
+* Keyboard navigation
+* Proper button labels
+* Visible focus states
+* Sufficient color contrast
+* Alt text for images
+
+---
+
+# 35. NO FAKE PRODUCTION DATA
+
+Do not hardcode fake resources into the final application.
+
+Temporary sample data may be used during development/testing.
+
+The final application must retrieve everything dynamically from Supabase.
+
+Do not hardcode:
+
+* Branches
+* Years
+* Semesters
+* Subjects
+* Resources
+
+Everything must be manageable through the admin dashboard.
+
+---
+
+# 36. DEVELOPMENT PROCESS
+
+Do NOT build the entire application in one step.
+
+Work in stages.
+
+## Stage 1 — Project Setup
+
+* Inspect existing project
+* Set up React + Vite
+* Configure Tailwind
+* Configure Lucide
+* Create routing
+* Create base layout
+* Create basic Nexora branding
+
+## Stage 2 — Database
+
+* Create Supabase schema
+* Create migrations
+* Create relationships
+* Configure indexes
+* Configure RLS
+* Configure environment variables
+
+## Stage 3 — Branch & Academic Structure
+
+Build:
+
+* Branch selection
+* Year selection
+* Semester selection
+* Subject pages
+* Breadcrumbs
+
+## Stage 4 — Student UI
+
+Build:
+
+* Homepage
+* Navbar
+* Branch cards
+* Year pages
+* Semester pages
+* Subject pages
+* Resource cards
+
+## Stage 5 — Resource System
+
+Implement:
+
+* Supabase resource fetching
+* Google Drive links
+* Search
+* Filters
+* Categories
+* Verified badges
+* New badges
+* Featured resources
+
+## Stage 6 — Authentication
+
+Implement:
+
+* Admin login
+* Protected routes
+* Admin authorization
+
+## Stage 7 — Admin Dashboard
+
+Implement:
+
+* Dashboard overview
+* Branch management
+* Year/semester management
+* Subject management
+* Resource CRUD
+* Search
+* Filters
+
+## Stage 8 — Student Contributions
+
+Implement:
+
+* Contribution form
+* Submission database
+* Pending status
+* Admin review
+* Approve
+* Reject
+* Verification
+
+## Stage 9 — Testing
+
+Test:
+
+* Branch navigation
+* Year navigation
+* Semester navigation
+* Subject navigation
+* Search
+* Filters
+* Google Drive links
+* Admin login
+* Resource CRUD
+* Branch CRUD
+* Subject CRUD
+* Submission workflow
+* Approval workflow
+* Rejection workflow
+* Verification badges
+* RLS/security
+* Mobile responsiveness
+* Error states
+
+Fix all discovered issues.
+
+## Stage 10 — Deployment
+
+Prepare for Vercel deployment.
+
+Verify:
+
+* Environment variables
+* Production build
+* Routing
+* Supabase connection
+* Authentication
+* Database security
+* Google Drive links
+
+---
+
+# 37. IMPORTANT DEVELOPMENT RULES
+
+Before making changes:
+
+1. Inspect the existing project.
+2. Identify the existing framework and dependencies.
+3. Reuse working code where possible.
+4. Do not unnecessarily rewrite working code.
+5. Make changes incrementally.
+6. Test after every major stage.
+7. Fix errors before moving forward.
+8. Keep code clean and maintainable.
+9. Never expose secrets.
+10. Never hardcode production academic data.
+11. Do not move to the next stage while major errors remain.
+12. Explain what was implemented after each stage.
+
+---
+
+# 38. FINAL STUDENT EXPERIENCE
+
+A student should be able to:
+
+```text
+Open Nexora
+      ↓
+Choose Branch
+      ↓
+Choose Year
+      ↓
+Choose Semester
+      ↓
+Choose Subject
+      ↓
+Browse Resources
+      ↓
+See ✓ Verified materials
+      ↓
+Click Open PDF
+      ↓
+Google Drive
+```
+
+Example:
+
+```text
+Nexora
+→ CSE
+→ 2nd Year
+→ 3rd Semester
+→ Data Structures
+→ PYQs
+→ Data Structures PYQ 2025
+→ ✓ Verified
+→ Open PDF
+→ Google Drive
+```
+
+---
+
+# 39. FINAL CONTRIBUTOR EXPERIENCE
+
+A student should also be able to:
+
+```text
+Contribute Material
+        ↓
+Select Branch
+        ↓
+Select Year
+        ↓
+Select Semester
+        ↓
+Select Subject
+        ↓
+Select Category
+        ↓
+Enter Title
+        ↓
+Add Google Drive URL
+        ↓
+Submit
+        ↓
+Pending Review
+        ↓
+Admin Reviews
+        ↓
+Approve
+        ↓
+✓ Verified
+        ↓
+Published on Nexora
+```
+
+---
+
+# 40. FINAL ADMIN EXPERIENCE
+
+The admin should be able to manage:
+
+```text
+Branches
+Years
+Semesters
+Subjects
+Resources
+Student Submissions
+Verification
+Featured Resources
+New Resources
+```
+
+without editing source code.
+
+---
+
+# 41. FINAL QUALITY REQUIREMENT
+
+Nexora should NOT look like a basic CRUD application.
+
+It should feel like a real modern education platform that engineering students would want to use regularly.
+
+Prioritize:
+
+**Speed + Simplicity + Organization + Trust + Mobile Experience**
+
+The most important trust feature is the:
+
+> ✓ Verified
+
+badge, indicating that the Nexora admin team has reviewed the material.
+
+The most important architecture principle is:
+
+> **Google Drive stores the files. Supabase stores the metadata. Nexora provides the interface.**
+
+Start by inspecting the current project and implement the application **stage by stage**.
+
+After every stage:
+
+1. Run the application.
+2. Test the implemented functionality.
+3. Fix errors.
+4. Verify existing functionality still works.
+5. Continue only when the stage is stable.
+
+Do not move forward while major errors remain unresolved.

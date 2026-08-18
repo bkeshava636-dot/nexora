@@ -1,0 +1,599 @@
+Based on the completed Nexora Feature Audit, implement ALL missing and partially implemented functionality.
+
+IMPORTANT:
+
+* Do not redesign the existing Nexora UI unnecessarily.
+* Preserve the current visual design and student experience.
+* Do not remove working features.
+* Replace browser-local/mock functionality with proper architecture where required.
+* Do not add unrelated features.
+* Implement the features in the order below.
+* After each phase, run tests and fix errors before continuing.
+
+## PHASE 1 — Dynamic Academic Structure
+
+Implement complete management for:
+
+### Branches
+
+Admin must be able to:
+
+* Add branch
+* Edit branch
+* Delete branch
+* Enable/disable branch
+* Reorder branches
+* Set branch name
+* Set branch short name
+* Set branch description
+
+### Years
+
+Admin must be able to:
+
+* Add year
+* Edit year
+* Delete year
+* Reorder years
+* Associate year with a branch
+
+### Semesters
+
+Admin must be able to:
+
+* Add semester
+* Edit semester
+* Delete semester
+* Reorder semesters
+* Associate semester with the correct year
+
+### Subjects
+
+Admin must be able to:
+
+* Add subject
+* Edit subject
+* Delete subject
+* Set subject name
+* Set subject description
+* Associate subject with the correct semester
+
+The complete hierarchy must be:
+
+Branch → Year → Semester → Subject → Resource
+
+Do NOT hardcode branches, years, semesters, subjects, or resources.
+
+The admin should be able to create a completely new branch without modifying source code.
+
+---
+
+## PHASE 2 — Complete Resource Management
+
+Build a complete admin resource CRUD system.
+
+Admin must be able to:
+
+* Add resource
+* Edit resource
+* Delete resource
+* Search resources
+* Filter resources
+* Select branch
+* Select year
+* Select semester
+* Select subject
+* Select resource type
+* Enter title
+* Enter description
+* Enter Google Drive URL
+* Mark New
+* Mark Featured
+* Mark Verified
+
+Make the selectors dependent:
+
+Branch → available years → available semesters → available subjects
+
+Do not allow inconsistent combinations.
+
+---
+
+## PHASE 3 — Student Contribution Workflow
+
+Improve the existing contribution system.
+
+Submission statuses must be:
+
+* pending
+* under_review
+* approved
+* rejected
+
+Add:
+
+* Admin notes
+* Rejection reason
+* reviewed_at
+* reviewed_by
+
+Student submission fields:
+
+* Branch
+* Year
+* Semester
+* Subject
+* Resource type
+* Title
+* Description
+* Google Drive URL
+* Optional student name
+* Optional student email
+
+Add proper validation using native form validation and application-level validation.
+
+When the branch changes, reset incompatible year/semester/subject selections.
+
+When "Share another" is clicked, properly reset all submission fields.
+
+---
+
+## PHASE 4 — Complete Approval Workflow
+
+Implement the actual workflow:
+
+Student submission
+→ Pending
+→ Under Review
+→ Admin approval
+→ Published resource
+→ Verified
+
+When an admin approves a submission:
+
+1. Change submission status to approved.
+2. Create a corresponding public resource.
+3. Preserve branch/year/semester/subject/resource type/title/description/Google Drive URL.
+4. Mark the resulting resource as verified.
+5. Record reviewed_at.
+6. Record reviewed_by.
+7. Make the resource visible in the student resource library.
+
+When rejected:
+
+1. Change status to rejected.
+2. Store rejection reason.
+3. Store reviewed_at.
+4. Store reviewed_by.
+5. Do NOT create a public resource.
+
+The approved material MUST appear in the public resource library.
+
+---
+
+## PHASE 5 — Submission History
+
+Create an admin submission history view.
+
+Admins should be able to see:
+
+* Pending
+* Under Review
+* Approved
+* Rejected
+
+Show:
+
+* Submission title
+* Branch
+* Year
+* Semester
+* Subject
+* Resource type
+* Contributor
+* Submitted date
+* Status
+* Review date
+* Reviewer
+* Rejection reason if applicable
+
+Students should also have a simple submission status/history page if the current architecture allows it.
+
+---
+
+## PHASE 6 — Search & Filters
+
+Improve the existing search/filter system.
+
+Student search should support:
+
+* Branch
+* Year
+* Semester
+* Subject
+* Resource type
+* Resource title
+* Description
+
+Filters must support:
+
+* Branch
+* Year
+* Semester
+* Subject
+* Resource type
+* Verified
+* New
+* Featured
+
+Filters must be dependent.
+
+Example:
+
+Selecting CSE should only show CSE-related years/subjects.
+
+Selecting 3rd Semester should only show subjects belonging to that semester.
+
+Multiple filters must work together.
+
+---
+
+## PHASE 7 — Student Navigation Improvements
+
+Improve:
+
+Branch
+→ Year
+→ Semester
+→ Subject
+→ Resource
+
+Make years and semesters independently navigable where appropriate.
+
+Add dedicated semester views if needed.
+
+Add a proper Resource Categories section to the homepage.
+
+Improve branch empty states.
+
+Fix the homepage search so it behaves naturally without requiring unnecessary interaction.
+
+Fix the "Recently Added" dates so they accurately represent the actual resource dates.
+
+Do not display misleading text such as "Updated this week" for old demo resources.
+
+---
+
+## PHASE 8 — Google Drive Validation
+
+Improve Google Drive URL validation.
+
+Do not simply check whether the string contains:
+
+drive.google.com
+
+Validate the URL structure more carefully.
+
+Handle:
+
+* Empty URL
+* Invalid URL
+* Non-Google-Drive URL
+* Malformed Google Drive URL
+
+Do not attempt to download or scrape Google Drive files.
+
+The application should only store/open the URL.
+
+---
+
+## PHASE 9 — Admin Authentication
+
+Implement proper admin authentication.
+
+Admins must:
+
+* Login
+* Logout
+* Have an authenticated session
+* Access protected admin routes only
+
+Students/public visitors must:
+
+* Browse resources without logging in
+* NOT access admin functionality
+* NOT modify resources
+* NOT delete resources
+* NOT approve submissions
+* NOT reject submissions
+* NOT mark resources verified
+
+Do not use the current visual "Admin view" as authentication.
+
+Use real authentication.
+
+---
+
+## PHASE 10 — Database Integration
+
+After the above functionality is implemented, migrate the application from browser-local state/mock data to Supabase PostgreSQL.
+
+Create proper tables for:
+
+### branches
+
+id
+name
+short_name
+description
+display_order
+is_active
+created_at
+updated_at
+
+### years
+
+id
+branch_id
+name
+display_order
+created_at
+updated_at
+
+### semesters
+
+id
+year_id
+name
+display_order
+created_at
+updated_at
+
+### subjects
+
+id
+semester_id
+name
+description
+created_at
+updated_at
+
+### resources
+
+id
+subject_id
+title
+description
+resource_type
+google_drive_url
+is_new
+is_featured
+is_verified
+verified_at
+verified_by
+created_at
+updated_at
+
+### submissions
+
+id
+branch_id
+year_id
+semester_id
+subject_id
+resource_type
+title
+description
+google_drive_url
+student_name
+student_email
+status
+admin_note
+rejection_reason
+submitted_at
+reviewed_at
+reviewed_by
+
+Use proper foreign keys and indexes.
+
+Do not store PDFs in Supabase Storage.
+
+Google Drive remains the file storage.
+
+---
+
+## PHASE 11 — Security / RLS
+
+Implement proper Row Level Security.
+
+Public students:
+
+* Can read published resources
+* Can read active branches/years/semesters/subjects
+* Can submit materials according to the submission policy
+
+Admins:
+
+* Can manage academic structure
+* Can manage resources
+* Can review submissions
+* Can approve/reject
+* Can verify resources
+
+Pending and rejected submissions must not be publicly readable.
+
+Admin-only operations must be protected server-side/database-side, not just hidden in the UI.
+
+Never expose a Supabase service-role key in frontend code.
+
+---
+
+## PHASE 12 — Replace Mock Data
+
+Remove production dependency on:
+
+* src/data.ts
+* browser-local resource storage
+* browser-local submission storage
+* static branch data
+* static resource data
+* static submission data
+* fake dashboard counts
+
+All production data must come from the database.
+
+The current UI should continue to look and behave similarly, but the data must now be persistent and shared.
+
+---
+
+## PHASE 13 — Admin Dashboard
+
+Make the dashboard metrics real.
+
+Display actual:
+
+* Total resources
+* Verified resources
+* Pending submissions
+* Branch count
+* Subject count
+* Recent resources
+
+Do not use hardcoded numbers.
+
+Make branch/resource/subject counts dynamic.
+
+---
+
+## PHASE 14 — Accessibility & Responsive Fixes
+
+Fix the issues identified in the audit:
+
+* Mobile menu `aria-expanded`
+* Mobile menu `aria-controls`
+* Keyboard navigation
+* Escape-to-close
+* Focus management
+* Return focus to menu trigger
+* External-link accessibility announcement
+* Long title/email overflow
+* Long table/row overflow
+* Proper form semantics
+* Native required fields
+* Loading states
+* Reduced-motion support
+* Better focus states
+* Contrast improvements
+
+Test:
+
+* 360px
+* 390px
+* Tablet
+* Desktop
+
+---
+
+## PHASE 15 — Final Testing
+
+After implementation, test the complete system.
+
+### Student
+
+* Browse branch
+* Browse year
+* Browse semester
+* Browse subject
+* Open resource
+* Search
+* Filter
+* Open Google Drive
+* Submit material
+* View submission status
+
+### Admin
+
+* Login
+* Logout
+* Add branch
+* Edit branch
+* Delete branch
+* Enable/disable branch
+* Add year
+* Edit year
+* Delete year
+* Add semester
+* Edit semester
+* Delete semester
+* Add subject
+* Edit subject
+* Delete subject
+* Add resource
+* Edit resource
+* Delete resource
+* Mark New
+* Mark Featured
+* Mark Verified
+* Review submission
+* Approve submission
+* Reject submission
+* Add rejection reason
+* View history
+
+### Security
+
+Verify that:
+
+* Logged-out users cannot access admin routes.
+* Students cannot perform admin actions.
+* Students cannot mark resources verified.
+* Students cannot approve submissions.
+* Students cannot access private submissions.
+* Admin actions are protected by real authorization.
+* Supabase RLS policies work.
+
+### Persistence
+
+Verify:
+
+1. Add a resource.
+2. Refresh the page.
+3. Resource still exists.
+4. Open the website in another browser.
+5. Resource is visible there.
+6. Submit a material.
+7. Log in as admin.
+8. Approve it.
+9. Open the student website.
+10. Confirm the approved material appears.
+
+---
+
+## IMPORTANT
+
+Do not simply create UI controls that appear to work.
+
+Every admin action must actually modify persistent data.
+
+Do not use browser-local state as the production data source.
+
+Do not leave mock/demo data connected after Supabase integration.
+
+Do not expose admin functionality through client-side-only checks.
+
+Do not add unrelated features.
+
+Preserve the existing Nexora design wherever possible.
+
+After completing the implementation, provide a report containing:
+
+1. Features implemented
+2. Features still missing
+3. Database tables created
+4. Authentication status
+5. RLS/security status
+6. Tests performed
+7. Any remaining errors
+8. Whether Nexora is ready for production
+
+Only consider a feature "complete" if it works end-to-end and persists correctly.
