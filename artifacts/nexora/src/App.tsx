@@ -472,7 +472,7 @@ function CatalogRow({ label, sublabel, active, onSelect, onMoveUp, onMoveDown, o
 
 function BranchManager({ branches, selectedId, onSelect }: { branches: Branch[]; selectedId?: number; onSelect: (id: number) => void }) {
   const qc = useQueryClient();
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["listBranches"] });
+  const invalidate = () => qc.invalidateQueries();
   const create = useCreateBranch({ mutation: { onSuccess: invalidate } });
   const update = useUpdateBranch({ mutation: { onSuccess: invalidate } });
   const remove = useDeleteBranch({ mutation: { onSuccess: invalidate } });
