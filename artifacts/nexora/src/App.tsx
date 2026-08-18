@@ -186,8 +186,8 @@ function Home() {
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-7 sm:py-12 lg:py-16">
       <section className="soft-grid relative overflow-hidden rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card)/.7)] px-5 py-10 sm:px-10 sm:py-14 lg:px-16">
         <div className="relative max-w-2xl fade-up"><div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1.5 text-xs font-bold text-[hsl(var(--accent-foreground))]"><span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--secondary))]" /> Your way through engineering</div>
-          <h1 className="display-font max-w-xl text-4xl font-bold leading-[1.05] tracking-[-.06em] sm:text-6xl">Find the right file.<br /><span className="text-[hsl(var(--accent-foreground))]">Keep moving.</span></h1>
-          <p className="mt-5 max-w-lg text-base leading-7 text-[hsl(var(--muted-foreground))] sm:text-lg">Notes, papers, lab manuals, and assignments — organized by the way your semester actually works.</p>
+          <h1 className="display-font max-w-xl text-4xl font-bold leading-[1.05] tracking-[-.06em] sm:text-6xl">Find the right Resource.<br /><span className="text-[hsl(var(--accent-foreground))]">Keep moving.</span></h1>
+          <p className="mt-5 max-w-lg text-base leading-7 text-[hsl(var(--muted-foreground))] sm:text-lg">Notes, PYQs, and study materials — organized for your semester.</p>
           <div className="mt-8 max-w-xl"><SearchBox /></div>
         </div>
         <div className="absolute -right-8 -top-8 hidden h-64 w-64 rounded-full border-[18px] border-[hsl(var(--secondary)/.26)] sm:block lg:h-80 lg:w-80" /><div className="absolute right-20 top-20 hidden h-20 w-20 rounded-full bg-[hsl(var(--accent)/.8)] sm:block" />
