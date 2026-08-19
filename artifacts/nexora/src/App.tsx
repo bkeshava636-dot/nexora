@@ -12,6 +12,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { MutationCache, QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import {
+  getListBranchesQueryKey,
+  getListSemestersQueryKey,
+  getListSubjectsQueryKey,
+  getListYearsQueryKey,
   useApproveSubmission,
   useCreateBranch,
   useCreateSemester,
@@ -472,7 +476,7 @@ function CatalogRow({ label, sublabel, active, onSelect, onMoveUp, onMoveDown, o
 
 function BranchManager({ branches, selectedId, onSelect }: { branches: Branch[]; selectedId?: number; onSelect: (id: number) => void }) {
   const qc = useQueryClient();
-  const invalidate = () => qc.invalidateQueries();
+  const invalidate = () => qc.invalidateQueries({ queryKey: getListBranchesQueryKey() });
   const create = useCreateBranch({ mutation: { onSuccess: invalidate } });
   const update = useUpdateBranch({ mutation: { onSuccess: invalidate } });
   const remove = useDeleteBranch({ mutation: { onSuccess: invalidate } });
@@ -503,7 +507,7 @@ function BranchManager({ branches, selectedId, onSelect }: { branches: Branch[];
 
 function YearManager({ branchId, years, selectedId, onSelect }: { branchId: number; years: Year[]; selectedId?: number; onSelect: (id: number) => void }) {
   const qc = useQueryClient();
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["listYears"] });
+  const invalidate = () => qc.invalidateQueries({ queryKey: getListYearsQueryKey() });
   const create = useCreateYear({ mutation: { onSuccess: invalidate } });
   const update = useUpdateYear({ mutation: { onSuccess: invalidate } });
   const remove = useDeleteYear({ mutation: { onSuccess: invalidate } });
@@ -529,7 +533,7 @@ function YearManager({ branchId, years, selectedId, onSelect }: { branchId: numb
 
 function SemesterManager({ yearId, semesters, selectedId, onSelect }: { yearId: number; semesters: Semester[]; selectedId?: number; onSelect: (id: number) => void }) {
   const qc = useQueryClient();
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["listSemesters"] });
+  const invalidate = () => qc.invalidateQueries({ queryKey: getListSemestersQueryKey() });
   const create = useCreateSemester({ mutation: { onSuccess: invalidate } });
   const update = useUpdateSemester({ mutation: { onSuccess: invalidate } });
   const remove = useDeleteSemester({ mutation: { onSuccess: invalidate } });
@@ -562,7 +566,7 @@ function SubjectManager({ branch, year, semesters, semesterId, onSelectSemester 
 }) {
   const { data: subjects = [] } = useListSubjects({ semesterId });
   const qc = useQueryClient();
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["listSubjects"] });
+  const invalidate = () => qc.invalidateQueries({ queryKey: getListSubjectsQueryKey() });
   const create = useCreateSubject({ mutation: { onSuccess: invalidate } });
   const update = useUpdateSubject({ mutation: { onSuccess: invalidate } });
   const remove = useDeleteSubject({ mutation: { onSuccess: invalidate } });
