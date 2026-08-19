@@ -6,6 +6,7 @@ import {
   LayoutDashboard, LibraryBig, Link2, Loader2, Lock, LogOut, Menu, MoreHorizontal, Plus, Search, Send, ShieldCheck,
   SlidersHorizontal, Sparkles, Trash2, Upload, Users, X,
 } from "lucide-react";
+import { ApiWakeOverlay } from "@/components/api-wake-overlay";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -647,7 +648,7 @@ function AppRouter() {
 }
 
 function App() {
-  return <QueryClientProvider client={queryClient}><AuthProvider><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}><Shell><AppRouter /></Shell></WouterRouter><Toaster /></TooltipProvider></AuthProvider></QueryClientProvider>;
+  return <QueryClientProvider client={queryClient}><AuthProvider><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}><Shell><AppRouter /></Shell></WouterRouter><ApiWakeOverlay /><Toaster /></TooltipProvider></AuthProvider></QueryClientProvider>;
 }
 
 export default App;
