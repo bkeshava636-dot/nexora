@@ -1,4 +1,4 @@
-﻿import { useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { CheckCircle2, CircleAlert, Heart, Loader2, X } from "lucide-react";
 import {
   Dialog,
@@ -85,6 +85,27 @@ const PRESET_AMOUNTS = [50, 100, 200];
 const MIN_AMOUNT = 1;
 const MAX_AMOUNT = 100000;
 
+function CuteBatmanIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      {/* Cute chibi Batman cowl */}
+      <path
+        d="M4.5 4L7.8 9.2C9 8.5 10.4 8 12 8C13.6 8 15 8.5 16.2 9.2L19.5 4L18.8 11.5C20.2 13.2 21 15.4 21 17.8C21 20.8 17 22 12 22C7 22 3 20.8 3 17.8C3 15.4 3.8 13.2 5.2 11.5L4.5 4Z"
+        fill="currentColor"
+      />
+      {/* Friendly white eye slits */}
+      <ellipse cx="8.5" cy="14" rx="2" ry="1.2" transform="rotate(-15 8.5 14)" fill="#FFFFFF" />
+      <ellipse cx="15.5" cy="14" rx="2" ry="1.2" transform="rotate(15 15.5 14)" fill="#FFFFFF" />
+    </svg>
+  );
+}
+
 export function BuyMePaneerFooter() {
   const [open, setOpen] = useState(false);
 
@@ -105,6 +126,23 @@ export function BuyMePaneerFooter() {
             >
               <span role="img" aria-label="cheese">🧀</span> Buy Me Paneer
             </button>
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-[hsl(var(--border)/.3)] flex items-center justify-center gap-1.5 text-xs text-[hsl(var(--muted-foreground))]">
+            <span>Founded by</span>
+            <a
+              href="https://www.instagram.com/keshava_5/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="focus-ring inline-flex items-center gap-1.5 font-semibold text-[hsl(var(--foreground))] rounded-md px-1.5 py-0.5 transition-colors hover:text-[hsl(var(--secondary))] group"
+              aria-label="Visit Keshava on Instagram"
+              data-testid="link-founder-instagram"
+            >
+              <span>Keshava</span>
+              <span className="inline-flex items-center justify-center text-[hsl(var(--foreground))] transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-6 group-hover:text-[hsl(var(--secondary))]">
+                <CuteBatmanIcon className="h-4 w-4" />
+              </span>
+            </a>
           </div>
         </div>
       </footer>
