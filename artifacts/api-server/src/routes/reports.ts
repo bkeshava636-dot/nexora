@@ -44,13 +44,13 @@ router.post("/reports", async (req, res) => {
     return;
   }
 
-  const [resource] = await db.select().from(resources).where(eq(resources.id, idNum));
-  if (!resource) {
-    res.status(404).json({ error: "not_found", message: "Resource not found." });
-    return;
-  }
-
   try {
+    const [resource] = await db.select().from(resources).where(eq(resources.id, idNum));
+    if (!resource) {
+      res.status(404).json({ error: "not_found", message: "Resource not found." });
+      return;
+    }
+
     const [created] = await db
       .insert(reports)
       .values({
@@ -63,33 +63,47 @@ router.post("/reports", async (req, res) => {
 
     res.status(201).json(created);
   } catch (err) {
-    if (!handleDbError(err, res)) throw err;
+    if (!handleDbError(err, res)) {
+      res.status(500).json({ error: "internal_error", message: "Failed to submit report." });
+    }
   }
 });
 
 router.get("/reports", requireAdmin, async (req, res) => {
-  const status = typeof req.query["status"] === "string" ? req.query["status"] : undefined;
+  try {
+    const status = typeof req.query["status"] === "string" ? req.query["status"] : undefined;
 
-  const rows = await db
-    .select({
-      id: reports.id,
-      resourceId: reports.resourceId,
-      reason: reports.reason,
-      explanation: reports.explanation,
-      status: reports.status,
-      createdAt: reports.createdAt,
-      resolvedAt: reports.resolvedAt,
-      resolvedBy: reports.resolvedBy,
-      resourceTitle: resources.title,
-      resourceType: resources.resourceType,
-      googleDriveUrl: resources.googleDriveUrl,
-    })
-    .from(reports)
-    .leftJoin(resources, eq(reports.resourceId, resources.id))
-    .where(status && status !== "all" ? eq(reports.status, status) : undefined)
-    .orderBy(desc(reports.createdAt));
+    const rows = await db
+      .select({
+        id: reports.id,
+        resourceId: reports.resourceId,
+        reason: reports.reason,
+        explanation: reports.explanation,
+        status: reports.status,
+        createdAt: reports.createdAt,
+        resolvedAt: reports.resolvedAt,
+        resolvedBy: reports.resolvedBy,
+        resourceTitle: resources.title,
+        resourceType: resources.resourceType,
+        googleDriveUrl: resources.googleDriveUrl,
+      })
+      .from(reports)
+      .leftJoin(resources, eq(reports.resourceId, resources.id))
+      .where(status && status !== "all" ? eq(reports.status, status) : undefined)
+      .orderBy(desc(reports.createdAt));
 
-  res.json(rows);
+    res.json(rows);
+  } catch (err: unknown) {
+    const pgError = (err as { cause?: { code?: string }; code?: string })?.cause || (err as { code?: string });
+    if (pgError?.code === "42P01") {
+      // 42P01: relation/table does not exist in the database
+      res.json([]);
+      return;
+    }
+    if (!handleDbError(err, res)) {
+      res.status(500).json({ error: "internal_error", message: "Failed to fetch reports." });
+    }
+  }
 });
 
 router.post("/reports/:id/resolve", requireAdmin, async (req, res) => {

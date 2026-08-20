@@ -1,8 +1,8 @@
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Link, Redirect, Route, Switch, Router as WouterRouter, useLocation, useParams } from "wouter";
 import {
-  ArrowLeft, ArrowRight, BarChart3, BadgeCheck, BookOpen, Check, CheckCircle2, ChevronDown, ChevronRight,
-  CircleAlert, Clock3, ExternalLink, Eye, EyeOff, FileText, Filter, Flag, FolderOpen, GraduationCap, KeyRound, Layers3,
+  ArrowLeft, ArrowRight, BarChart3, BadgeCheck, BookOpen, Calendar, Check, CheckCircle2, ChevronDown, ChevronRight,
+  CircleAlert, Clock3, ExternalLink, Eye, EyeOff, FileText, Filter, Flag, FolderOpen, GitBranch, GraduationCap, KeyRound, Layers3,
   LayoutDashboard, LibraryBig, Link2, Loader2, Lock, LogOut, Menu, MoreHorizontal, Pencil, Plus, RotateCcw, Search, Send, ShieldCheck,
   SlidersHorizontal, Sparkles, Trash2, Upload, Users, X,
 } from "lucide-react";
@@ -631,25 +631,39 @@ function Home() {
         <section className="soft-grid relative overflow-hidden rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card)/.7)] px-5 py-10 sm:px-10 sm:py-14 lg:px-16">
           <div className="relative max-w-2xl fade-up">
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1.5 text-xs font-bold text-[hsl(var(--accent-foreground))]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--secondary))]" /> Your way through engineering
+              Nexora
             </div>
             <h1 className="display-font max-w-xl text-4xl font-bold leading-[1.05] tracking-[-.06em] sm:text-6xl">
-              Find the right Resource.<br />
-              <span className="text-[hsl(var(--accent-foreground))]">Keep moving.</span>
+              Your BITM academic resource hub.
             </h1>
             <p className="mt-5 max-w-lg text-base leading-7 text-[hsl(var(--muted-foreground))] sm:text-lg">
-              Notes, PYQs, and study materials — organized for your semester.
+              Find notes, PYQs, study materials and other academic resources in one place.
             </p>
-            <div className="mt-8 max-w-xl"><SearchBox /></div>
+            <div className="mt-8 max-w-xl flex flex-col gap-4">
+              <SearchBox />
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <Link href="/resources" className="focus-ring inline-flex h-11 items-center justify-center rounded-xl bg-[hsl(var(--primary))] px-6 text-sm font-bold text-[hsl(var(--primary-foreground))] shadow-sm transition-colors hover:bg-[hsl(var(--primary)/.9)]">
+                  Explore Resources
+                </Link>
+                <Link href="/contribute" className="focus-ring inline-flex h-11 items-center justify-center rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-6 text-sm font-bold text-[hsl(var(--foreground))] shadow-sm transition-colors hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]">
+                  Contribute
+                </Link>
+              </div>
+            </div>
           </div>
           <div className="absolute -right-8 -top-8 hidden h-64 w-64 rounded-full border-[18px] border-[hsl(var(--secondary)/.26)] sm:block lg:h-80 lg:w-80" />
           <div className="absolute right-20 top-20 hidden h-20 w-20 rounded-full bg-[hsl(var(--accent)/.8)] sm:block" />
         </section>
 
         <section className="mt-12 fade-up fade-up-delay-1">
+          <SectionHeading eyebrow="Quick Access" title="Explore by category" />
+          <CatalogQuickAccess />
+        </section>
+
+        <section className="mt-12 fade-up fade-up-delay-1">
           <SectionHeading
             eyebrow="Start with your path"
-            title="What are you studying?"
+            title="All Branches"
             action={
               <Link
                 href="/resources"
@@ -679,7 +693,7 @@ function Home() {
         )}
 
         {(isLoading || recentlyAdded.length > 0) && (
-          <section className="mt-12 pb-10 fade-up fade-up-delay-2" data-testid="section-recently-added">
+          <section className="mt-12 fade-up fade-up-delay-2" data-testid="section-recently-added">
             <SectionHeading
               eyebrow="Latest resources added to Nexora"
               title="Recently Added"
@@ -704,7 +718,77 @@ function Home() {
             )}
           </section>
         )}
+
+        <section className="mt-16 mb-8 rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-6 py-12 text-center shadow-sm sm:px-12 sm:py-16 fade-up fade-up-delay-3">
+          <div className="mx-auto max-w-2xl">
+            <h2 className="display-font text-3xl font-bold tracking-[-.04em] sm:text-4xl">Contribute to Nexora</h2>
+            <p className="mt-4 text-base leading-7 text-[hsl(var(--muted-foreground))] sm:text-lg">
+              Have useful study material? Share it with your batch and help build the Nexora library.
+            </p>
+            <div className="mt-8 flex justify-center">
+              <Link href="/contribute" className="focus-ring inline-flex h-12 items-center justify-center rounded-xl bg-[hsl(var(--primary))] px-8 text-sm font-bold text-[hsl(var(--primary-foreground))] shadow-sm transition-colors hover:bg-[hsl(var(--primary)/.9)]">
+                Contribute a Resource
+              </Link>
+            </div>
+          </div>
+        </section>
       </div>
+    </div>
+  );
+}
+
+function CatalogQuickAccess() {
+  const { data: branches = [] } = useListBranches();
+  const { data: years = [] } = useListYears();
+  const { data: semesters = [] } = useListSemesters();
+  const { data: resources = [], isLoading } = useListResources();
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {[0,1,2,3].map(i => <div key={i} className="h-36 animate-pulse rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)]" />)}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <Link href="/resources" className="card-lift focus-ring group flex flex-col items-center justify-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 text-center shadow-sm">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[hsl(var(--primary)/.1)] text-[hsl(var(--primary))] transition-transform group-hover:scale-110">
+          <BookOpen size={24} />
+        </div>
+        <div>
+          <div className="font-bold text-[hsl(var(--foreground))]">Resources</div>
+          <div className="text-xs font-medium text-[hsl(var(--muted-foreground))]">{resources.length} available</div>
+        </div>
+      </Link>
+      <Link href="/resources" className="card-lift focus-ring group flex flex-col items-center justify-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 text-center shadow-sm">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[hsl(var(--secondary)/.1)] text-[hsl(var(--secondary))] transition-transform group-hover:scale-110">
+          <GitBranch size={24} />
+        </div>
+        <div>
+          <div className="font-bold text-[hsl(var(--foreground))]">Branches</div>
+          <div className="text-xs font-medium text-[hsl(var(--muted-foreground))]">{branches.length} available</div>
+        </div>
+      </Link>
+      <Link href="/resources" className="card-lift focus-ring group flex flex-col items-center justify-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 text-center shadow-sm">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[hsl(var(--accent)/.1)] text-[hsl(var(--accent-foreground))] transition-transform group-hover:scale-110">
+          <Calendar size={24} />
+        </div>
+        <div>
+          <div className="font-bold text-[hsl(var(--foreground))]">Years</div>
+          <div className="text-xs font-medium text-[hsl(var(--muted-foreground))]">{years.length} available</div>
+        </div>
+      </Link>
+      <Link href="/resources" className="card-lift focus-ring group flex flex-col items-center justify-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 text-center shadow-sm">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] transition-transform group-hover:scale-110">
+          <Layers3 size={24} />
+        </div>
+        <div>
+          <div className="font-bold text-[hsl(var(--foreground))]">Semesters</div>
+          <div className="text-xs font-medium text-[hsl(var(--muted-foreground))]">{semesters.length} available</div>
+        </div>
+      </Link>
     </div>
   );
 }
@@ -2093,25 +2177,27 @@ function AdminOverview() {
               </h2>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
-              <Metric icon={GraduationCap} label="Branches" value={branches.length} detail="Academic branches" testId="metric-branches" />
-              <Metric icon={Layers3} label="Years" value={years.length} detail="Year cohorts" testId="metric-years" />
-              <Metric icon={FolderOpen} label="Semesters" value={semesters.length} detail="Semesters" testId="metric-semesters" />
-              <Metric icon={BookOpen} label="Subjects" value={subjects.length} detail="Total subjects" testId="metric-subjects" />
-              <Metric icon={LibraryBig} label="Resources" value={resources.length} detail="Published" testId="metric-resources" />
+              <Metric icon={GraduationCap} label="Branches" value={branches.length} detail={branchesQuery.isError ? "Error loading" : "Academic branches"} isError={branchesQuery.isError} testId="metric-branches" />
+              <Metric icon={Layers3} label="Years" value={years.length} detail={yearsQuery.isError ? "Error loading" : "Year cohorts"} isError={yearsQuery.isError} testId="metric-years" />
+              <Metric icon={FolderOpen} label="Semesters" value={semesters.length} detail={semestersQuery.isError ? "Error loading" : "Semesters"} isError={semestersQuery.isError} testId="metric-semesters" />
+              <Metric icon={BookOpen} label="Subjects" value={subjects.length} detail={subjectsQuery.isError ? "Error loading" : "Total subjects"} isError={subjectsQuery.isError} testId="metric-subjects" />
+              <Metric icon={LibraryBig} label="Resources" value={resources.length} detail={resourcesQuery.isError ? "Error loading" : "Published"} isError={resourcesQuery.isError} testId="metric-resources" />
               <Metric
                 icon={Clock3}
                 label="Pending Submissions"
                 value={pendingSubmissions.length}
-                detail={pendingSubmissions.length ? "Needs review" : "All clear"}
+                detail={submissionsQuery.isError ? "Error loading" : pendingSubmissions.length ? "Needs review" : "All clear"}
                 warm={pendingSubmissions.length > 0}
+                isError={submissionsQuery.isError}
                 testId="metric-pending-submissions"
               />
               <Metric
                 icon={Flag}
                 label="Reports"
                 value={pendingReports.length}
-                detail={pendingReports.length ? "Needs attention" : "All clear"}
+                detail={reportsQuery.isError ? "Error loading" : pendingReports.length ? "Needs attention" : "All clear"}
                 warm={pendingReports.length > 0}
+                isError={reportsQuery.isError}
                 testId="metric-pending-reports"
               />
             </div>
@@ -2446,6 +2532,7 @@ function Metric({
   detail,
   warm,
   testId,
+  isError,
 }: {
   icon: typeof LibraryBig;
   label: string;
@@ -2453,20 +2540,25 @@ function Metric({
   detail: string;
   warm?: boolean;
   testId?: string;
+  isError?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3.5 sm:p-4" data-testid={testId}>
+    <div className={`rounded-2xl border bg-[hsl(var(--card))] p-3.5 sm:p-4 ${isError ? "border-[hsl(var(--destructive)/.4)]" : "border-[hsl(var(--border))]"}`} data-testid={testId}>
       <div
         className={`flex h-8 w-8 items-center justify-center rounded-xl sm:h-9 sm:w-9 ${
-          warm ? "bg-[hsl(var(--secondary)/.3)] text-[hsl(var(--secondary-foreground))]" : "bg-[hsl(var(--muted))] text-[hsl(var(--primary))]"
+          isError ? "bg-[hsl(var(--destructive)/.15)] text-[hsl(var(--destructive))]" : warm ? "bg-[hsl(var(--secondary)/.3)] text-[hsl(var(--secondary-foreground))]" : "bg-[hsl(var(--muted))] text-[hsl(var(--primary))]"
         }`}
       >
         <Icon size={16} />
       </div>
       <p className="mt-3 truncate text-xs font-semibold text-[hsl(var(--muted-foreground))]">{label}</p>
       <div className="mt-1 flex items-baseline justify-between gap-1">
-        <p className="display-font text-2xl font-bold sm:text-3xl">{value}</p>
-        <span className="truncate text-[10px] font-bold text-[hsl(var(--accent-foreground))]">{detail}</span>
+        <p className={`display-font text-2xl font-bold sm:text-3xl ${isError ? "text-[hsl(var(--destructive))]" : ""}`}>
+          {isError ? "—" : value}
+        </p>
+        <span className={`truncate text-[10px] font-bold ${isError ? "text-[hsl(var(--destructive))]" : "text-[hsl(var(--accent-foreground))]"}`}>
+          {detail}
+        </span>
       </div>
     </div>
   );
