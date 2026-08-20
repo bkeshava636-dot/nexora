@@ -59,6 +59,33 @@ import { formatDate } from "./data";
 import { googleDriveUrlHint, isValidGoogleDriveUrl } from "./lib/google-drive";
 import { AuthProvider, useAuth } from "./lib/auth-context";
 
+function getErrorMessage(error: unknown): string {
+  if (error && typeof error === "object") {
+    const errObj = error as Record<string, unknown>;
+    const status = typeof errObj.status === "number" ? errObj.status : 0;
+    if (status >= 500) {
+      return "Something went wrong. Please try again.";
+    }
+    const data = errObj.data;
+    if (data && typeof data === "object") {
+      const dataObj = data as Record<string, unknown>;
+      if (typeof dataObj.message === "string" && dataObj.message.trim()) {
+        const msg = dataObj.message.trim();
+        if (!msg.startsWith("[") && !msg.startsWith("{") && !msg.includes("Internal Server Error")) {
+          return msg;
+        }
+      }
+    }
+    if (status === 409) return "A record with these values already exists.";
+    if (status === 404) return "The requested item could not be found.";
+    if (status === 401 || status === 403) return "You do not have permission to perform this action.";
+    if (status === 400 && typeof errObj.message === "string" && !errObj.message.includes("HTTP")) {
+      return errObj.message;
+    }
+  }
+  return "Something went wrong. Please try again.";
+}
+
 const queryClient = new QueryClient({
   mutationCache: new MutationCache({
     // Global feedback for every mutation (create/update/delete/reorder,
@@ -68,7 +95,7 @@ const queryClient = new QueryClient({
       // Login failures already get an inline message on the login form —
       // avoid double-reporting the same error via a toast too.
       if (mutation.options.mutationKey?.[0] === "login") return;
-      const message = error instanceof Error ? error.message : "Something went wrong. Please try again.";
+      const message = getErrorMessage(error);
       toast({ variant: "destructive", title: "That didn't go through", description: message });
     },
   }),
@@ -457,34 +484,36 @@ function CatalogPanel({ title, subtitle, children, addForm }: { title: string; s
 }
 
 function AddRow({ children, onSubmit, pending, testId }: { children: ReactNode; onSubmit: () => void; pending: boolean; testId: string }) {
-  return <form onSubmit={(e) => { e.preventDefault(); onSubmit(); }} className="mt-3 flex flex-wrap items-end gap-2 border-t border-[hsl(var(--border))] pt-3">
+  return <form onSubmit={(e) => { e.preventDefault(); if (!pending) onSubmit(); }} className="mt-3 flex flex-wrap items-end gap-2 border-t border-[hsl(var(--border))] pt-3">
     {children}
     <button type="submit" disabled={pending} className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-[hsl(var(--primary))] px-3 py-2 text-xs font-bold text-[hsl(var(--primary-foreground))] disabled:opacity-60" data-testid={testId}>{pending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Add</button>
   </form>;
 }
 
-function CatalogRow({ label, sublabel, active, onSelect, onMoveUp, onMoveDown, onEdit, onDelete, extra }: {
+function CatalogRow({ label, sublabel, active, onSelect, onMoveUp, onMoveDown, onEdit, onDelete, extra, isEditing = false, isDeleting = false, isMoving = false, disabled = false }: {
   label: string; sublabel?: string; active?: boolean; onSelect?: () => void; onMoveUp?: () => void; onMoveDown?: () => void; onEdit: () => void; onDelete: () => void; extra?: ReactNode;
+  isEditing?: boolean; isDeleting?: boolean; isMoving?: boolean; disabled?: boolean;
 }) {
   return <div className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm ${active ? "border-[hsl(var(--accent-foreground))] bg-[hsl(var(--accent))]" : "border-[hsl(var(--border))] bg-[hsl(var(--card)/.6)]"}`}>
-    {(onMoveUp || onMoveDown) && <div className="flex shrink-0 flex-col"><button type="button" onClick={onMoveUp} className="focus-ring text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" aria-label={`Move ${label} up`}><ChevronDown size={12} className="rotate-180" /></button><button type="button" onClick={onMoveDown} className="focus-ring text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]" aria-label={`Move ${label} down`}><ChevronDown size={12} /></button></div>}
+    {(onMoveUp || onMoveDown) && <div className="flex shrink-0 flex-col"><button type="button" disabled={disabled || isMoving} onClick={onMoveUp} className="focus-ring text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] disabled:opacity-40" aria-label={`Move ${label} up`}>{isMoving ? <Loader2 size={12} className="animate-spin" /> : <ChevronDown size={12} className="rotate-180" />}</button><button type="button" disabled={disabled || isMoving} onClick={onMoveDown} className="focus-ring text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] disabled:opacity-40" aria-label={`Move ${label} down`}>{isMoving ? <Loader2 size={12} className="animate-spin" /> : <ChevronDown size={12} />}</button></div>}
     <button type="button" onClick={onSelect} className="focus-ring flex-1 truncate text-left font-semibold" data-testid={`button-select-${label.toLowerCase().replaceAll(/\s+/g, "-")}`}>{label}{sublabel && <span className="ml-2 text-[11px] font-normal text-[hsl(var(--muted-foreground))]">{sublabel}</span>}</button>
     {extra}
-    <button type="button" onClick={onEdit} className="focus-ring shrink-0 rounded-lg p-1.5 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]" aria-label={`Edit ${label}`}><SlidersHorizontal size={14} /></button>
-    <button type="button" onClick={onDelete} className="focus-ring shrink-0 rounded-lg p-1.5 text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive)/.1)]" aria-label={`Delete ${label}`}><Trash2 size={14} /></button>
+    <button type="button" disabled={disabled || isEditing || isDeleting} onClick={onEdit} className="focus-ring shrink-0 rounded-lg p-1.5 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] disabled:opacity-50" aria-label={`Edit ${label}`}>{isEditing ? <Loader2 size={14} className="animate-spin" /> : <SlidersHorizontal size={14} />}</button>
+    <button type="button" disabled={disabled || isDeleting || isEditing} onClick={onDelete} className="focus-ring shrink-0 rounded-lg p-1.5 text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive)/.1)] disabled:opacity-50" aria-label={`Delete ${label}`}>{isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}</button>
   </div>;
 }
 
 function BranchManager({ branches, selectedId, onSelect }: { branches: Branch[]; selectedId?: number; onSelect: (id: number) => void }) {
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: getListBranchesQueryKey() });
-  const create = useCreateBranch({ mutation: { onSuccess: invalidate } });
-  const update = useUpdateBranch({ mutation: { onSuccess: invalidate } });
-  const remove = useDeleteBranch({ mutation: { onSuccess: invalidate } });
-  const reorder = useReorderBranches({ mutation: { onSuccess: invalidate } });
+  const create = useCreateBranch({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Branch added" }); } } });
+  const update = useUpdateBranch({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Branch updated" }); } } });
+  const remove = useDeleteBranch({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Branch deleted" }); } } });
+  const reorder = useReorderBranches({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Branch order updated" }); } } });
   const [name, setName] = useState(""); const [shortName, setShortName] = useState("");
 
   const move = (branch: Branch, direction: -1 | 1) => {
+    if (reorder.isPending) return;
     const sorted = [...branches].sort((a, b) => a.displayOrder - b.displayOrder);
     const idx = sorted.findIndex((b) => b.id === branch.id);
     const swapWith = sorted[idx + direction];
@@ -492,69 +521,160 @@ function BranchManager({ branches, selectedId, onSelect }: { branches: Branch[];
     reorder.mutate({ data: { order: [{ id: branch.id, displayOrder: swapWith.displayOrder }, { id: swapWith.id, displayOrder: branch.displayOrder }] } });
   };
   const edit = (branch: Branch) => {
+    if (update.isPending || remove.isPending) return;
     const newName = window.prompt("Branch name", branch.name); if (newName === null) return;
     const newShort = window.prompt("Short name", branch.shortName); if (newShort === null) return;
     update.mutate({ id: branch.id, data: { name: newName, shortName: newShort } });
   };
 
-  return <CatalogPanel title="Branches" subtitle="The top level of the academic path." addForm={<AddRow pending={create.isPending} testId="button-add-branch" onSubmit={() => { if (!name.trim() || !shortName.trim()) return; create.mutate({ data: { name, shortName, displayOrder: branches.length } }); setName(""); setShortName(""); }}>
+  return <CatalogPanel title="Branches" subtitle="The top level of the academic path." addForm={<AddRow pending={create.isPending} testId="button-add-branch" onSubmit={() => { if (!name.trim() || !shortName.trim() || create.isPending) return; create.mutate({ data: { name, shortName, displayOrder: branches.length } }); setName(""); setShortName(""); }}>
     <input value={shortName} onChange={(e) => setShortName(e.target.value)} placeholder="Short name (CSE)" className="input-style h-9 w-32 text-xs" data-testid="input-branch-shortname" />
     <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" className="input-style h-9 flex-1 text-xs" data-testid="input-branch-name" />
   </AddRow>}>
     {branches.length === 0 && <p className="text-xs text-[hsl(var(--muted-foreground))]">No branches yet — add the first one below.</p>}
-    {[...branches].sort((a, b) => a.displayOrder - b.displayOrder).map((branch) => <CatalogRow key={branch.id} label={branch.shortName} sublabel={`${branch.subjectCount} subjects${branch.isActive ? "" : " · disabled"}`} active={branch.id === selectedId} onSelect={() => onSelect(branch.id)} onMoveUp={() => move(branch, -1)} onMoveDown={() => move(branch, 1)} onEdit={() => edit(branch)} onDelete={() => window.confirm(`Delete ${branch.shortName}? This removes its years, semesters, subjects, and resources.`) && remove.mutate({ id: branch.id })} extra={<button type="button" onClick={() => update.mutate({ id: branch.id, data: { isActive: !branch.isActive } })} className={`focus-ring shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${branch.isActive ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]" : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"}`} data-testid={`button-toggle-active-${branch.id}`}>{branch.isActive ? "Active" : "Disabled"}</button>} />)}
+    {[...branches].sort((a, b) => a.displayOrder - b.displayOrder).map((branch) => {
+      const isEditing = update.isPending && update.variables?.id === branch.id && (update.variables?.data?.name !== undefined || update.variables?.data?.shortName !== undefined);
+      const isDeleting = remove.isPending && remove.variables?.id === branch.id;
+      const isTogglingActive = update.isPending && update.variables?.id === branch.id && update.variables?.data?.isActive !== undefined;
+      const isMoving = reorder.isPending && Boolean(reorder.variables?.data?.order?.some((o) => o.id === branch.id));
+      return <CatalogRow
+        key={branch.id}
+        label={branch.shortName}
+        sublabel={`${branch.subjectCount} subjects${branch.isActive ? "" : " · disabled"}`}
+        active={branch.id === selectedId}
+        onSelect={() => onSelect(branch.id)}
+        onMoveUp={() => move(branch, -1)}
+        onMoveDown={() => move(branch, 1)}
+        onEdit={() => edit(branch)}
+        onDelete={() => {
+          if (remove.isPending || update.isPending) return;
+          if (window.confirm(`Delete ${branch.shortName}? This removes its years, semesters, subjects, and resources.`)) {
+            remove.mutate({ id: branch.id });
+          }
+        }}
+        isEditing={isEditing}
+        isDeleting={isDeleting}
+        isMoving={isMoving}
+        extra={<button
+          type="button"
+          disabled={update.isPending || remove.isPending}
+          onClick={() => update.mutate({ id: branch.id, data: { isActive: !branch.isActive } })}
+          className={`focus-ring shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold disabled:opacity-60 ${branch.isActive ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]" : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"}`}
+          data-testid={`button-toggle-active-${branch.id}`}
+        >
+          {isTogglingActive && <Loader2 size={10} className="animate-spin" />}
+          {branch.isActive ? "Active" : "Disabled"}
+        </button>}
+      />;
+    })}
   </CatalogPanel>;
 }
 
 function YearManager({ branchId, years, selectedId, onSelect }: { branchId: number; years: Year[]; selectedId?: number; onSelect: (id: number) => void }) {
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: getListYearsQueryKey() });
-  const create = useCreateYear({ mutation: { onSuccess: invalidate } });
-  const update = useUpdateYear({ mutation: { onSuccess: invalidate } });
-  const remove = useDeleteYear({ mutation: { onSuccess: invalidate } });
-  const reorder = useReorderYears({ mutation: { onSuccess: invalidate } });
+  const create = useCreateYear({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Year added" }); } } });
+  const update = useUpdateYear({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Year updated" }); } } });
+  const remove = useDeleteYear({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Year deleted" }); } } });
+  const reorder = useReorderYears({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Year order updated" }); } } });
   const [name, setName] = useState("");
 
   const move = (year: Year, direction: -1 | 1) => {
+    if (reorder.isPending) return;
     const sorted = [...years].sort((a, b) => a.displayOrder - b.displayOrder);
     const idx = sorted.findIndex((y) => y.id === year.id);
     const swapWith = sorted[idx + direction];
     if (!swapWith) return;
     reorder.mutate({ data: { order: [{ id: year.id, displayOrder: swapWith.displayOrder }, { id: swapWith.id, displayOrder: year.displayOrder }] } });
   };
-  const edit = (year: Year) => { const newName = window.prompt("Year name", year.name); if (newName === null) return; update.mutate({ id: year.id, data: { name: newName } }); };
+  const edit = (year: Year) => {
+    if (update.isPending || remove.isPending) return;
+    const newName = window.prompt("Year name", year.name);
+    if (newName === null) return;
+    update.mutate({ id: year.id, data: { name: newName } });
+  };
 
-  return <CatalogPanel title="Years" subtitle="Years within the selected branch." addForm={<AddRow pending={create.isPending} testId="button-add-year" onSubmit={() => { if (!name.trim()) return; create.mutate({ data: { branchId, name, displayOrder: years.length } }); setName(""); }}>
+  return <CatalogPanel title="Years" subtitle="Years within the selected branch." addForm={<AddRow pending={create.isPending} testId="button-add-year" onSubmit={() => { if (!name.trim() || create.isPending) return; create.mutate({ data: { branchId, name, displayOrder: years.length } }); setName(""); }}>
     <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. 1st Year" className="input-style h-9 flex-1 text-xs" data-testid="input-year-name" />
   </AddRow>}>
     {years.length === 0 && <p className="text-xs text-[hsl(var(--muted-foreground))]">No years yet for this branch.</p>}
-    {[...years].sort((a, b) => a.displayOrder - b.displayOrder).map((year) => <CatalogRow key={year.id} label={year.name} active={year.id === selectedId} onSelect={() => onSelect(year.id)} onMoveUp={() => move(year, -1)} onMoveDown={() => move(year, 1)} onEdit={() => edit(year)} onDelete={() => window.confirm(`Delete ${year.name}?`) && remove.mutate({ id: year.id })} />)}
+    {[...years].sort((a, b) => a.displayOrder - b.displayOrder).map((year) => {
+      const isEditing = update.isPending && update.variables?.id === year.id;
+      const isDeleting = remove.isPending && remove.variables?.id === year.id;
+      const isMoving = reorder.isPending && Boolean(reorder.variables?.data?.order?.some((o) => o.id === year.id));
+      return <CatalogRow
+        key={year.id}
+        label={year.name}
+        active={year.id === selectedId}
+        onSelect={() => onSelect(year.id)}
+        onMoveUp={() => move(year, -1)}
+        onMoveDown={() => move(year, 1)}
+        onEdit={() => edit(year)}
+        onDelete={() => {
+          if (remove.isPending || update.isPending) return;
+          if (window.confirm(`Delete ${year.name}?`)) {
+            remove.mutate({ id: year.id });
+          }
+        }}
+        isEditing={isEditing}
+        isDeleting={isDeleting}
+        isMoving={isMoving}
+      />;
+    })}
   </CatalogPanel>;
 }
 
 function SemesterManager({ yearId, semesters, selectedId, onSelect }: { yearId: number; semesters: Semester[]; selectedId?: number; onSelect: (id: number) => void }) {
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: getListSemestersQueryKey() });
-  const create = useCreateSemester({ mutation: { onSuccess: invalidate } });
-  const update = useUpdateSemester({ mutation: { onSuccess: invalidate } });
-  const remove = useDeleteSemester({ mutation: { onSuccess: invalidate } });
-  const reorder = useReorderSemesters({ mutation: { onSuccess: invalidate } });
+  const create = useCreateSemester({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Semester added" }); } } });
+  const update = useUpdateSemester({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Semester updated" }); } } });
+  const remove = useDeleteSemester({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Semester deleted" }); } } });
+  const reorder = useReorderSemesters({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Semester order updated" }); } } });
   const [name, setName] = useState("");
 
   const move = (semester: Semester, direction: -1 | 1) => {
+    if (reorder.isPending) return;
     const sorted = [...semesters].sort((a, b) => a.displayOrder - b.displayOrder);
     const idx = sorted.findIndex((s) => s.id === semester.id);
     const swapWith = sorted[idx + direction];
     if (!swapWith) return;
     reorder.mutate({ data: { order: [{ id: semester.id, displayOrder: swapWith.displayOrder }, { id: swapWith.id, displayOrder: semester.displayOrder }] } });
   };
-  const edit = (semester: Semester) => { const newName = window.prompt("Semester name", semester.name); if (newName === null) return; update.mutate({ id: semester.id, data: { name: newName } }); };
+  const edit = (semester: Semester) => {
+    if (update.isPending || remove.isPending) return;
+    const newName = window.prompt("Semester name", semester.name);
+    if (newName === null) return;
+    update.mutate({ id: semester.id, data: { name: newName } });
+  };
 
-  return <CatalogPanel title="Semesters" subtitle="Semesters within the selected year." addForm={<AddRow pending={create.isPending} testId="button-add-semester" onSubmit={() => { if (!name.trim()) return; create.mutate({ data: { yearId, name, displayOrder: semesters.length } }); setName(""); }}>
+  return <CatalogPanel title="Semesters" subtitle="Semesters within the selected year." addForm={<AddRow pending={create.isPending} testId="button-add-semester" onSubmit={() => { if (!name.trim() || create.isPending) return; create.mutate({ data: { yearId, name, displayOrder: semesters.length } }); setName(""); }}>
     <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Semester 1" className="input-style h-9 flex-1 text-xs" data-testid="input-semester-name" />
   </AddRow>}>
     {semesters.length === 0 && <p className="text-xs text-[hsl(var(--muted-foreground))]">No semesters yet for this year.</p>}
-    {[...semesters].sort((a, b) => a.displayOrder - b.displayOrder).map((semester) => <CatalogRow key={semester.id} label={semester.name} active={semester.id === selectedId} onSelect={() => onSelect(semester.id)} onMoveUp={() => move(semester, -1)} onMoveDown={() => move(semester, 1)} onEdit={() => edit(semester)} onDelete={() => window.confirm(`Delete ${semester.name}?`) && remove.mutate({ id: semester.id })} />)}
+    {[...semesters].sort((a, b) => a.displayOrder - b.displayOrder).map((semester) => {
+      const isEditing = update.isPending && update.variables?.id === semester.id;
+      const isDeleting = remove.isPending && remove.variables?.id === semester.id;
+      const isMoving = reorder.isPending && Boolean(reorder.variables?.data?.order?.some((o) => o.id === semester.id));
+      return <CatalogRow
+        key={semester.id}
+        label={semester.name}
+        active={semester.id === selectedId}
+        onSelect={() => onSelect(semester.id)}
+        onMoveUp={() => move(semester, -1)}
+        onMoveDown={() => move(semester, 1)}
+        onEdit={() => edit(semester)}
+        onDelete={() => {
+          if (remove.isPending || update.isPending) return;
+          if (window.confirm(`Delete ${semester.name}?`)) {
+            remove.mutate({ id: semester.id });
+          }
+        }}
+        isEditing={isEditing}
+        isDeleting={isDeleting}
+        isMoving={isMoving}
+      />;
+    })}
   </CatalogPanel>;
 }
 
@@ -568,22 +688,44 @@ function SubjectManager({ branch, year, semesters, semesterId, onSelectSemester 
   const { data: subjects = [] } = useListSubjects({ semesterId });
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: getListSubjectsQueryKey() });
-  const create = useCreateSubject({ mutation: { onSuccess: invalidate } });
-  const update = useUpdateSubject({ mutation: { onSuccess: invalidate } });
-  const remove = useDeleteSubject({ mutation: { onSuccess: invalidate } });
+  const create = useCreateSubject({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Subject added" }); } } });
+  const update = useUpdateSubject({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Subject updated" }); } } });
+  const remove = useDeleteSubject({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Subject deleted" }); } } });
   const [name, setName] = useState("");
   const selectedSemester = semesters.find((semester) => semester.id === semesterId);
   const context = `${branch.shortName} · ${year.name} · ${selectedSemester?.name ?? "Semester"}`;
-  const edit = (subject: Subject) => { const newName = window.prompt("Subject name", subject.name); if (newName === null) return; update.mutate({ id: subject.id, data: { name: newName } }); };
+  const edit = (subject: Subject) => {
+    if (update.isPending || remove.isPending) return;
+    const newName = window.prompt("Subject name", subject.name);
+    if (newName === null) return;
+    update.mutate({ id: subject.id, data: { name: newName } });
+  };
 
-  return <CatalogPanel title="Subjects" subtitle={`Manage subjects for ${context}. Students contribute resources to these subjects.`} addForm={<AddRow pending={create.isPending} testId="button-add-subject" onSubmit={() => { if (!name.trim()) return; create.mutate({ data: { semesterId, name } }); setName(""); }}>
+  return <CatalogPanel title="Subjects" subtitle={`Manage subjects for ${context}. Students contribute resources to these subjects.`} addForm={<AddRow pending={create.isPending} testId="button-add-subject" onSubmit={() => { if (!name.trim() || create.isPending) return; create.mutate({ data: { semesterId, name } }); setName(""); }}>
     <select value={semesterId} onChange={(event) => onSelectSemester(Number(event.target.value))} className="input-style h-9 min-w-40 text-xs" data-testid="select-subject-parent-semester" aria-label="Parent semester">
       {semesters.map((semester) => <option key={semester.id} value={semester.id}>{semester.name}</option>)}
     </select>
     <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Data Structures" className="input-style h-9 flex-1 text-xs" data-testid="input-subject-name" />
   </AddRow>}>
     {subjects.length === 0 && <p className="text-xs text-[hsl(var(--muted-foreground))]">No subjects yet for this semester.</p>}
-    {subjects.map((subject) => <CatalogRow key={subject.id} label={subject.name} sublabel={context} onEdit={() => edit(subject)} onDelete={() => window.confirm(`Delete ${subject.name}?`) && remove.mutate({ id: subject.id })} />)}
+    {subjects.map((subject) => {
+      const isEditing = update.isPending && update.variables?.id === subject.id;
+      const isDeleting = remove.isPending && remove.variables?.id === subject.id;
+      return <CatalogRow
+        key={subject.id}
+        label={subject.name}
+        sublabel={context}
+        onEdit={() => edit(subject)}
+        onDelete={() => {
+          if (remove.isPending || update.isPending) return;
+          if (window.confirm(`Delete ${subject.name}?`)) {
+            remove.mutate({ id: subject.id });
+          }
+        }}
+        isEditing={isEditing}
+        isDeleting={isDeleting}
+      />;
+    })}
   </CatalogPanel>;
 }
 
@@ -595,9 +737,12 @@ function AdminOverview() {
 }
 function Metric({ icon: Icon, label, value, detail, warm }: { icon: typeof LibraryBig; label: string; value: number; detail: string; warm?: boolean }) { return <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5"><div className={`flex h-9 w-9 items-center justify-center rounded-xl ${warm ? "bg-[hsl(var(--secondary)/.3)] text-[hsl(var(--secondary-foreground))]" : "bg-[hsl(var(--muted))] text-[hsl(var(--primary))]"}`}><Icon size={18} /></div><p className="mt-5 text-xs font-semibold text-[hsl(var(--muted-foreground))]">{label}</p><div className="mt-1 flex items-end justify-between gap-2"><p className="display-font text-3xl font-bold">{value}</p><span className="text-[10px] font-bold text-[hsl(var(--accent-foreground))]">{detail}</span></div></div>; }
 function Progress({ label, value }: { label: string; value: number }) { return <div><div className="mb-2 flex justify-between text-xs font-semibold"><span className="text-[hsl(var(--primary-foreground)/.7)]">{label}</span><span>{value}%</span></div><div className="h-1.5 rounded-full bg-[hsl(var(--primary-foreground)/.15)]"><div className="h-full rounded-full bg-[hsl(var(--secondary))]" style={{ width: `${value}%` }} /></div></div>; }
-function SubmissionRow({ submission, actions = false, onApprove, onReject, busy }: { submission: Submission; actions?: boolean; onApprove?: () => void; onReject?: () => void; busy?: boolean }) { return <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.7)] p-3.5"><div className="flex items-start gap-3"><ResourceIcon type={submission.resourceType} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-bold">{submission.title}</h3>{submission.status === "pending" ? <span className="rounded-full bg-[hsl(var(--secondary)/.25)] px-2 py-1 text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">Pending</span> : submission.status === "approved" ? <span className="rounded-full bg-[hsl(var(--accent))] px-2 py-1 text-[10px] font-bold text-[hsl(var(--accent-foreground))]">Approved</span> : <span className="rounded-full bg-[hsl(var(--destructive)/.1)] px-2 py-1 text-[10px] font-bold text-[hsl(var(--destructive))]">Rejected</span>}</div><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{submission.studentName} · {formatDate(submission.submittedAt)}</p></div>{actions && <div className="flex shrink-0 gap-1"><button onClick={onApprove} disabled={busy} type="button" className="focus-ring rounded-lg bg-[hsl(var(--accent))] p-2 text-[hsl(var(--accent-foreground))] disabled:opacity-60" aria-label={`Approve ${submission.title}`} data-testid={`button-approve-${submission.id}`}><Check size={15} /></button><button onClick={onReject} disabled={busy} type="button" className="focus-ring rounded-lg bg-[hsl(var(--destructive)/.1)] p-2 text-[hsl(var(--destructive))] disabled:opacity-60" aria-label={`Reject ${submission.title}`} data-testid={`button-reject-${submission.id}`}><X size={15} /></button></div>}</div>{actions && <p className="mt-3 border-t border-[hsl(var(--border))] pt-3 text-xs leading-5 text-[hsl(var(--muted-foreground))]">{submission.description || "No description provided."} <a href={submission.googleDriveUrl} target="_blank" rel="noreferrer" className="ml-1 font-bold text-[hsl(var(--accent-foreground))]" data-testid={`link-review-drive-${submission.id}`}>Open Drive link <ExternalLink size={11} className="inline" /></a></p>}
+function SubmissionRow({ submission, actions = false, onApprove, onReject, isApproving = false, isRejecting = false, busy }: { submission: Submission; actions?: boolean; onApprove?: () => void; onReject?: () => void; isApproving?: boolean; isRejecting?: boolean; busy?: boolean }) {
+  const isBusy = busy || isApproving || isRejecting;
+  return <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.7)] p-3.5"><div className="flex items-start gap-3"><ResourceIcon type={submission.resourceType} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-bold">{submission.title}</h3>{submission.status === "pending" ? <span className="rounded-full bg-[hsl(var(--secondary)/.25)] px-2 py-1 text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">Pending</span> : submission.status === "approved" ? <span className="rounded-full bg-[hsl(var(--accent))] px-2 py-1 text-[10px] font-bold text-[hsl(var(--accent-foreground))]">Approved</span> : <span className="rounded-full bg-[hsl(var(--destructive)/.1)] px-2 py-1 text-[10px] font-bold text-[hsl(var(--destructive))]">Rejected</span>}</div><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{submission.studentName} · {formatDate(submission.submittedAt)}</p></div>{actions && <div className="flex shrink-0 gap-1"><button onClick={onApprove} disabled={isBusy} type="button" className="focus-ring rounded-lg bg-[hsl(var(--accent))] p-2 text-[hsl(var(--accent-foreground))] disabled:opacity-60" aria-label={`Approve ${submission.title}`} data-testid={`button-approve-${submission.id}`}>{isApproving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}</button><button onClick={onReject} disabled={isBusy} type="button" className="focus-ring rounded-lg bg-[hsl(var(--destructive)/.1)] p-2 text-[hsl(var(--destructive))] disabled:opacity-60" aria-label={`Reject ${submission.title}`} data-testid={`button-reject-${submission.id}`}>{isRejecting ? <Loader2 size={15} className="animate-spin" /> : <X size={15} />}</button></div>}</div>{actions && <p className="mt-3 border-t border-[hsl(var(--border))] pt-3 text-xs leading-5 text-[hsl(var(--muted-foreground))]">{submission.description || "No description provided."} <a href={submission.googleDriveUrl} target="_blank" rel="noreferrer" className="ml-1 font-bold text-[hsl(var(--accent-foreground))]" data-testid={`link-review-drive-${submission.id}`}>Open Drive link <ExternalLink size={11} className="inline" /></a></p>}
     {submission.status === "rejected" && submission.rejectionReason && <p className="mt-3 border-t border-[hsl(var(--border))] pt-3 text-xs leading-5 text-[hsl(var(--destructive))]">Reason: {submission.rejectionReason}</p>}
-    {submission.status !== "pending" && submission.reviewedBy && <p className="mt-2 text-[11px] text-[hsl(var(--muted-foreground))]">Reviewed by {submission.reviewedBy}{submission.reviewedAt ? ` on ${formatDate(submission.reviewedAt)}` : ""}</p>}</div>; }
+    {submission.status !== "pending" && submission.reviewedBy && <p className="mt-2 text-[11px] text-[hsl(var(--muted-foreground))]">Reviewed by {submission.reviewedBy}{submission.reviewedAt ? ` on ${formatDate(submission.reviewedAt)}` : ""}</p>}</div>;
+}
 
 function AdminSubmissions() {
   const [filter, setFilter] = useState<"pending" | "all">("pending");
@@ -607,8 +752,10 @@ function AdminSubmissions() {
   const approve = useApproveSubmission({ mutation: { onSuccess: () => { invalidate(); queryClient.invalidateQueries({ queryKey: ["listResources"] }); toast({ title: "Submission approved", description: "It's now published as a verified resource." }); } } });
   const reject = useRejectSubmission({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Submission rejected" }); } } });
   const shown = submissions.filter((item) => filter === "all" || item.status === "pending");
+  const isApproving = (id: number) => approve.isPending && approve.variables?.id === id;
+  const isRejecting = (id: number) => reject.isPending && reject.variables?.id === id;
   const busyId = approve.isPending ? approve.variables?.id : reject.isPending ? reject.variables?.id : undefined;
-  return <AdminLayout><div className="mb-5 flex items-center justify-between"><div><h2 className="text-lg font-bold">Submission queue</h2><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Check context and link access before approving.</p></div><div className="flex rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-1"><button type="button" onClick={() => setFilter("pending")} className={`focus-ring rounded-lg px-3 py-2 text-xs font-bold ${filter === "pending" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : ""}`} data-testid="button-filter-pending">Pending</button><button type="button" onClick={() => setFilter("all")} className={`focus-ring rounded-lg px-3 py-2 text-xs font-bold ${filter === "all" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : ""}`} data-testid="button-filter-all-submissions">All</button></div></div>{isLoading ? <Loader2 className="mx-auto my-10 animate-spin text-[hsl(var(--muted-foreground))]" size={24} /> : shown.length ? <div className="space-y-3">{shown.map((submission) => <SubmissionRow key={submission.id} submission={submission} actions={submission.status === "pending"} busy={busyId === submission.id} onApprove={() => approve.mutate({ id: submission.id })} onReject={() => { const reason = window.prompt("Reason for rejecting this submission (optional):"); if (reason === null) return; reject.mutate({ id: submission.id, data: { rejectionReason: reason || undefined } }); }} />)}</div> : <EmptyState title="The queue is clear" body="No submissions are waiting for a review right now. A rare, satisfying moment." />}</AdminLayout>;
+  return <AdminLayout><div className="mb-5 flex items-center justify-between"><div><h2 className="text-lg font-bold">Submission queue</h2><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Check context and link access before approving.</p></div><div className="flex rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-1"><button type="button" onClick={() => setFilter("pending")} className={`focus-ring rounded-lg px-3 py-2 text-xs font-bold ${filter === "pending" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : ""}`} data-testid="button-filter-pending">Pending</button><button type="button" onClick={() => setFilter("all")} className={`focus-ring rounded-lg px-3 py-2 text-xs font-bold ${filter === "all" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : ""}`} data-testid="button-filter-all-submissions">All</button></div></div>{isLoading ? <Loader2 className="mx-auto my-10 animate-spin text-[hsl(var(--muted-foreground))]" size={24} /> : shown.length ? <div className="space-y-3">{shown.map((submission) => <SubmissionRow key={submission.id} submission={submission} actions={submission.status === "pending"} busy={busyId === submission.id} isApproving={isApproving(submission.id)} isRejecting={isRejecting(submission.id)} onApprove={() => approve.mutate({ id: submission.id })} onReject={() => { const reason = window.prompt("Reason for rejecting this submission (optional):"); if (reason === null) return; reject.mutate({ id: submission.id, data: { rejectionReason: reason || undefined } }); }} />)}</div> : <EmptyState title="The queue is clear" body="No submissions are waiting for a review right now. A rare, satisfying moment." />}</AdminLayout>;
 }
 
 function AdminResources() {
@@ -618,12 +765,25 @@ function AdminResources() {
   const { data: resources = [], isLoading } = useListResources();
   const queryClient = useQueryClient();
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["listResources"] });
-  const updateResource = useUpdateResource({ mutation: { onSuccess: invalidate } });
-  const deleteResource = useDeleteResource({ mutation: { onSuccess: invalidate } });
+  const updateResource = useUpdateResource({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Resource updated" }); } } });
+  const deleteResource = useDeleteResource({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Resource deleted" }); } } });
   const filtered = resources.filter((item) => `${item.title} ${item.subjectName} ${item.branchName}`.toLowerCase().includes(query.toLowerCase()) && (!onlyNew || item.isNew) && (!onlyFeatured || item.isFeatured));
-  const toggle = (resource: Resource, key: "isNew" | "isFeatured" | "isVerified") => updateResource.mutate({ id: resource.id, data: { [key]: !resource[key] } });
-  const remove = (id: number) => { if (window.confirm("Remove this resource from the library?")) deleteResource.mutate({ id }); };
-  return <AdminLayout><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"><div><h2 className="text-lg font-bold">Resource management</h2><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Control what students see on the shelf.</p></div><div className="relative sm:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" size={15} /><input value={query} onChange={(e) => setQuery(e.target.value)} className="input-style h-10 pl-9" placeholder="Search resources" data-testid="input-admin-resource-search" /></div></div><div className="mt-4 flex gap-2"><ToggleButton label="New" active={onlyNew} onClick={() => setOnlyNew(!onlyNew)} testId="button-admin-filter-new" /><ToggleButton label="Featured" active={onlyFeatured} onClick={() => setOnlyFeatured(!onlyFeatured)} testId="button-admin-filter-featured" /><span className="ml-auto flex items-center gap-1 text-xs text-[hsl(var(--muted-foreground))]"><Filter size={13} /> {filtered.length} shown</span></div>{isLoading ? <Loader2 className="mx-auto my-10 animate-spin text-[hsl(var(--muted-foreground))]" size={24} /> : <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[720px] text-left"><thead><tr className="border-b border-[hsl(var(--border))] text-[10px] uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]"><th className="px-3 py-3 font-bold">Resource</th><th className="px-3 py-3 font-bold">Path</th><th className="px-3 py-3 font-bold">Status</th><th className="px-3 py-3 text-right font-bold">Actions</th></tr></thead><tbody>{filtered.map((resource) => <tr key={resource.id} className="border-b border-[hsl(var(--border)/.7)] last:border-0"><td className="px-3 py-4"><div className="flex items-center gap-3"><ResourceIcon type={resource.resourceType} /><div><p className="max-w-[240px] truncate text-sm font-bold">{resource.title}</p><p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">{resource.resourceType}</p></div></div></td><td className="px-3 py-4 text-xs font-semibold text-[hsl(var(--muted-foreground))]">{resource.branchName} · {resource.yearName} · {resource.semesterName}</td><td className="px-3 py-4"><div className="flex flex-wrap gap-1">{resource.isVerified && <VerifiedBadge />}{resource.isFeatured && <span className="rounded-full bg-[hsl(var(--secondary)/.22)] px-2 py-1 text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">Featured</span>}{resource.isNew && <span className="rounded-full bg-[hsl(var(--muted))] px-2 py-1 text-[10px] font-bold">New</span>}</div></td><td className="px-3 py-4"><div className="flex justify-end gap-1"><button type="button" onClick={() => toggle(resource, "isVerified")} className="focus-ring rounded-lg p-2 text-[hsl(var(--accent-foreground))] hover:bg-[hsl(var(--accent))]" title="Toggle verified" data-testid={`button-toggle-verified-${resource.id}`}><BadgeCheck size={16} /></button><button type="button" onClick={() => toggle(resource, "isFeatured")} className="focus-ring rounded-lg p-2 text-[hsl(var(--secondary-foreground))] hover:bg-[hsl(var(--secondary)/.25)]" title="Toggle featured" data-testid={`button-toggle-featured-${resource.id}`}><Sparkles size={16} /></button><button type="button" onClick={() => toggle(resource, "isNew")} className="focus-ring rounded-lg p-2 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]" title="Toggle new" data-testid={`button-toggle-new-${resource.id}`}><MoreHorizontal size={16} /></button><button type="button" onClick={() => remove(resource.id)} className="focus-ring rounded-lg p-2 text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive)/.1)]" title="Delete resource" data-testid={`button-delete-resource-${resource.id}`}><Trash2 size={16} /></button></div></td></tr>)}</tbody></table>{filtered.length === 0 && <EmptyState title="No resources found" body="Try clearing the search or filters." />}</div>}</div></AdminLayout>;
+  const toggle = (resource: Resource, key: "isNew" | "isFeatured" | "isVerified") => {
+    if (updateResource.isPending || deleteResource.isPending) return;
+    updateResource.mutate({ id: resource.id, data: { [key]: !resource[key] } });
+  };
+  const remove = (id: number) => {
+    if (deleteResource.isPending || updateResource.isPending) return;
+    if (window.confirm("Remove this resource from the library?")) deleteResource.mutate({ id });
+  };
+  return <AdminLayout><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"><div><h2 className="text-lg font-bold">Resource management</h2><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Control what students see on the shelf.</p></div><div className="relative sm:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" size={15} /><input value={query} onChange={(e) => setQuery(e.target.value)} className="input-style h-10 pl-9" placeholder="Search resources" data-testid="input-admin-resource-search" /></div></div><div className="mt-4 flex gap-2"><ToggleButton label="New" active={onlyNew} onClick={() => setOnlyNew(!onlyNew)} testId="button-admin-filter-new" /><ToggleButton label="Featured" active={onlyFeatured} onClick={() => setOnlyFeatured(!onlyFeatured)} testId="button-admin-filter-featured" /><span className="ml-auto flex items-center gap-1 text-xs text-[hsl(var(--muted-foreground))]"><Filter size={13} /> {filtered.length} shown</span></div>{isLoading ? <Loader2 className="mx-auto my-10 animate-spin text-[hsl(var(--muted-foreground))]" size={24} /> : <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[720px] text-left"><thead><tr className="border-b border-[hsl(var(--border))] text-[10px] uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]"><th className="px-3 py-3 font-bold">Resource</th><th className="px-3 py-3 font-bold">Path</th><th className="px-3 py-3 font-bold">Status</th><th className="px-3 py-3 text-right font-bold">Actions</th></tr></thead><tbody>{filtered.map((resource) => {
+    const isUpdatingVerified = updateResource.isPending && updateResource.variables?.id === resource.id && updateResource.variables?.data?.isVerified !== undefined;
+    const isUpdatingFeatured = updateResource.isPending && updateResource.variables?.id === resource.id && updateResource.variables?.data?.isFeatured !== undefined;
+    const isUpdatingNew = updateResource.isPending && updateResource.variables?.id === resource.id && updateResource.variables?.data?.isNew !== undefined;
+    const isDeleting = deleteResource.isPending && deleteResource.variables?.id === resource.id;
+    const isRowBusy = isUpdatingVerified || isUpdatingFeatured || isUpdatingNew || isDeleting;
+    return <tr key={resource.id} className="border-b border-[hsl(var(--border)/.7)] last:border-0"><td className="px-3 py-4"><div className="flex items-center gap-3"><ResourceIcon type={resource.resourceType} /><div><p className="max-w-[240px] truncate text-sm font-bold">{resource.title}</p><p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">{resource.resourceType}</p></div></div></td><td className="px-3 py-4 text-xs font-semibold text-[hsl(var(--muted-foreground))]">{resource.branchName} · {resource.yearName} · {resource.semesterName}</td><td className="px-3 py-4"><div className="flex flex-wrap gap-1">{resource.isVerified && <VerifiedBadge />}{resource.isFeatured && <span className="rounded-full bg-[hsl(var(--secondary)/.22)] px-2 py-1 text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">Featured</span>}{resource.isNew && <span className="rounded-full bg-[hsl(var(--muted))] px-2 py-1 text-[10px] font-bold">New</span>}</div></td><td className="px-3 py-4"><div className="flex justify-end gap-1"><button type="button" disabled={isRowBusy} onClick={() => toggle(resource, "isVerified")} className="focus-ring rounded-lg p-2 text-[hsl(var(--accent-foreground))] hover:bg-[hsl(var(--accent))] disabled:opacity-50" title="Toggle verified" data-testid={`button-toggle-verified-${resource.id}`}>{isUpdatingVerified ? <Loader2 size={16} className="animate-spin" /> : <BadgeCheck size={16} />}</button><button type="button" disabled={isRowBusy} onClick={() => toggle(resource, "isFeatured")} className="focus-ring rounded-lg p-2 text-[hsl(var(--secondary-foreground))] hover:bg-[hsl(var(--secondary)/.25)] disabled:opacity-50" title="Toggle featured" data-testid={`button-toggle-featured-${resource.id}`}>{isUpdatingFeatured ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}</button><button type="button" disabled={isRowBusy} onClick={() => toggle(resource, "isNew")} className="focus-ring rounded-lg p-2 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] disabled:opacity-50" title="Toggle new" data-testid={`button-toggle-new-${resource.id}`}>{isUpdatingNew ? <Loader2 size={16} className="animate-spin" /> : <MoreHorizontal size={16} />}</button><button type="button" disabled={isRowBusy} onClick={() => remove(resource.id)} className="focus-ring rounded-lg p-2 text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive)/.1)] disabled:opacity-50" title="Delete resource" data-testid={`button-delete-resource-${resource.id}`}>{isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}</button></div></td></tr>;
+  })}</tbody></table>{filtered.length === 0 && <EmptyState title="No resources found" body="Try clearing the search or filters." />}</div>}</div></AdminLayout>;
 }
 function ToggleButton({ label, active, onClick, testId }: { label: string; active: boolean; onClick: () => void; testId: string }) { return <button type="button" onClick={onClick} className={`focus-ring rounded-lg border px-3 py-2 text-xs font-bold ${active ? "border-[hsl(var(--secondary))] bg-[hsl(var(--secondary)/.25)]" : "border-[hsl(var(--border))]"}`} data-testid={testId}>{label}</button>; }
 
