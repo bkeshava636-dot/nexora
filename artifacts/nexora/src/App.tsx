@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Redirect, Route, Switch, Router as WouterRouter, useLocation, useParams } from "wouter";
 import {
   ArrowLeft, ArrowRight, BarChart3, BadgeCheck, BookOpen, Calendar, Check, CheckCircle2, ChevronDown, ChevronRight,
@@ -23,8 +23,11 @@ import { MutationCache, QueryClient, QueryClientProvider, useQueryClient } from 
 import { toast } from "@/hooks/use-toast";
 import {
   getListBranchesQueryKey,
+  getListReportsQueryKey,
+  getListResourcesQueryKey,
   getListSemestersQueryKey,
   getListSubjectsQueryKey,
+  getListSubmissionsQueryKey,
   getListYearsQueryKey,
   useApproveSubmission,
   useChangePassword,
@@ -105,6 +108,13 @@ function getErrorMessage(error: unknown): string {
 }
 
 const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 30, // 30s cache freshness avoids duplicate refetches on quick route switches
+      refetchOnWindowFocus: false, // Prevents sudden network spikes on tab focus
+      retry: 1,
+    },
+  },
   mutationCache: new MutationCache({
     // Global feedback for every mutation (create/update/delete/reorder,
     // approve/reject, login) so failures are never silent, without having to
@@ -207,7 +217,7 @@ function ResourceIcon({ type }: { type: ResourceType }) {
 }
 function ClipboardIcon({ size = 18 }: { size?: number }) { return <FileText size={size} />; }
 
-function ResourceCard({ resource, compact = false }: { resource: Resource; compact?: boolean }) {
+const ResourceCard = memo(function ResourceCard({ resource, compact = false }: { resource: Resource; compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const formattedDate = resource.createdAt ? formatDate(resource.createdAt) : null;
   const pathParts = [resource.branchName, resource.yearName, resource.semesterName].filter(Boolean);
@@ -278,14 +288,16 @@ function ResourceCard({ resource, compact = false }: { resource: Resource; compa
         </div>
       </button>
 
-      <ResourceDetailsDialog
-        resource={resource}
-        open={open}
-        onOpenChange={setOpen}
-      />
+      {open && (
+        <ResourceDetailsDialog
+          resource={resource}
+          open={open}
+          onOpenChange={setOpen}
+        />
+      )}
     </>
   );
-}
+});
 
 function ResourceDetailsDialog({
   resource,
@@ -599,16 +611,45 @@ function ReportResourceDialog({
 }
 
 function ResourceTypeGroups({ resources, compact = false }: { resources: Resource[]; compact?: boolean }) {
-  return <div className="space-y-8">
-    {resourceTypeSections.map(({ type, label }) => {
-      const group = resources.filter((resource) => resource.resourceType === type);
-      if (!group.length) return null;
-      return <section key={type} className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.45)] p-4 sm:p-5" data-testid={`resource-type-section-${type.toLowerCase().replaceAll(" ", "-")}`}>
-        <div className="mb-4 flex items-end justify-between gap-4 border-b border-[hsl(var(--border))] pb-3"><div><p className="micro-label text-[hsl(var(--accent-foreground))]">Resource type</p><h2 className="mt-1 text-lg font-bold">{label}</h2></div><span className="rounded-full bg-[hsl(var(--muted))] px-2.5 py-1 text-[10px] font-bold text-[hsl(var(--muted-foreground))]">{group.length} {group.length === 1 ? "resource" : "resources"}</span></div>
-        <div className={`grid gap-4 ${compact ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2"}`}>{group.map((resource) => <ResourceCard key={resource.id} resource={resource} compact={compact} />)}</div>
-      </section>;
-    })}
-  </div>;
+  const groupsByType = useMemo(() => {
+    const map = new Map<ResourceType, Resource[]>();
+    for (const res of resources) {
+      const list = map.get(res.resourceType);
+      if (list) {
+        list.push(res);
+      } else {
+        map.set(res.resourceType, [res]);
+      }
+    }
+    return map;
+  }, [resources]);
+
+  return (
+    <div className="space-y-8">
+      {resourceTypeSections.map(({ type, label }) => {
+        const group = groupsByType.get(type);
+        if (!group || !group.length) return null;
+        return (
+          <section key={type} className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.45)] p-4 sm:p-5" data-testid={`resource-type-section-${type.toLowerCase().replaceAll(" ", "-")}`}>
+            <div className="mb-4 flex items-end justify-between gap-4 border-b border-[hsl(var(--border))] pb-3">
+              <div>
+                <p className="micro-label text-[hsl(var(--accent-foreground))]">Resource type</p>
+                <h2 className="mt-1 text-lg font-bold">{label}</h2>
+              </div>
+              <span className="rounded-full bg-[hsl(var(--muted))] px-2.5 py-1 text-[10px] font-bold text-[hsl(var(--muted-foreground))]">
+                {group.length} {group.length === 1 ? "resource" : "resources"}
+              </span>
+            </div>
+            <div className={`grid gap-4 ${compact ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2"}`}>
+              {group.map((resource) => (
+                <ResourceCard key={resource.id} resource={resource} compact={compact} />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
 }
 
 function Home() {
@@ -799,14 +840,14 @@ function BranchGrid() {
   return <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{branches.map((branch) => <BranchCard key={branch.id} branch={branch} />)}</div>;
 }
 
-function BranchCard({ branch }: { branch: Branch }) {
+const BranchCard = memo(function BranchCard({ branch }: { branch: Branch }) {
   return <Link href={`/branch/${branch.id}`} className="card-lift focus-ring group block rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5" data-testid={`link-branch-${branch.id}`}>
     <div className="flex items-center justify-between"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[hsl(var(--muted))] text-[hsl(var(--primary))]"><GraduationCap size={20} /></span><ChevronRight size={18} className="text-[hsl(var(--muted-foreground))] transition-transform group-hover:translate-x-0.5" /></div>
     <h3 className="mt-4 text-base font-bold">{branch.shortName}</h3>
     <p className="mt-1 line-clamp-2 text-xs leading-5 text-[hsl(var(--muted-foreground))]">{branch.description}</p>
     <div className="mt-4 flex gap-3 text-[11px] font-semibold text-[hsl(var(--muted-foreground))]"><span>{branch.subjectCount} subjects</span><span>{branch.resourceCount} resources</span></div>
   </Link>;
-}
+});
 
 function LoadingGrid({ count = 3 }: { count?: number }) {
   return <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: count }).map((_, i) => <div key={i} className="h-36 animate-pulse rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)]" />)}</div>;
@@ -915,18 +956,23 @@ function ResourcesPage() {
     setVerified(false);
   };
 
-  const filtered = useMemo(() => resources.filter((resource) => {
-    const queryWords = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    const haystack = `${resource.title} ${resource.subjectName} ${resource.description} ${resource.branchName} ${resource.yearName} ${resource.semesterName} ${resource.resourceType}`.toLowerCase();
-    const matchesQuery = queryWords.length === 0 || queryWords.every((word) => haystack.includes(word));
-    const matchesBranch = branch === "All branches" || resource.branchName === branch;
-    const matchesYear = year === "All years" || resource.yearName === year;
-    const matchesSemester = semester === "All semesters" || resource.semesterName === semester;
-    const matchesSubject = subject === "All subjects" || resource.subjectName === subject;
-    const matchesType = type === "All types" || resource.resourceType === type;
-    const matchesVerified = !verified || resource.isVerified;
-    return matchesQuery && matchesBranch && matchesYear && matchesSemester && matchesSubject && matchesType && matchesVerified;
-  }), [resources, query, branch, year, semester, subject, type, verified]);
+  const filtered = useMemo(() => {
+    const rawQuery = query.trim().toLowerCase();
+    const queryWords = rawQuery ? rawQuery.split(/\s+/).filter(Boolean) : [];
+    return resources.filter((resource) => {
+      if (branch !== "All branches" && resource.branchName !== branch) return false;
+      if (year !== "All years" && resource.yearName !== year) return false;
+      if (semester !== "All semesters" && resource.semesterName !== semester) return false;
+      if (subject !== "All subjects" && resource.subjectName !== subject) return false;
+      if (type !== "All types" && resource.resourceType !== type) return false;
+      if (verified && !resource.isVerified) return false;
+      if (queryWords.length > 0) {
+        const haystack = `${resource.title} ${resource.subjectName ?? ""} ${resource.description ?? ""} ${resource.branchName ?? ""} ${resource.yearName ?? ""} ${resource.semesterName ?? ""} ${resource.resourceType}`.toLowerCase();
+        if (!queryWords.every((word) => haystack.includes(word))) return false;
+      }
+      return true;
+    });
+  }, [resources, query, branch, year, semester, subject, type, verified]);
 
   return <div className="mx-auto max-w-6xl px-4 py-8 sm:px-7 sm:py-12">
     <div className="mb-8">
@@ -2588,8 +2634,8 @@ function AdminSubmissions() {
   const [filter, setFilter] = useState<"pending" | "all">("pending");
   const { data: submissions = [], isLoading } = useListSubmissions();
   const queryClient = useQueryClient();
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["listSubmissions"] });
-  const approve = useApproveSubmission({ mutation: { onSuccess: () => { invalidate(); queryClient.invalidateQueries({ queryKey: ["listResources"] }); toast({ title: "Submission approved", description: "It's now published as a verified resource." }); } } });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: getListSubmissionsQueryKey() });
+  const approve = useApproveSubmission({ mutation: { onSuccess: () => { invalidate(); queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() }); toast({ title: "Submission approved", description: "It's now published as a verified resource." }); } } });
   const reject = useRejectSubmission({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Submission rejected" }); } } });
   const shown = submissions.filter((item) => filter === "all" || item.status === "pending");
   const isApproving = (id: number) => approve.isPending && approve.variables?.id === id;
@@ -2602,7 +2648,7 @@ function AdminReports() {
   const [filter, setFilter] = useState<"pending" | "all">("pending");
   const { data: reports = [], isLoading } = useListReports();
   const queryClient = useQueryClient();
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["/api/reports"] });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: getListReportsQueryKey() });
   const resolve = useResolveReport();
   const dismiss = useDismissReport();
   const shown = (reports as ReportItem[]).filter((item: ReportItem) => filter === "all" || item.status === "pending");
@@ -2771,7 +2817,7 @@ function AdminEditResourceDialog({
   const updateResource = useUpdateResource({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["listResources"] });
+        queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
         toast({ title: "Resource updated", description: "Changes saved successfully." });
         onOpenChange(false);
       },
@@ -2953,7 +2999,7 @@ function AdminResources() {
 
   const { data: resources = [], isLoading } = useListResources();
   const queryClient = useQueryClient();
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["listResources"] });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
   const updateResource = useUpdateResource({
     mutation: {
       onSuccess: () => {
