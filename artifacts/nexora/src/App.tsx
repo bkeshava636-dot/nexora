@@ -264,7 +264,18 @@ function SearchBox({ value, onChange }: { value?: string; onChange?: (value: str
   const submit = (event: FormEvent) => { event.preventDefault(); if (!controlled) navigate(`/resources?query=${encodeURIComponent(current ?? "")}`); };
   return <form onSubmit={submit} className="relative">
     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" size={18} />
-    <input value={current} onChange={(e) => { controlled ? onChange?.(e.target.value) : setLocal(e.target.value); }} className="input-style h-14 pl-12 pr-4 text-sm shadow-sm" placeholder="Search notes, papers, subjects..." data-testid="input-search" />
+    <input value={current} onChange={(e) => { controlled ? onChange?.(e.target.value) : setLocal(e.target.value); }} className="input-style h-14 pl-12 pr-10 text-sm shadow-sm" placeholder="Search notes, papers, subjects..." data-testid="input-search" />
+    {current ? (
+      <button
+        type="button"
+        onClick={() => { controlled ? onChange?.("") : setLocal(""); }}
+        className="focus-ring absolute right-3.5 top-1/2 -translate-y-1/2 rounded-lg p-1 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+        aria-label="Clear search"
+        data-testid="button-clear-search"
+      >
+        <X size={16} />
+      </button>
+    ) : null}
   </form>;
 }
 
@@ -288,24 +299,189 @@ function ResourcesPage() {
   const { data: resources = [], isLoading } = useListResources();
   const { data: branches = [] } = useListBranches();
 
-  const years = useMemo(() => [...new Set(resources.map((r) => r.yearName).filter((v): v is string => !!v))], [resources]);
-  const semesters = useMemo(() => [...new Set(resources.map((r) => r.semesterName).filter((v): v is string => !!v))], [resources]);
-  const subjectNames = useMemo(() => [...new Set(resources.map((r) => r.subjectName).filter((v): v is string => !!v))], [resources]);
+  const availableYears = useMemo(() => {
+    const subset = branch === "All branches" ? resources : resources.filter((r) => r.branchName === branch);
+    return ["All years", ...new Set(subset.map((r) => r.yearName).filter((v): v is string => Boolean(v)))];
+  }, [resources, branch]);
+
+  const availableSemesters = useMemo(() => {
+    const subset = resources.filter((r) =>
+      (branch === "All branches" || r.branchName === branch) &&
+      (year === "All years" || r.yearName === year)
+    );
+    return ["All semesters", ...new Set(subset.map((r) => r.semesterName).filter((v): v is string => Boolean(v)))];
+  }, [resources, branch, year]);
+
+  const availableSubjects = useMemo(() => {
+    const subset = resources.filter((r) =>
+      (branch === "All branches" || r.branchName === branch) &&
+      (year === "All years" || r.yearName === year) &&
+      (semester === "All semesters" || r.semesterName === semester)
+    );
+    return ["All subjects", ...new Set(subset.map((r) => r.subjectName).filter((v): v is string => Boolean(v)))];
+  }, [resources, branch, year, semester]);
+
+  const handleBranchChange = (newBranch: string) => {
+    setBranch(newBranch);
+    setYear("All years");
+    setSemester("All semesters");
+    setSubject("All subjects");
+  };
+
+  const handleYearChange = (newYear: string) => {
+    setYear(newYear);
+    setSemester("All semesters");
+    setSubject("All subjects");
+  };
+
+  const handleSemesterChange = (newSemester: string) => {
+    setSemester(newSemester);
+    setSubject("All subjects");
+  };
+
+  const hasActiveFilters = Boolean(
+    query.trim() ||
+    branch !== "All branches" ||
+    year !== "All years" ||
+    semester !== "All semesters" ||
+    subject !== "All subjects" ||
+    type !== "All types" ||
+    verified
+  );
+
+  const clearFilters = () => {
+    setQuery("");
+    setBranch("All branches");
+    setYear("All years");
+    setSemester("All semesters");
+    setSubject("All subjects");
+    setType("All types");
+    setVerified(false);
+  };
 
   const filtered = useMemo(() => resources.filter((resource) => {
-    const haystack = `${resource.title} ${resource.subjectName} ${resource.description} ${resource.branchName}`.toLowerCase();
-    return haystack.includes(query.toLowerCase()) && (branch === "All branches" || resource.branchName === branch) && (year === "All years" || resource.yearName === year) && (semester === "All semesters" || resource.semesterName === semester) && (subject === "All subjects" || resource.subjectName === subject) && (type === "All types" || resource.resourceType === type) && (!verified || resource.isVerified);
+    const queryWords = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const haystack = `${resource.title} ${resource.subjectName} ${resource.description} ${resource.branchName} ${resource.yearName} ${resource.semesterName} ${resource.resourceType}`.toLowerCase();
+    const matchesQuery = queryWords.length === 0 || queryWords.every((word) => haystack.includes(word));
+    const matchesBranch = branch === "All branches" || resource.branchName === branch;
+    const matchesYear = year === "All years" || resource.yearName === year;
+    const matchesSemester = semester === "All semesters" || resource.semesterName === semester;
+    const matchesSubject = subject === "All subjects" || resource.subjectName === subject;
+    const matchesType = type === "All types" || resource.resourceType === type;
+    const matchesVerified = !verified || resource.isVerified;
+    return matchesQuery && matchesBranch && matchesYear && matchesSemester && matchesSubject && matchesType && matchesVerified;
   }), [resources, query, branch, year, semester, subject, type, verified]);
 
-  return <div className="mx-auto max-w-6xl px-4 py-8 sm:px-7 sm:py-12"><div className="mb-8"><p className="micro-label mb-2 text-[hsl(var(--accent-foreground))]">The shelf</p><h1 className="display-font text-4xl font-bold tracking-[-.05em] sm:text-5xl">Resource library</h1><p className="mt-3 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">Everything is sorted by academic path, so you can spend less time hunting and more time understanding.</p></div>
-    <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.72)] p-3 sm:p-4"><SearchBox value={query} onChange={setQuery} /><div className="mt-3 flex gap-2 overflow-x-auto pb-1 mobile-scroll"><SelectPill label={branch} options={["All branches", ...branches.map((item) => item.shortName)]} onChange={setBranch} testId="select-branch-filter" /><SelectPill label={year} options={["All years", ...years]} onChange={setYear} testId="select-year-filter" /><SelectPill label={semester} options={["All semesters", ...semesters]} onChange={setSemester} testId="select-semester-filter" /><SelectPill label={subject} options={["All subjects", ...subjectNames]} onChange={setSubject} testId="select-subject-filter" /><SelectPill label={type} options={["All types", ...resourceTypes]} onChange={setType} testId="select-type-filter" /><button type="button" onClick={() => setVerified(!verified)} className={`focus-ring flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold ${verified ? "border-[hsl(var(--accent-foreground))] bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]" : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))]"}`} data-testid="button-filter-verified"><BadgeCheck size={14} /> Verified only</button></div></div>
-    <div className="mt-8 flex items-center justify-between"><p className="text-sm font-semibold">{filtered.length} <span className="font-normal text-[hsl(var(--muted-foreground))]">resources found</span></p><span className="hidden items-center gap-1 text-xs text-[hsl(var(--muted-foreground))] sm:flex"><SlidersHorizontal size={14} /> Showing your filters</span></div>
-    {isLoading ? <LoadingGrid count={6} /> : filtered.length ? <div className="mt-4"><ResourceTypeGroups resources={filtered} /></div> : <EmptyState title="No resources match that search" body="Try a broader subject, branch, or resource type. You can also contribute what you were looking for." action={<Link href="/contribute" className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--primary-foreground))]" data-testid="link-empty-contribute">Share a resource <ArrowRight size={14} /></Link>} />}
+  return <div className="mx-auto max-w-6xl px-4 py-8 sm:px-7 sm:py-12">
+    <div className="mb-8">
+      <p className="micro-label mb-2 text-[hsl(var(--accent-foreground))]">The shelf</p>
+      <h1 className="display-font text-4xl font-bold tracking-[-.05em] sm:text-5xl">Resource library</h1>
+      <p className="mt-3 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">Everything is sorted by academic path, so you can spend less time hunting and more time understanding.</p>
+    </div>
+    <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.72)] p-3 sm:p-4">
+      <SearchBox value={query} onChange={setQuery} />
+      <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1 mobile-scroll">
+        <SelectPill label={branch} options={["All branches", ...branches.map((item) => item.shortName)]} onChange={handleBranchChange} testId="select-branch-filter" />
+        <SelectPill label={year} options={availableYears} onChange={handleYearChange} testId="select-year-filter" />
+        <SelectPill label={semester} options={availableSemesters} onChange={handleSemesterChange} testId="select-semester-filter" />
+        <SelectPill label={subject} options={availableSubjects} onChange={setSubject} testId="select-subject-filter" />
+        <SelectPill label={type} options={["All types", ...resourceTypes]} onChange={setType} testId="select-type-filter" />
+        <button
+          type="button"
+          onClick={() => setVerified(!verified)}
+          className={`focus-ring flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${verified ? "border-[hsl(var(--accent-foreground))] bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]" : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))]"}`}
+          data-testid="button-filter-verified"
+        >
+          <BadgeCheck size={14} /> Verified only
+        </button>
+        {hasActiveFilters && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="focus-ring flex shrink-0 items-center gap-1.5 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-xs font-bold text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive)/.1)] transition-colors"
+            data-testid="button-clear-filters-pill"
+          >
+            <X size={13} /> Clear filters
+          </button>
+        )}
+      </div>
+    </div>
+    <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
+      <p className="text-sm font-semibold">{filtered.length} <span className="font-normal text-[hsl(var(--muted-foreground))]">resources found</span></p>
+      <div className="flex items-center gap-3">
+        {hasActiveFilters && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="focus-ring inline-flex items-center gap-1 text-xs font-bold text-[hsl(var(--accent-foreground))] hover:underline"
+            data-testid="button-clear-filters"
+          >
+            <X size={13} /> Clear filters
+          </button>
+        )}
+        <span className="hidden items-center gap-1 text-xs text-[hsl(var(--muted-foreground))] sm:flex"><SlidersHorizontal size={14} /> Showing your filters</span>
+      </div>
+    </div>
+    {isLoading ? (
+      <LoadingGrid count={6} />
+    ) : filtered.length ? (
+      <div className="mt-4"><ResourceTypeGroups resources={filtered} /></div>
+    ) : (
+      <EmptyState
+        title="No resources found"
+        body="Try changing your search or filters."
+        action={
+          hasActiveFilters ? (
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--primary-foreground))]"
+                data-testid="button-empty-clear-filters"
+              >
+                <X size={14} /> Clear filters
+              </button>
+              <Link
+                href="/contribute"
+                className="focus-ring inline-flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-2.5 text-xs font-bold"
+                data-testid="link-empty-contribute"
+              >
+                <Upload size={14} /> Share a resource
+              </Link>
+            </div>
+          ) : (
+            <Link
+              href="/contribute"
+              className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--primary-foreground))]"
+              data-testid="link-empty-contribute"
+            >
+              Share a resource <ArrowRight size={14} />
+            </Link>
+          )
+        }
+      />
+    )}
   </div>;
 }
 
 function SelectPill({ label, options, onChange, testId }: { label: string; options: string[]; onChange: (value: string) => void; testId: string }) {
-  return <label className="relative flex shrink-0 items-center"><span className="sr-only">{label}</span><select value={label} onChange={(event) => onChange(event.target.value)} className="focus-ring appearance-none rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] py-2 pl-3 pr-8 text-xs font-bold text-[hsl(var(--foreground))]" data-testid={testId}>{options.map((option) => <option key={option}>{option}</option>)}</select><ChevronDown size={13} className="pointer-events-none absolute right-2.5" /></label>;
+  const isFiltered = !label.startsWith("All ");
+  return <label className="relative flex shrink-0 items-center">
+    <span className="sr-only">{label}</span>
+    <select
+      value={label}
+      onChange={(event) => onChange(event.target.value)}
+      className={`focus-ring appearance-none rounded-xl border py-2 pl-3 pr-8 text-xs font-bold transition-colors cursor-pointer ${
+        isFiltered
+          ? "border-[hsl(var(--accent-foreground))] bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
+          : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))]"
+      }`}
+      data-testid={testId}
+    >
+      {options.map((option) => <option key={option} value={option}>{option}</option>)}
+    </select>
+    <ChevronDown size={13} className={`pointer-events-none absolute right-2.5 ${isFiltered ? "text-[hsl(var(--accent-foreground))]" : "text-[hsl(var(--muted-foreground))]"}`} />
+  </label>;
 }
 
 function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) {
@@ -374,18 +550,66 @@ function ContributePage() {
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!form.title.trim() || !form.studentName.trim() || !form.studentEmail.trim()) { setError("Please fill in the required fields before sending."); return; }
-    if (!form.googleDriveUrl.trim()) { setError("Please paste a Google Drive link."); return; }
-    if (!isValidGoogleDriveUrl(form.googleDriveUrl)) { setError(`That doesn't look like a valid Google link. ${googleDriveUrlHint}`); return; }
-    if (!subjectId) { setError("Please choose a branch, year, semester, and subject before sending."); return; }
+    if (createSubmission.isPending) return;
+    if (!form.title.trim() || !form.studentName.trim() || !form.studentEmail.trim()) {
+      setError("Please fill in the required fields before sending.");
+      return;
+    }
+    if (!form.googleDriveUrl.trim() || !isValidGoogleDriveUrl(form.googleDriveUrl)) {
+      setError("Please enter a valid Google Drive link.");
+      return;
+    }
+    if (!subjectId) {
+      setError("Please choose a branch, year, semester, and subject before sending.");
+      return;
+    }
     createSubmission.mutate({ data: { ...form, branchId, yearId, semesterId, subjectId } }, {
-      onSuccess: () => { setSubmitted(true); setError(""); },
-      onError: () => { setError("Something went wrong sending this. Please try again."); },
+      onSuccess: () => {
+        setSubmitted(true);
+        setError("");
+        toast({
+          title: "Resource submitted successfully!",
+          description: "Your submission will appear after admin review.",
+        });
+      },
+      onError: (err) => {
+        setError(getErrorMessage(err) || "Unable to submit the resource. Please try again.");
+      },
     });
   };
 
-  if (submitted) return <div className="mx-auto max-w-3xl px-4 py-12 sm:px-7 sm:py-20"><div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-6 py-14 text-center sm:px-12"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"><CheckCircle2 size={32} /></div><p className="micro-label mt-6 text-[hsl(var(--accent-foreground))]">In the review queue</p><h1 className="display-font mt-2 text-4xl font-bold tracking-[-.05em]">Thank you for sharing.</h1><p className="mx-auto mt-4 max-w-md text-sm leading-6 text-[hsl(var(--muted-foreground))]">Our student editors will check the link and details before it joins Nexora. That keeps the Verified badge meaningful for everyone.</p><div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row"><Link href="/resources" className="focus-ring rounded-xl bg-[hsl(var(--primary))] px-5 py-3 text-sm font-bold text-[hsl(var(--primary-foreground))]" data-testid="link-confirmation-library">Browse the library</Link><button type="button" onClick={() => { setSubmitted(false); setForm({ ...form, title: "", description: "", googleDriveUrl: "" }); }} className="focus-ring rounded-xl border border-[hsl(var(--border))] px-5 py-3 text-sm font-bold" data-testid="button-submit-another">Share another</button></div></div></div>;
-  return <div className="mx-auto max-w-4xl px-4 py-8 sm:px-7 sm:py-12"><Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Contribute" }]} /><div className="mb-8 max-w-2xl"><p className="micro-label mb-2 text-[hsl(var(--accent-foreground))]">Give back a little</p><h1 className="display-font text-4xl font-bold tracking-[-.05em] sm:text-5xl">Put a useful file<br />in the right hands.</h1><p className="mt-4 text-sm leading-6 text-[hsl(var(--muted-foreground))]">Share material you trust. We review every submission before it becomes part of the library.</p></div><form onSubmit={submit} className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.78)] p-5 sm:p-8"><FormSection title="Where does it belong?"><div className="grid gap-4 sm:grid-cols-2"><Field label="Branch" required><select value={branchId ?? ""} onChange={(e) => setBranchId(Number(e.target.value))} className="input-style" data-testid="select-contribution-branch">{branches.map((item) => <option key={item.id} value={item.id}>{item.shortName} — {item.name}</option>)}</select></Field><Field label="Subject" required><select value={subjectId ?? ""} onChange={(e) => setSubjectId(Number(e.target.value))} className="input-style" data-testid="select-contribution-subject">{subjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="Year" required><select value={yearId ?? ""} onChange={(e) => setYearId(Number(e.target.value))} className="input-style" data-testid="select-contribution-year">{years.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="Semester" required><select value={semesterId ?? ""} onChange={(e) => setSemesterId(Number(e.target.value))} className="input-style" data-testid="select-contribution-semester">{semesters.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field></div></FormSection><FormSection title="Tell us about it"><div className="grid gap-4"><Field label="Resource type" required><select value={form.resourceType} onChange={(e) => update("resourceType", e.target.value)} className="input-style" data-testid="select-contribution-type">{resourceTypes.map((item) => <option key={item}>{item}</option>)}</select></Field><Field label="Title" required><input value={form.title} onChange={(e) => update("title", e.target.value)} className="input-style" placeholder="e.g. Data Structures revision notes" data-testid="input-contribution-title" /></Field><Field label="Short description"><textarea value={form.description} onChange={(e) => update("description", e.target.value)} className="input-style min-h-24 resize-y" placeholder="What will a student find inside?" data-testid="textarea-contribution-description" /></Field><Field label="Google Drive link" required hint={`${googleDriveUrlHint} Also make sure link access is set to "Anyone with the link".`}><div className="relative"><Link2 className="absolute left-3 top-3 text-[hsl(var(--muted-foreground))]" size={16} /><input value={form.googleDriveUrl} onChange={(e) => update("googleDriveUrl", e.target.value)} className="input-style pl-10" placeholder="https://drive.google.com/..." data-testid="input-contribution-url" /></div></Field></div></FormSection><FormSection title="A little about you"><div className="grid gap-4 sm:grid-cols-2"><Field label="Your name" required><input value={form.studentName} onChange={(e) => update("studentName", e.target.value)} className="input-style" placeholder="How should we credit you?" data-testid="input-contribution-name" /></Field><Field label="College email" required><input type="email" value={form.studentEmail} onChange={(e) => update("studentEmail", e.target.value)} className="input-style" placeholder="you@college.edu" data-testid="input-contribution-email" /></Field></div></FormSection>{error && <div className="mb-4 flex items-start gap-2 rounded-xl bg-[hsl(var(--destructive)/.1)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert" data-testid="status-contribution-error"><CircleAlert size={15} className="mt-0.5 shrink-0" />{error}</div>}<div className="flex flex-col items-start justify-between gap-4 border-t border-[hsl(var(--border))] pt-5 sm:flex-row sm:items-center"><p className="text-xs leading-5 text-[hsl(var(--muted-foreground))]">Submissions are checked by the Nexora student team.</p><button type="submit" disabled={createSubmission.isPending} className="focus-ring inline-flex items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-5 py-3 text-sm font-bold text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-60" data-testid="button-submit-contribution">{createSubmission.isPending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} Send for review</button></div></form></div>;
+  if (submitted) return <div className="mx-auto max-w-3xl px-4 py-12 sm:px-7 sm:py-20"><div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-6 py-14 text-center sm:px-12"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"><CheckCircle2 size={32} /></div><p className="micro-label mt-6 text-[hsl(var(--accent-foreground))]">In the review queue</p><h1 className="display-font mt-2 text-3xl font-bold tracking-[-.05em] sm:text-4xl">Resource submitted successfully!</h1><p className="mx-auto mt-4 max-w-md text-sm leading-6 text-[hsl(var(--muted-foreground))]">Your submission will appear after admin review. Our student editors will check the link and details before it joins Nexora. That keeps the Verified badge meaningful for everyone.</p><div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row"><Link href="/resources" className="focus-ring rounded-xl bg-[hsl(var(--primary))] px-5 py-3 text-sm font-bold text-[hsl(var(--primary-foreground))]" data-testid="link-confirmation-library">Browse the library</Link><button type="button" onClick={() => { setSubmitted(false); setForm({ ...form, title: "", description: "", googleDriveUrl: "" }); setError(""); }} className="focus-ring rounded-xl border border-[hsl(var(--border))] px-5 py-3 text-sm font-bold" data-testid="button-submit-another">Share another</button></div></div></div>;
+
+  return <div className="mx-auto max-w-4xl px-4 py-8 sm:px-7 sm:py-12"><Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Contribute" }]} /><div className="mb-8 max-w-2xl"><p className="micro-label mb-2 text-[hsl(var(--accent-foreground))]">Give back a little</p><h1 className="display-font text-4xl font-bold tracking-[-.05em] sm:text-5xl">Put a useful file<br />in the right hands.</h1><p className="mt-4 text-sm leading-6 text-[hsl(var(--muted-foreground))]">Share material you trust. We review every submission before it becomes part of the library.</p></div>
+    <section className="mb-8 rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.6)] p-5 sm:p-7" aria-labelledby="how-to-contribute-title" data-testid="section-how-to-contribute">
+      <div className="flex items-center gap-2 mb-3.5">
+        <Sparkles size={16} className="text-[hsl(var(--accent-foreground))]" />
+        <h2 id="how-to-contribute-title" className="text-sm font-bold tracking-tight text-[hsl(var(--foreground))]">How to contribute</h2>
+      </div>
+      <ol className="space-y-2.5 text-xs leading-5 text-[hsl(var(--muted-foreground))] list-none p-0 m-0">
+        <li className="flex items-start gap-2.5">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--muted))] text-[11px] font-bold text-[hsl(var(--foreground))]">1</span>
+          <span>Upload your notes/PYQs/study material to Google Drive.</span>
+        </li>
+        <li className="flex items-start gap-2.5">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--muted))] text-[11px] font-bold text-[hsl(var(--foreground))]">2</span>
+          <span>Make sure the file can be accessed through the shared link.</span>
+        </li>
+        <li className="flex items-start gap-2.5">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--muted))] text-[11px] font-bold text-[hsl(var(--foreground))]">3</span>
+          <span>Copy the Google Drive link.</span>
+        </li>
+        <li className="flex items-start gap-2.5">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--muted))] text-[11px] font-bold text-[hsl(var(--foreground))]">4</span>
+          <span>Paste the link into Nexora and submit.</span>
+        </li>
+        <li className="flex items-start gap-2.5">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--secondary)/.3)] text-[11px] font-bold text-[hsl(var(--secondary-foreground))]">5</span>
+          <span>The admin will review it before it appears on Nexora.</span>
+        </li>
+      </ol>
+    </section>
+    <form onSubmit={submit} className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.78)] p-5 sm:p-8"><FormSection title="Where does it belong?"><div className="grid gap-4 sm:grid-cols-2"><Field label="Branch" required><select value={branchId ?? ""} onChange={(e) => setBranchId(Number(e.target.value))} className="input-style" data-testid="select-contribution-branch">{branches.map((item) => <option key={item.id} value={item.id}>{item.shortName} — {item.name}</option>)}</select></Field><Field label="Subject" required><select value={subjectId ?? ""} onChange={(e) => setSubjectId(Number(e.target.value))} className="input-style" data-testid="select-contribution-subject">{subjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="Year" required><select value={yearId ?? ""} onChange={(e) => setYearId(Number(e.target.value))} className="input-style" data-testid="select-contribution-year">{years.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="Semester" required><select value={semesterId ?? ""} onChange={(e) => setSemesterId(Number(e.target.value))} className="input-style" data-testid="select-contribution-semester">{semesters.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field></div></FormSection><FormSection title="Tell us about it"><div className="grid gap-4"><Field label="Resource type" required><select value={form.resourceType} onChange={(e) => update("resourceType", e.target.value)} className="input-style" data-testid="select-contribution-type">{resourceTypes.map((item) => <option key={item}>{item}</option>)}</select></Field><Field label="Title" required><input value={form.title} onChange={(e) => update("title", e.target.value)} className="input-style" placeholder="e.g. Data Structures revision notes" data-testid="input-contribution-title" /></Field><Field label="Short description"><textarea value={form.description} onChange={(e) => update("description", e.target.value)} className="input-style min-h-24 resize-y" placeholder="What will a student find inside?" data-testid="textarea-contribution-description" /></Field><Field label="Google Drive link" required hint={`${googleDriveUrlHint} Also make sure link access is set to "Anyone with the link".`}><div className="relative"><Link2 className="absolute left-3 top-3 text-[hsl(var(--muted-foreground))]" size={16} /><input value={form.googleDriveUrl} onChange={(e) => update("googleDriveUrl", e.target.value)} className="input-style pl-10" placeholder="https://drive.google.com/..." data-testid="input-contribution-url" /></div></Field></div></FormSection><FormSection title="A little about you"><div className="grid gap-4 sm:grid-cols-2"><Field label="Your name" required><input value={form.studentName} onChange={(e) => update("studentName", e.target.value)} className="input-style" placeholder="How should we credit you?" data-testid="input-contribution-name" /></Field><Field label="College email" required><input type="email" value={form.studentEmail} onChange={(e) => update("studentEmail", e.target.value)} className="input-style" placeholder="you@college.edu" data-testid="input-contribution-email" /></Field></div></FormSection>{error && <div className="mb-4 flex items-start gap-2 rounded-xl bg-[hsl(var(--destructive)/.1)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert" data-testid="status-contribution-error"><CircleAlert size={15} className="mt-0.5 shrink-0" />{error}</div>}<div className="flex flex-col items-start justify-between gap-4 border-t border-[hsl(var(--border))] pt-5 sm:flex-row sm:items-center"><p className="text-xs leading-5 text-[hsl(var(--muted-foreground))]">Submissions are checked by the Nexora student team.</p><button type="submit" disabled={createSubmission.isPending} className="focus-ring inline-flex items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-5 py-3 text-sm font-bold text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-60 w-full sm:w-auto" data-testid="button-submit-contribution">{createSubmission.isPending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} Send for review</button></div></form></div>;
 }
 
 function FormSection({ title, children }: { title: string; children: ReactNode }) { return <fieldset className="border-b border-[hsl(var(--border))] py-6 first:pt-0 last:border-0"><legend className="mb-4 text-sm font-bold">{title}</legend>{children}</fieldset>; }
