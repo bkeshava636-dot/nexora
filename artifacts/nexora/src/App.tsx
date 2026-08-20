@@ -1,8 +1,8 @@
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Link, Redirect, Route, Switch, Router as WouterRouter, useLocation, useParams } from "wouter";
 import {
-  ArrowRight, BarChart3, BadgeCheck, BookOpen, Check, CheckCircle2, ChevronDown, ChevronRight,
-  CircleAlert, Clock3, ExternalLink, FileText, Filter, Flag, FolderOpen, GraduationCap, Layers3,
+  ArrowLeft, ArrowRight, BarChart3, BadgeCheck, BookOpen, Check, CheckCircle2, ChevronDown, ChevronRight,
+  CircleAlert, Clock3, ExternalLink, Eye, EyeOff, FileText, Filter, Flag, FolderOpen, GraduationCap, KeyRound, Layers3,
   LayoutDashboard, LibraryBig, Link2, Loader2, Lock, LogOut, Menu, MoreHorizontal, Pencil, Plus, RotateCcw, Search, Send, ShieldCheck,
   SlidersHorizontal, Sparkles, Trash2, Upload, Users, X,
 } from "lucide-react";
@@ -27,6 +27,7 @@ import {
   getListSubjectsQueryKey,
   getListYearsQueryKey,
   useApproveSubmission,
+  useChangePassword,
   useCreateBranch,
   useCreateReport,
   useCreateSemester,
@@ -39,6 +40,7 @@ import {
   useDeleteSubject,
   useDeleteYear,
   useDismissReport,
+  useForgotPassword,
   useGetBranch,
   useGetSemester,
   useGetSubject,
@@ -54,6 +56,7 @@ import {
   useReorderBranches,
   useReorderSemesters,
   useReorderYears,
+  useResetPassword,
   useResolveReport,
   useUpdateBranch,
   useUpdateResource,
@@ -1088,6 +1091,7 @@ function LoginPage() {
   const { login, isLoggingIn, loginError, isAuthenticated } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [, navigate] = useLocation();
 
   if (isAuthenticated) return <Redirect to="/admin" />;
@@ -1097,28 +1101,525 @@ function LoginPage() {
     login({ username, password }).then(() => navigate("/admin")).catch(() => { /* surfaced via loginError */ });
   };
 
-  return <div className="mx-auto flex min-h-[calc(100dvh-68px)] max-w-md flex-col justify-center px-4 py-12 sm:px-7">
-    <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-7 sm:p-9">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[hsl(var(--muted))] text-[hsl(var(--primary))]"><Lock size={22} /></div>
-      <h1 className="display-font mt-5 text-center text-2xl font-bold tracking-[-.04em]">Admin sign in</h1>
-      <p className="mt-2 text-center text-xs leading-5 text-[hsl(var(--muted-foreground))]">Sign in to review submissions and manage the resource library.</p>
-      <form onSubmit={submit} className="mt-7 space-y-4">
-        <Field label="Username" required><input value={username} onChange={(e) => setUsername(e.target.value)} className="input-style" autoComplete="username" data-testid="input-login-username" /></Field>
-        <Field label="Password" required><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="input-style" autoComplete="current-password" data-testid="input-login-password" /></Field>
-        {loginError && <div className="flex items-start gap-2 rounded-xl bg-[hsl(var(--destructive)/.1)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert" data-testid="status-login-error"><CircleAlert size={15} className="mt-0.5 shrink-0" />{loginError}</div>}
-        <button type="submit" disabled={isLoggingIn} className="focus-ring flex w-full items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-5 py-3 text-sm font-bold text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-60" data-testid="button-login-submit">{isLoggingIn ? <Loader2 size={15} className="animate-spin" /> : <ShieldCheck size={15} />} Sign in</button>
-      </form>
+  return (
+    <div className="mx-auto flex min-h-[calc(100dvh-68px)] max-w-md flex-col justify-center px-4 py-12 sm:px-7">
+      <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-7 sm:p-9">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[hsl(var(--muted))] text-[hsl(var(--primary))]">
+          <Lock size={22} />
+        </div>
+        <h1 className="display-font mt-5 text-center text-2xl font-bold tracking-[-.04em]">Admin sign in</h1>
+        <p className="mt-2 text-center text-xs leading-5 text-[hsl(var(--muted-foreground))]">
+          Sign in to review submissions and manage the resource library.
+        </p>
+        <form onSubmit={submit} className="mt-7 space-y-4">
+          <Field label="Username" required>
+            <input
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="input-style"
+              autoComplete="username"
+              required
+              data-testid="input-login-username"
+            />
+          </Field>
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="mb-1.5 block text-xs font-bold">
+                Password <span className="text-[hsl(var(--destructive))]">*</span>
+              </label>
+              <Link
+                href="/forgot-password"
+                className="focus-ring text-xs font-bold text-[hsl(var(--accent-foreground))] hover:underline"
+                data-testid="link-forgot-password"
+              >
+                Forgot password?
+              </Link>
+            </div>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="input-style pr-10"
+                autoComplete="current-password"
+                required
+                data-testid="input-login-password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="focus-ring absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+          {loginError && (
+            <div
+              className="flex items-start gap-2 rounded-xl bg-[hsl(var(--destructive)/.1)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]"
+              role="alert"
+              data-testid="status-login-error"
+            >
+              <CircleAlert size={15} className="mt-0.5 shrink-0" />
+              {loginError}
+            </div>
+          )}
+          <button
+            type="submit"
+            disabled={isLoggingIn}
+            className="focus-ring flex w-full items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-5 py-3 text-sm font-bold text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-60"
+            data-testid="button-login-submit"
+          >
+            {isLoggingIn ? <Loader2 size={15} className="animate-spin" /> : <ShieldCheck size={15} />} Sign in
+          </button>
+        </form>
+      </div>
     </div>
-  </div>;
+  );
+}
+
+function ForgotPasswordPage() {
+  const [email, setEmail] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState("");
+
+  const forgotPassword = useForgotPassword({
+    onSuccess: () => {
+      setSubmitted(true);
+      setError("");
+    },
+    onError: (err: unknown) => {
+      setError(getErrorMessage(err) || "Failed to request password reset.");
+    },
+  });
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !email.includes("@")) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+    setError("");
+    forgotPassword.mutate({ data: { email: email.trim() } });
+  };
+
+  return (
+    <div className="mx-auto flex min-h-[calc(100dvh-68px)] max-w-md flex-col justify-center px-4 py-12 sm:px-7">
+      <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-7 sm:p-9">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[hsl(var(--muted))] text-[hsl(var(--primary))]">
+          <KeyRound size={22} />
+        </div>
+        <h1 className="display-font mt-5 text-center text-2xl font-bold tracking-[-.04em]">
+          Forgot password?
+        </h1>
+        <p className="mt-2 text-center text-xs leading-5 text-[hsl(var(--muted-foreground))]">
+          Enter your admin email to receive a password reset link.
+        </p>
+
+        {submitted ? (
+          <div className="mt-6 space-y-5" data-testid="status-forgot-password-success">
+            <div className="rounded-2xl border border-[hsl(var(--accent-foreground)/.2)] bg-[hsl(var(--accent))] p-4 text-xs font-semibold text-[hsl(var(--accent-foreground))]">
+              <div className="flex items-start gap-2.5">
+                <CheckCircle2 size={17} className="mt-0.5 shrink-0" />
+                <p className="leading-5">
+                  If an account exists for this email, you'll receive a password reset link.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/login"
+              className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-5 py-3 text-sm font-bold text-[hsl(var(--primary-foreground))]"
+              data-testid="link-back-login-success"
+            >
+              <ArrowLeft size={15} /> Return to login
+            </Link>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="mt-7 space-y-4">
+            <Field label="Admin email" required>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="input-style"
+                placeholder="admin@college.edu"
+                autoComplete="email"
+                required
+                data-testid="input-forgot-email"
+              />
+            </Field>
+
+            {error && (
+              <div
+                className="flex items-start gap-2 rounded-xl bg-[hsl(var(--destructive)/.1)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]"
+                role="alert"
+                data-testid="status-forgot-error"
+              >
+                <CircleAlert size={15} className="mt-0.5 shrink-0" />
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={forgotPassword.isPending}
+              className="focus-ring flex w-full items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-5 py-3 text-sm font-bold text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-60"
+              data-testid="button-forgot-submit"
+            >
+              {forgotPassword.isPending ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <Send size={15} />
+              )}
+              Request reset link
+            </button>
+
+            <div className="pt-2 text-center">
+              <Link
+                href="/login"
+                className="focus-ring inline-flex items-center gap-1 text-xs font-bold text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                data-testid="link-back-login"
+              >
+                <ArrowLeft size={13} /> Back to sign in
+              </Link>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ResetPasswordPage() {
+  const token = useMemo(() => new URLSearchParams(window.location.search).get("token") ?? "", []);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState("");
+
+  const resetPassword = useResetPassword({
+    onSuccess: () => {
+      setSubmitted(true);
+      setError("");
+    },
+    onError: (err: unknown) => {
+      setError(getErrorMessage(err) || "Failed to reset password.");
+    },
+  });
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!token) {
+      setError("Password reset token is missing or invalid.");
+      return;
+    }
+    if (!newPassword || newPassword.length < 8) {
+      setError("Password must be at least 8 characters long.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+    setError("");
+    resetPassword.mutate({
+      data: { token, newPassword },
+    });
+  };
+
+  return (
+    <div className="mx-auto flex min-h-[calc(100dvh-68px)] max-w-md flex-col justify-center px-4 py-12 sm:px-7">
+      <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-7 sm:p-9">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[hsl(var(--muted))] text-[hsl(var(--primary))]">
+          <KeyRound size={22} />
+        </div>
+        <h1 className="display-font mt-5 text-center text-2xl font-bold tracking-[-.04em]">
+          Reset password
+        </h1>
+        <p className="mt-2 text-center text-xs leading-5 text-[hsl(var(--muted-foreground))]">
+          Choose a new password for your admin account.
+        </p>
+
+        {submitted ? (
+          <div className="mt-6 space-y-5" data-testid="status-reset-password-success">
+            <div className="rounded-2xl border border-[hsl(var(--accent-foreground)/.2)] bg-[hsl(var(--accent))] p-4 text-xs font-semibold text-[hsl(var(--accent-foreground))]">
+              <div className="flex items-start gap-2.5">
+                <CheckCircle2 size={17} className="mt-0.5 shrink-0" />
+                <p className="leading-5">
+                  Password reset successfully. You can now log in.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/login"
+              className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-5 py-3 text-sm font-bold text-[hsl(var(--primary-foreground))]"
+              data-testid="link-login-after-reset"
+            >
+              Go to sign in <ArrowRight size={15} />
+            </Link>
+          </div>
+        ) : !token ? (
+          <div className="mt-6 space-y-5">
+            <div className="rounded-2xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.1)] p-4 text-xs font-semibold text-[hsl(var(--destructive))]">
+              <div className="flex items-start gap-2.5">
+                <CircleAlert size={17} className="mt-0.5 shrink-0" />
+                <p className="leading-5">
+                  Invalid or missing password reset link. Please request a new one.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/forgot-password"
+              className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-5 py-3 text-sm font-bold text-[hsl(var(--primary-foreground))]"
+              data-testid="link-request-new-reset"
+            >
+              Request new link
+            </Link>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="mt-7 space-y-4">
+            <div>
+              <label className="mb-1.5 block text-xs font-bold">
+                New password <span className="text-[hsl(var(--destructive))]">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="input-style pr-10"
+                  placeholder="At least 8 characters"
+                  required
+                  minLength={8}
+                  data-testid="input-reset-new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="focus-ring absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-bold">
+                Confirm new password <span className="text-[hsl(var(--destructive))]">*</span>
+              </label>
+              <input
+                type={showPassword ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="input-style"
+                placeholder="Re-enter new password"
+                required
+                minLength={8}
+                data-testid="input-reset-confirm-password"
+              />
+            </div>
+
+            {error && (
+              <div
+                className="flex items-start gap-2 rounded-xl bg-[hsl(var(--destructive)/.1)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]"
+                role="alert"
+                data-testid="status-reset-error"
+              >
+                <CircleAlert size={15} className="mt-0.5 shrink-0" />
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={resetPassword.isPending}
+              className="focus-ring flex w-full items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-5 py-3 text-sm font-bold text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-60"
+              data-testid="button-reset-submit"
+            >
+              {resetPassword.isPending ? (
+                <Loader2 size={15} className="animate-spin" />
+              ) : (
+                <Check size={15} />
+              )}
+              Update password
+            </button>
+
+            <div className="pt-2 text-center">
+              <Link
+                href="/login"
+                className="focus-ring inline-flex items-center gap-1 text-xs font-bold text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                data-testid="link-back-login-from-reset"
+              >
+                <ArrowLeft size={13} /> Return to sign in
+              </Link>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AdminChangePasswordDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPass, setShowPass] = useState(false);
+  const [error, setError] = useState("");
+
+  const changePassword = useChangePassword({
+    onSuccess: () => {
+      toast({
+        title: "Password updated",
+        description: "Your admin password has been changed successfully.",
+      });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setError("");
+      onOpenChange(false);
+    },
+    onError: (err: unknown) => {
+      setError(getErrorMessage(err) || "Failed to update password.");
+    },
+  });
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!currentPassword) {
+      setError("Please enter your current password.");
+      return;
+    }
+    if (!newPassword || newPassword.length < 8) {
+      setError("New password must be at least 8 characters long.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("New passwords do not match.");
+      return;
+    }
+    setError("");
+    changePassword.mutate({
+      data: { currentPassword, newPassword },
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Change Admin Password</DialogTitle>
+          <DialogDescription>
+            Enter your current password and choose a secure new password (min. 8 characters).
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-bold text-[hsl(var(--foreground))]">
+              Current password *
+            </label>
+            <div className="relative">
+              <input
+                type={showPass ? "text" : "password"}
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="input-style pr-10 text-xs"
+                placeholder="Enter current password"
+                required
+                data-testid="input-current-password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPass(!showPass)}
+                className="focus-ring absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                aria-label={showPass ? "Hide password" : "Show password"}
+              >
+                {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-bold text-[hsl(var(--foreground))]">
+              New password *
+            </label>
+            <input
+              type={showPass ? "text" : "password"}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="input-style text-xs"
+              placeholder="At least 8 characters"
+              required
+              minLength={8}
+              data-testid="input-new-password"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-bold text-[hsl(var(--foreground))]">
+              Confirm new password *
+            </label>
+            <input
+              type={showPass ? "text" : "password"}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="input-style text-xs"
+              placeholder="Confirm new password"
+              required
+              minLength={8}
+              data-testid="input-confirm-new-password"
+            />
+          </div>
+
+          {error && (
+            <div
+              className="flex items-start gap-2 rounded-xl bg-[hsl(var(--destructive)/.1)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]"
+              role="alert"
+              data-testid="status-change-password-error"
+            >
+              <CircleAlert size={15} className="mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              disabled={changePassword.isPending}
+              className="focus-ring rounded-xl border border-[hsl(var(--border))] px-4 py-2 text-xs font-semibold text-[hsl(var(--foreground))]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={changePassword.isPending}
+              className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2 text-xs font-bold text-[hsl(var(--primary-foreground))] disabled:opacity-60"
+              data-testid="button-submit-change-password"
+            >
+              {changePassword.isPending && <Loader2 size={13} className="animate-spin" />}
+              Save password
+            </button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function RequireAdmin({ children }: { children: ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
   if (isLoading) return <div className="mx-auto max-w-6xl px-4 py-24"><Loader2 className="mx-auto animate-spin text-[hsl(var(--muted-foreground))]" size={28} /></div>;
-  // The frontend redirect here is purely for UX (no flash of admin UI) — every
-  // admin API call is independently rejected server-side (requireAdmin
-  // middleware) regardless of what the client shows, so this alone is never
-  // the thing standing between an unauthenticated request and admin data.
   if (!isAuthenticated) return <Redirect to="/login" />;
   return <>{children}</>;
 }
@@ -1126,6 +1627,7 @@ function RequireAdmin({ children }: { children: ReactNode }) {
 function AdminLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const { username, logout } = useAuth();
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const tabs = [
     { href: "/admin", label: "Overview", testId: "link-admin-overview" },
     { href: "/admin/catalog", label: "Catalog", testId: "link-admin-catalog" },
@@ -1133,7 +1635,63 @@ function AdminLayout({ children }: { children: ReactNode }) {
     { href: "/admin/resources", label: "Resources", testId: "link-admin-resources" },
     { href: "/admin/reports", label: "Reports", testId: "link-admin-reports" },
   ];
-  return <div className="mx-auto max-w-6xl px-4 py-8 sm:px-7 sm:py-12"><div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><div className="mb-3 flex items-center gap-2 text-xs font-bold text-[hsl(var(--muted-foreground))]"><ShieldCheck size={15} /> Editorial workspace{username && <span className="font-normal text-[hsl(var(--muted-foreground)/.8)]">· signed in as {username}</span>}</div><h1 className="display-font text-4xl font-bold tracking-[-.05em]">Keep the shelf trustworthy.</h1><p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Review, organize, and keep the signal high.</p></div><div className="flex shrink-0 gap-2"><Link href="/contribute" className="focus-ring inline-flex w-fit items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-2.5 text-xs font-bold" data-testid="link-admin-contribute"><Plus size={15} /> Add resource</Link><button type="button" onClick={logout} className="focus-ring inline-flex w-fit items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--destructive))]" data-testid="button-logout"><LogOut size={15} /> Log out</button></div></div><div className="mb-8 flex gap-1 overflow-x-auto border-b border-[hsl(var(--border))] mobile-scroll">{tabs.map((tab) => <Link key={tab.href} href={tab.href} className={`focus-ring shrink-0 border-b-2 px-3 py-3 text-xs font-bold ${location === tab.href ? "border-[hsl(var(--secondary))] text-[hsl(var(--foreground))]" : "border-transparent text-[hsl(var(--muted-foreground))]"}`} data-testid={tab.testId}>{tab.label}</Link>)}</div>{children}</div>;
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-7 sm:py-12">
+      <div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+        <div>
+          <div className="mb-3 flex items-center gap-2 text-xs font-bold text-[hsl(var(--muted-foreground))]">
+            <ShieldCheck size={15} /> Editorial workspace
+            {username && <span className="font-normal text-[hsl(var(--muted-foreground)/.8)]">· signed in as {username}</span>}
+          </div>
+          <h1 className="display-font text-4xl font-bold tracking-[-.05em]">Keep the shelf trustworthy.</h1>
+          <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Review, organize, and keep the signal high.</p>
+        </div>
+        <div className="flex flex-wrap shrink-0 gap-2">
+          <Link
+            href="/contribute"
+            className="focus-ring inline-flex w-fit items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-2.5 text-xs font-bold"
+            data-testid="link-admin-contribute"
+          >
+            <Plus size={15} /> Add resource
+          </Link>
+          <button
+            type="button"
+            onClick={() => setChangePasswordOpen(true)}
+            className="focus-ring inline-flex w-fit items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted)/.6)]"
+            data-testid="button-open-change-password"
+          >
+            <KeyRound size={15} /> Change password
+          </button>
+          <button
+            type="button"
+            onClick={logout}
+            className="focus-ring inline-flex w-fit items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--destructive))]"
+            data-testid="button-logout"
+          >
+            <LogOut size={15} /> Log out
+          </button>
+        </div>
+      </div>
+      <div className="mb-8 flex gap-1 overflow-x-auto border-b border-[hsl(var(--border))] mobile-scroll">
+        {tabs.map((tab) => (
+          <Link
+            key={tab.href}
+            href={tab.href}
+            className={`focus-ring shrink-0 border-b-2 px-3 py-3 text-xs font-bold ${
+              location === tab.href
+                ? "border-[hsl(var(--secondary))] text-[hsl(var(--foreground))]"
+                : "border-transparent text-[hsl(var(--muted-foreground))]"
+            }`}
+            data-testid={tab.testId}
+          >
+            {tab.label}
+          </Link>
+        ))}
+      </div>
+      {children}
+      <AdminChangePasswordDialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen} />
+    </div>
+  );
 }
 
 function AdminCatalog() {
@@ -2788,6 +3346,8 @@ function AppRouter() {
     <Route path="/subject/:subjectId"><SubjectPage /></Route>
     <Route path="/contribute"><ContributePage /></Route>
     <Route path="/login"><LoginPage /></Route>
+    <Route path="/forgot-password"><ForgotPasswordPage /></Route>
+    <Route path="/reset-password"><ResetPasswordPage /></Route>
     <Route path="/admin"><RequireAdmin><AdminOverview /></RequireAdmin></Route>
     <Route path="/admin/catalog"><RequireAdmin><AdminLayout><AdminCatalog /></AdminLayout></RequireAdmin></Route>
     <Route path="/admin/submissions"><RequireAdmin><AdminSubmissions /></RequireAdmin></Route>
