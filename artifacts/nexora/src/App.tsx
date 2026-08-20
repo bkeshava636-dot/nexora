@@ -7,6 +7,7 @@ import {
   SlidersHorizontal, Sparkles, Trash2, Upload, Users, X,
 } from "lucide-react";
 import { ApiWakeOverlay } from "@/components/api-wake-overlay";
+import { BuyMePaneerFooter } from "@/components/buy-me-paneer";
 import { ErrorBoundary } from "@/components/error-boundary";
 import {
   Dialog,
@@ -208,7 +209,10 @@ function Shell({ children }: { children: ReactNode }) {
         {nav.map(({ href, label, icon: Icon }) => <Link href={href} onClick={() => setMobileOpen(false)} key={href} className="focus-ring flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold hover:bg-[hsl(var(--muted))]" data-testid={`mobile-link-${label.toLowerCase().replaceAll(" ", "-")}`}><Icon size={17} />{label}</Link>)}
         <Link href="/admin" onClick={() => setMobileOpen(false)} className="focus-ring flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold hover:bg-[hsl(var(--muted))]" data-testid="mobile-link-admin"><ShieldCheck size={17} />Admin view</Link>
       </div>}
-      <main className="nexora-main min-h-[calc(100dvh-68px)]">{children}</main>
+      <main className="nexora-main min-h-[calc(100dvh-68px)] flex flex-col justify-between">
+        <div className="flex-1">{children}</div>
+        {!location.startsWith("/admin") && <BuyMePaneerFooter />}
+      </main>
     </div>
   </div>;
 }

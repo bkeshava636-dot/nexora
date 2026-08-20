@@ -9,6 +9,7 @@ import resourcesRouter from "./resources";
 import submissionsRouter from "./submissions";
 import reportsRouter from "./reports";
 import curriculumTemplatesRouter from "./curriculum-templates";
+import paymentsRouter from "./payments";
 import { readSession } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -28,5 +29,6 @@ router.use(resourcesRouter);
 router.use(submissionsRouter);
 router.use(reportsRouter);
 router.use(curriculumTemplatesRouter);
+router.use(paymentsRouter);
 
 export default router;
