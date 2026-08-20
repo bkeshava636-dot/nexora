@@ -1,4 +1,4 @@
-﻿import { index, integer, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { index, integer, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 
 export const paymentStatusValues = ["created", "verified", "failed"] as const;
@@ -24,7 +24,6 @@ export const payments = pgTable(
 );
 
 export const insertPaymentSchema = createInsertSchema(payments).omit({
-  id: true,
   createdAt: true,
   verifiedAt: true,
 });
