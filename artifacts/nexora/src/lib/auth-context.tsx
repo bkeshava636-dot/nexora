@@ -35,12 +35,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoggingIn: loginMutation.isPending,
     loginError: loginMutation.error ? "Incorrect username or password." : null,
     async login(credentials) {
-      await loginMutation.mutateAsync({ data: credentials });
-      await queryClient.invalidateQueries({ queryKey: me.queryKey });
+      const res = await loginMutation.mutateAsync({ data: credentials });
+      queryClient.setQueryData(me.queryKey, res);
+      await queryClient.refetchQueries({ queryKey: me.queryKey });
     },
     logout() {
       logoutMutation.mutate(undefined, {
         onSettled: () => {
+          queryClient.setQueryData(me.queryKey, { authenticated: false });
           void queryClient.invalidateQueries({ queryKey: me.queryKey });
         },
       });

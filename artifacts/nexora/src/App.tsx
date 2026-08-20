@@ -1235,14 +1235,27 @@ function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
   const [, navigate] = useLocation();
 
   if (isAuthenticated) return <Redirect to="/admin" />;
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    login({ username, password }).then(() => navigate("/admin")).catch(() => { /* surfaced via loginError */ });
+    if (!username.trim() || !password) {
+      setLocalError("Please enter both username and password.");
+      return;
+    }
+    setLocalError(null);
+    try {
+      await login({ username: username.trim(), password });
+      navigate("/admin");
+    } catch (err: unknown) {
+      setLocalError(getErrorMessage(err) || "Incorrect username or password.");
+    }
   };
+
+  const displayedError = localError || loginError;
 
   return (
     <div className="mx-auto flex min-h-[calc(100dvh-68px)] max-w-md flex-col justify-center px-4 py-12 sm:px-7">
@@ -1258,7 +1271,10 @@ function LoginPage() {
           <Field label="Username" required>
             <input
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) => {
+                setUsername(e.target.value);
+                if (localError) setLocalError(null);
+              }}
               className="input-style"
               autoComplete="username"
               required
@@ -1282,7 +1298,10 @@ function LoginPage() {
               <input
                 type={showPassword ? "text" : "password"}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (localError) setLocalError(null);
+                }}
                 className="input-style pr-10"
                 autoComplete="current-password"
                 required
@@ -1298,14 +1317,14 @@ function LoginPage() {
               </button>
             </div>
           </div>
-          {loginError && (
+          {displayedError && (
             <div
               className="flex items-start gap-2 rounded-xl bg-[hsl(var(--destructive)/.1)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]"
               role="alert"
               data-testid="status-login-error"
             >
               <CircleAlert size={15} className="mt-0.5 shrink-0" />
-              {loginError}
+              {displayedError}
             </div>
           )}
           <button
@@ -2170,6 +2189,15 @@ function AdminOverview() {
   const submissions = submissionsQuery.data ?? [];
   const reports = (reportsQuery.data ?? []) as ReportItem[];
 
+  const uniqueYearsCount = useMemo(
+    () => new Set(years.map((y) => y.name.trim())).size,
+    [years],
+  );
+  const uniqueSemestersCount = useMemo(
+    () => new Set(semesters.map((s) => s.name.trim())).size,
+    [semesters],
+  );
+
   const pendingSubmissions = useMemo(
     () => submissions.filter((s) => s.status === "pending"),
     [submissions],
@@ -2237,11 +2265,46 @@ function AdminOverview() {
               </h2>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
-              <Metric icon={GraduationCap} label="Branches" value={branches.length} detail={branchesQuery.isError ? "Error loading" : "Academic branches"} isError={branchesQuery.isError} testId="metric-branches" />
-              <Metric icon={Layers3} label="Years" value={years.length} detail={yearsQuery.isError ? "Error loading" : "Year cohorts"} isError={yearsQuery.isError} testId="metric-years" />
-              <Metric icon={FolderOpen} label="Semesters" value={semesters.length} detail={semestersQuery.isError ? "Error loading" : "Semesters"} isError={semestersQuery.isError} testId="metric-semesters" />
-              <Metric icon={BookOpen} label="Subjects" value={subjects.length} detail={subjectsQuery.isError ? "Error loading" : "Total subjects"} isError={subjectsQuery.isError} testId="metric-subjects" />
-              <Metric icon={LibraryBig} label="Resources" value={resources.length} detail={resourcesQuery.isError ? "Error loading" : "Published"} isError={resourcesQuery.isError} testId="metric-resources" />
+              <Metric
+                icon={GraduationCap}
+                label="Branches"
+                value={branches.length}
+                detail={branchesQuery.isError ? "Error loading" : `${branches.filter((b) => b.isActive).length} active`}
+                isError={branchesQuery.isError}
+                testId="metric-branches"
+              />
+              <Metric
+                icon={Layers3}
+                label="Years"
+                value={uniqueYearsCount}
+                detail={yearsQuery.isError ? "Error loading" : `${years.length} branch cohorts`}
+                isError={yearsQuery.isError}
+                testId="metric-years"
+              />
+              <Metric
+                icon={FolderOpen}
+                label="Semesters"
+                value={uniqueSemestersCount}
+                detail={semestersQuery.isError ? "Error loading" : `${semesters.length} across branches`}
+                isError={semestersQuery.isError}
+                testId="metric-semesters"
+              />
+              <Metric
+                icon={BookOpen}
+                label="Subjects"
+                value={subjects.length}
+                detail={subjectsQuery.isError ? "Error loading" : "In catalog"}
+                isError={subjectsQuery.isError}
+                testId="metric-subjects"
+              />
+              <Metric
+                icon={LibraryBig}
+                label="Resources"
+                value={resources.length}
+                detail={resourcesQuery.isError ? "Error loading" : `${resources.filter((r) => r.isVerified).length} verified`}
+                isError={resourcesQuery.isError}
+                testId="metric-resources"
+              />
               <Metric
                 icon={Clock3}
                 label="Pending Submissions"
