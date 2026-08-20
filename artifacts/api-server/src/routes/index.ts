@@ -8,6 +8,7 @@ import subjectsRouter from "./subjects";
 import resourcesRouter from "./resources";
 import submissionsRouter from "./submissions";
 import reportsRouter from "./reports";
+import curriculumTemplatesRouter from "./curriculum-templates";
 import { readSession } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -26,5 +27,6 @@ router.use(subjectsRouter);
 router.use(resourcesRouter);
 router.use(submissionsRouter);
 router.use(reportsRouter);
+router.use(curriculumTemplatesRouter);
 
 export default router;

@@ -23,32 +23,40 @@ import { MutationCache, QueryClient, QueryClientProvider, useQueryClient } from 
 import { toast } from "@/hooks/use-toast";
 import {
   getListBranchesQueryKey,
+  getListCurriculumTemplatesQueryKey,
   getListReportsQueryKey,
   getListResourcesQueryKey,
   getListSemestersQueryKey,
   getListSubjectsQueryKey,
   getListSubmissionsQueryKey,
   getListYearsQueryKey,
+  useApplyCurriculumTemplate,
   useApproveSubmission,
   useChangePassword,
   useCreateBranch,
+  useCreateCurriculumTemplate,
   useCreateReport,
   useCreateSemester,
   useCreateSubject,
   useCreateSubmission,
+  useCreateTemplateSubject,
   useCreateYear,
   useDeleteBranch,
+  useDeleteCurriculumTemplate,
   useDeleteResource,
   useDeleteSemester,
   useDeleteSubject,
+  useDeleteTemplateSubject,
   useDeleteYear,
   useDismissReport,
   useForgotPassword,
   useGetBranch,
+  useGetCurriculumTemplate,
   useGetSemester,
   useGetSubject,
   useGetYear,
   useListBranches,
+  useListCurriculumTemplates,
   useListReports,
   useListResources,
   useListSemesters,
@@ -58,15 +66,20 @@ import {
   useRejectSubmission,
   useReorderBranches,
   useReorderSemesters,
+  useReorderTemplateSubjects,
   useReorderYears,
   useResetPassword,
   useResolveReport,
   useUpdateBranch,
+  useUpdateCurriculumTemplate,
   useUpdateResource,
   useUpdateSemester,
   useUpdateSubject,
+  useUpdateTemplateSubject,
   useUpdateYear,
   type Branch,
+  type CurriculumTemplateItem,
+  type CurriculumTemplateSubjectItem,
   type ReportItem,
   type ReportReason,
   type Resource,
@@ -1761,6 +1774,7 @@ function AdminLayout({ children }: { children: ReactNode }) {
   const tabs = [
     { href: "/admin", label: "Overview", testId: "link-admin-overview" },
     { href: "/admin/catalog", label: "Catalog", testId: "link-admin-catalog" },
+    { href: "/admin/templates", label: "Curriculum Templates", testId: "link-admin-templates" },
     { href: "/admin/submissions", label: "Submissions", testId: "link-admin-submissions" },
     { href: "/admin/resources", label: "Resources", testId: "link-admin-resources" },
     { href: "/admin/reports", label: "Reports", testId: "link-admin-reports" },
@@ -2254,7 +2268,7 @@ function AdminOverview() {
             <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
               Quick actions
             </h2>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
               <Link
                 href="/admin/catalog"
                 className="focus-ring card-lift group flex flex-col justify-between rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 transition-colors hover:border-[hsl(var(--secondary))]"
@@ -2286,6 +2300,23 @@ function AdminOverview() {
                 <div className="mt-4">
                   <p className="text-xs font-bold text-[hsl(var(--foreground))]">Manage Subjects</p>
                   <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">{subjects.length} in catalog</p>
+                </div>
+              </Link>
+
+              <Link
+                href="/admin/templates"
+                className="focus-ring card-lift group flex flex-col justify-between rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 transition-colors hover:border-[hsl(var(--secondary))]"
+                data-testid="quick-action-curriculum-templates"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[hsl(var(--muted))] text-[hsl(var(--primary))] group-hover:bg-[hsl(var(--secondary)/.2)]">
+                    <FolderOpen size={18} />
+                  </div>
+                  <ArrowRight size={14} className="text-[hsl(var(--muted-foreground))] transition-transform group-hover:translate-x-0.5" />
+                </div>
+                <div className="mt-4">
+                  <p className="text-xs font-bold text-[hsl(var(--foreground))]">Curriculum Templates</p>
+                  <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">Subject blueprints</p>
                 </div>
               </Link>
 
@@ -3472,6 +3503,974 @@ function ToggleButton({ label, active, onClick, testId }: { label: string; activ
   );
 }
 
+function AdminCurriculumTemplates() {
+  const { data: templates = [], isLoading } = useListCurriculumTemplates();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<CurriculumTemplateItem | null>(null);
+  const [managingTemplate, setManagingTemplate] = useState<CurriculumTemplateItem | null>(null);
+  const [applyingTemplate, setApplyingTemplate] = useState<CurriculumTemplateItem | null>(null);
+
+  const deleteTemplate = useDeleteCurriculumTemplate();
+
+  const handleDelete = (tpl: CurriculumTemplateItem) => {
+    if (deleteTemplate.isPending) return;
+    if (window.confirm(`Delete the curriculum template for ${tpl.branchShortName} · ${tpl.yearName} · ${tpl.semesterName}? This will remove its template subjects.`)) {
+      deleteTemplate.mutate(
+        { id: tpl.id },
+        {
+          onSuccess: () => {
+            toast({ title: "Template deleted", description: "The curriculum template was removed." });
+          },
+        },
+      );
+    }
+  };
+
+  const currentManaging = templates.find((t) => t.id === managingTemplate?.id) || managingTemplate;
+  const currentApplying = templates.find((t) => t.id === applyingTemplate?.id) || applyingTemplate;
+
+  return (
+    <AdminLayout>
+      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 sm:p-5">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-lg font-bold">Curriculum Templates</h2>
+            <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+              Create and manage blueprint subject lists by branch, year, and semester to apply to the catalog.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="focus-ring inline-flex w-fit items-center gap-1.5 rounded-xl bg-[hsl(var(--primary))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--primary-foreground))] hover:opacity-90"
+            data-testid="button-create-template"
+          >
+            <Plus size={14} /> Create Template
+          </button>
+        </div>
+
+        {isLoading ? (
+          <Loader2 className="mx-auto my-10 animate-spin text-[hsl(var(--muted-foreground))]" size={24} />
+        ) : templates.length ? (
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {templates.map((tpl) => (
+              <div
+                key={tpl.id}
+                className="flex flex-col justify-between rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.7)] p-4 sm:p-5"
+                data-testid={`card-template-${tpl.id}`}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="rounded-full bg-[hsl(var(--secondary)/.25)] px-2.5 py-0.5 text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">
+                      {tpl.branchShortName}
+                    </span>
+                    <span className="rounded-full bg-[hsl(var(--muted))] px-2.5 py-0.5 text-[10px] font-bold text-[hsl(var(--muted-foreground))]">
+                      {tpl.subjectCount} {tpl.subjectCount === 1 ? "subject" : "subjects"}
+                    </span>
+                  </div>
+
+                  <h3 className="mt-3 text-sm font-bold text-[hsl(var(--foreground))]">
+                    {tpl.branchName}
+                  </h3>
+                  <p className="text-xs font-semibold text-[hsl(var(--accent-foreground))]">
+                    {tpl.yearName} · {tpl.semesterName}
+                  </p>
+
+                  {tpl.name && (
+                    <p className="mt-2 text-xs italic text-[hsl(var(--muted-foreground))]">
+                      "{tpl.name}"
+                    </p>
+                  )}
+
+                  {tpl.subjects.length > 0 ? (
+                    <div className="mt-4 space-y-1.5 border-t border-[hsl(var(--border)/.6)] pt-3">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                        Subjects blueprint:
+                      </p>
+                      <ul className="space-y-1 text-xs text-[hsl(var(--foreground))]">
+                        {tpl.subjects.slice(0, 4).map((s, idx) => (
+                          <li key={s.id} className="truncate flex items-center gap-1.5">
+                            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">{idx + 1}.</span>
+                            <span className="font-semibold">{s.name}</span>
+                            {s.code && (
+                              <span className="rounded bg-[hsl(var(--muted))] px-1 py-0.2 text-[9px] font-bold text-[hsl(var(--muted-foreground))]">
+                                {s.code}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                        {tpl.subjects.length > 4 && (
+                          <li className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                            + {tpl.subjects.length - 4} more subjects
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  ) : (
+                    <p className="mt-4 border-t border-[hsl(var(--border)/.6)] pt-3 text-xs text-[hsl(var(--muted-foreground))]">
+                      No subjects added to this template yet.
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-[hsl(var(--border))] pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setManagingTemplate(tpl)}
+                    className="focus-ring inline-flex items-center gap-1 text-xs font-bold text-[hsl(var(--accent-foreground))] hover:underline"
+                    data-testid={`button-manage-template-subjects-${tpl.id}`}
+                  >
+                    <BookOpen size={13} /> Manage Subjects
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setApplyingTemplate(tpl)}
+                      className="focus-ring inline-flex items-center gap-1 rounded-lg bg-[hsl(var(--primary))] px-2.5 py-1 text-[11px] font-bold text-[hsl(var(--primary-foreground))] hover:opacity-90"
+                      title="Apply template to catalog"
+                      data-testid={`button-apply-template-${tpl.id}`}
+                    >
+                      <Sparkles size={11} /> Apply
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingTemplate(tpl)}
+                      className="focus-ring rounded-lg p-1.5 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
+                      title="Edit template name"
+                      aria-label="Edit template"
+                      data-testid={`button-edit-template-${tpl.id}`}
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={deleteTemplate.isPending}
+                      onClick={() => handleDelete(tpl)}
+                      className="focus-ring rounded-lg p-1.5 text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive)/.1)] disabled:opacity-50"
+                      title="Delete template"
+                      aria-label="Delete template"
+                      data-testid={`button-delete-template-${tpl.id}`}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            title="No curriculum templates yet"
+            body="Create your first blueprint template to define standard subject lists for branches and semesters."
+            action={
+              <button
+                type="button"
+                onClick={() => setCreateOpen(true)}
+                className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--primary-foreground))]"
+                data-testid="button-empty-create-template"
+              >
+                <Plus size={14} /> Create Template
+              </button>
+            }
+          />
+        )}
+      </div>
+
+      <CreateTemplateDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        existingTemplates={templates}
+      />
+
+      <EditTemplateDialog
+        template={editingTemplate}
+        open={Boolean(editingTemplate)}
+        onOpenChange={(open) => { if (!open) setEditingTemplate(null); }}
+      />
+
+      {currentManaging && (
+        <TemplateSubjectManagerDialog
+          template={currentManaging}
+          open={Boolean(managingTemplate)}
+          onOpenChange={(open) => { if (!open) setManagingTemplate(null); }}
+        />
+      )}
+
+      {currentApplying && (
+        <ApplyTemplateDialog
+          template={currentApplying}
+          open={Boolean(applyingTemplate)}
+          onOpenChange={(open) => { if (!open) setApplyingTemplate(null); }}
+        />
+      )}
+    </AdminLayout>
+  );
+}
+
+function CreateTemplateDialog({
+  open,
+  onOpenChange,
+  existingTemplates,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  existingTemplates: CurriculumTemplateItem[];
+}) {
+  const [branchId, setBranchId] = useState<number | undefined>(undefined);
+  const [yearId, setYearId] = useState<number | undefined>(undefined);
+  const [semesterId, setSemesterId] = useState<number | undefined>(undefined);
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
+
+  const { data: branches = [] } = useListBranches({ includeInactive: true });
+  const { data: years = [] } = useListYears({ branchId: branchId as number }, qOpts(!!branchId));
+  const { data: semesters = [] } = useListSemesters({ yearId: yearId as number }, qOpts(!!yearId));
+
+  useEffect(() => {
+    if (branches.length && branchId === undefined) setBranchId(branches[0]?.id);
+  }, [branches, branchId]);
+
+  useEffect(() => {
+    if (years.length) {
+      setYearId((curr) => (curr && years.some((y) => y.id === curr) ? curr : years[0]?.id));
+    } else {
+      setYearId(undefined);
+    }
+  }, [years]);
+
+  useEffect(() => {
+    if (semesters.length) {
+      setSemesterId((curr) => (curr && semesters.some((s) => s.id === curr) ? curr : semesters[0]?.id));
+    } else {
+      setSemesterId(undefined);
+    }
+  }, [semesters]);
+
+  const isDuplicate = Boolean(
+    semesterId && existingTemplates.some((t) => t.semesterId === semesterId),
+  );
+
+  const createTemplate = useCreateCurriculumTemplate();
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!branchId || !yearId || !semesterId) {
+      setError("Please select a Branch, Year, and Semester.");
+      return;
+    }
+    if (isDuplicate) {
+      setError("A curriculum template for this semester already exists.");
+      return;
+    }
+
+    createTemplate.mutate(
+      {
+        data: {
+          branchId,
+          yearId,
+          semesterId,
+          name: name.trim() || undefined,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Template created", description: "You can now add subjects to this template." });
+          setName("");
+          setError("");
+          onOpenChange(false);
+        },
+        onError: (err: unknown) => {
+          setError(getErrorMessage(err) || "Failed to create template.");
+        },
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(val) => { onOpenChange(val); if (!val) { setError(""); setName(""); } }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Create Curriculum Template</DialogTitle>
+          <DialogDescription>
+            Choose the branch, year, and semester for this curriculum blueprint.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-bold text-[hsl(var(--foreground))]">Branch *</label>
+            <select
+              value={branchId ?? ""}
+              onChange={(e) => setBranchId(Number(e.target.value))}
+              className="input-style h-10 w-full text-xs"
+              data-testid="select-template-branch"
+            >
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>{b.shortName} — {b.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-bold text-[hsl(var(--foreground))]">Year *</label>
+              <select
+                value={yearId ?? ""}
+                onChange={(e) => setYearId(Number(e.target.value))}
+                className="input-style h-10 w-full text-xs"
+                disabled={!years.length}
+                data-testid="select-template-year"
+              >
+                {years.map((y) => (
+                  <option key={y.id} value={y.id}>{y.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-bold text-[hsl(var(--foreground))]">Semester *</label>
+              <select
+                value={semesterId ?? ""}
+                onChange={(e) => setSemesterId(Number(e.target.value))}
+                className="input-style h-10 w-full text-xs"
+                disabled={!semesters.length}
+                data-testid="select-template-semester"
+              >
+                {semesters.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-bold text-[hsl(var(--foreground))]">
+              Template label (optional)
+            </label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. 2022 Scheme CSE 3rd Sem"
+              className="input-style h-10 w-full text-xs"
+              data-testid="input-template-name"
+            />
+          </div>
+
+          {isDuplicate && (
+            <div className="flex items-start gap-2 rounded-xl bg-[hsl(var(--secondary)/.15)] p-3 text-xs font-semibold text-[hsl(var(--secondary-foreground))]">
+              <CircleAlert size={15} className="mt-0.5 shrink-0" />
+              <span>A curriculum template already exists for this branch, year, and semester.</span>
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-start gap-2 rounded-xl bg-[hsl(var(--destructive)/.1)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]">
+              <CircleAlert size={15} className="mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="focus-ring rounded-xl border border-[hsl(var(--border))] px-4 py-2 text-xs font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={createTemplate.isPending || isDuplicate || !semesterId}
+              className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[hsl(var(--primary))] px-4 py-2 text-xs font-bold text-[hsl(var(--primary-foreground))] disabled:opacity-60"
+              data-testid="button-submit-create-template"
+            >
+              {createTemplate.isPending && <Loader2 size={13} className="animate-spin" />}
+              Create Template
+            </button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditTemplateDialog({
+  template,
+  open,
+  onOpenChange,
+}: {
+  template: CurriculumTemplateItem | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [name, setName] = useState("");
+  const updateTemplate = useUpdateCurriculumTemplate();
+
+  useEffect(() => {
+    if (template) setName(template.name || "");
+  }, [template, open]);
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!template) return;
+
+    updateTemplate.mutate(
+      {
+        id: template.id,
+        data: { name: name.trim() },
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Template updated" });
+          onOpenChange(false);
+        },
+      },
+    );
+  };
+
+  if (!template) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit Template Label</DialogTitle>
+          <DialogDescription>
+            {template.branchShortName} · {template.yearName} · {template.semesterName}
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-bold text-[hsl(var(--foreground))]">Template label</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. 2022 Scheme CSE 3rd Sem"
+              className="input-style h-10 w-full text-xs"
+              data-testid="input-edit-template-name"
+            />
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="focus-ring rounded-xl border border-[hsl(var(--border))] px-4 py-2 text-xs font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={updateTemplate.isPending}
+              className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[hsl(var(--primary))] px-4 py-2 text-xs font-bold text-[hsl(var(--primary-foreground))] disabled:opacity-60"
+              data-testid="button-save-template"
+            >
+              {updateTemplate.isPending && <Loader2 size={13} className="animate-spin" />}
+              Save Changes
+            </button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TemplateSubjectManagerDialog({
+  template,
+  open,
+  onOpenChange,
+}: {
+  template: CurriculumTemplateItem;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [subName, setSubName] = useState("");
+  const [subCode, setSubCode] = useState("");
+  const [subDesc, setSubDesc] = useState("");
+  const [editingSub, setEditingSub] = useState<CurriculumTemplateSubjectItem | null>(null);
+
+  const addSubject = useCreateTemplateSubject();
+  const deleteSubject = useDeleteTemplateSubject();
+  const reorderSubjects = useReorderTemplateSubjects();
+
+  const handleAddSubject = (e: FormEvent) => {
+    e.preventDefault();
+    if (!subName.trim() || addSubject.isPending) return;
+
+    addSubject.mutate(
+      {
+        templateId: template.id,
+        data: {
+          name: subName.trim(),
+          code: subCode.trim() || undefined,
+          description: subDesc.trim() || undefined,
+          displayOrder: template.subjects.length,
+        },
+      },
+      {
+        onSuccess: () => {
+          setSubName("");
+          setSubCode("");
+          setSubDesc("");
+          toast({ title: "Subject added to template" });
+        },
+      },
+    );
+  };
+
+  const handleMove = (sub: CurriculumTemplateSubjectItem, direction: -1 | 1) => {
+    if (reorderSubjects.isPending) return;
+    const sorted = [...template.subjects].sort((a, b) => a.displayOrder - b.displayOrder);
+    const idx = sorted.findIndex((s) => s.id === sub.id);
+    const swapWith = sorted[idx + direction];
+    if (!swapWith) return;
+
+    reorderSubjects.mutate({
+      templateId: template.id,
+      data: {
+        order: [
+          { id: sub.id, displayOrder: swapWith.displayOrder },
+          { id: swapWith.id, displayOrder: sub.displayOrder },
+        ],
+      },
+    });
+  };
+
+  const handleDeleteSub = (subId: number) => {
+    if (deleteSubject.isPending) return;
+    deleteSubject.mutate(
+      { templateId: template.id, subjectId: subId },
+      {
+        onSuccess: () => {
+          toast({ title: "Subject removed from template" });
+        },
+      },
+    );
+  };
+
+  const sortedSubjects = [...template.subjects].sort((a, b) => a.displayOrder - b.displayOrder);
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-[hsl(var(--secondary)/.25)] px-2.5 py-0.5 text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">
+                {template.branchShortName}
+              </span>
+              <DialogTitle className="text-lg">
+                Manage Template Subjects
+              </DialogTitle>
+            </div>
+            <DialogDescription>
+              {template.branchName} · {template.yearName} · {template.semesterName}
+              {template.name ? ` (${template.name})` : ""}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Add Subject Form */}
+          <form onSubmit={handleAddSubject} className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.3)] p-4 space-y-3">
+            <p className="text-xs font-bold text-[hsl(var(--foreground))]">Add Subject to Blueprint</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="sm:col-span-2">
+                <input
+                  value={subName}
+                  onChange={(e) => setSubName(e.target.value)}
+                  placeholder="Subject name (e.g. Operating Systems)"
+                  className="input-style h-9 w-full text-xs"
+                  required
+                  data-testid="input-template-subject-name"
+                />
+              </div>
+              <div>
+                <input
+                  value={subCode}
+                  onChange={(e) => setSubCode(e.target.value)}
+                  placeholder="Code (e.g. 21CS34)"
+                  className="input-style h-9 w-full text-xs"
+                  data-testid="input-template-subject-code"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <input
+                value={subDesc}
+                onChange={(e) => setSubDesc(e.target.value)}
+                placeholder="Optional description / topics note"
+                className="input-style h-9 flex-1 text-xs"
+                data-testid="input-template-subject-description"
+              />
+              <button
+                type="submit"
+                disabled={addSubject.isPending || !subName.trim()}
+                className="focus-ring inline-flex shrink-0 items-center gap-1 rounded-xl bg-[hsl(var(--primary))] px-4 py-2 text-xs font-bold text-[hsl(var(--primary-foreground))] disabled:opacity-60"
+                data-testid="button-add-template-subject"
+              >
+                {addSubject.isPending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+                Add Subject
+              </button>
+            </div>
+          </form>
+
+          {/* Subjects List */}
+          <div className="space-y-2 mt-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">
+                Subjects in this template ({sortedSubjects.length})
+              </p>
+            </div>
+
+            {sortedSubjects.length === 0 ? (
+              <p className="py-6 text-center text-xs text-[hsl(var(--muted-foreground))]">
+                No subjects in this template yet. Use the form above to add subjects.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {sortedSubjects.map((sub, idx) => (
+                  <div
+                    key={sub.id}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 text-xs"
+                    data-testid={`row-template-subject-${sub.id}`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div className="flex shrink-0 flex-col">
+                        <button
+                          type="button"
+                          disabled={reorderSubjects.isPending || idx === 0}
+                          onClick={() => handleMove(sub, -1)}
+                          className="focus-ring text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] disabled:opacity-30"
+                          aria-label="Move up"
+                        >
+                          <ChevronDown size={11} className="rotate-180" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={reorderSubjects.isPending || idx === sortedSubjects.length - 1}
+                          onClick={() => handleMove(sub, 1)}
+                          className="focus-ring text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] disabled:opacity-30"
+                          aria-label="Move down"
+                        >
+                          <ChevronDown size={11} />
+                        </button>
+                      </div>
+
+                      <span className="font-bold text-[hsl(var(--muted-foreground))] w-5 text-center">
+                        {idx + 1}.
+                      </span>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-bold text-[hsl(var(--foreground))]">{sub.name}</span>
+                          {sub.code && (
+                            <span className="rounded bg-[hsl(var(--muted))] px-1.5 py-0.5 text-[10px] font-bold text-[hsl(var(--accent-foreground))]">
+                              {sub.code}
+                            </span>
+                          )}
+                        </div>
+                        {sub.description && (
+                          <p className="truncate text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5">
+                            {sub.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setEditingSub(sub)}
+                        className="focus-ring rounded-lg p-1.5 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
+                        title="Edit subject"
+                        aria-label="Edit subject"
+                        data-testid={`button-edit-template-subject-${sub.id}`}
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSub(sub.id)}
+                        disabled={deleteSubject.isPending}
+                        className="focus-ring rounded-lg p-1.5 text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive)/.1)] disabled:opacity-50"
+                        title="Remove subject from template"
+                        aria-label="Delete subject"
+                        data-testid={`button-delete-template-subject-${sub.id}`}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="mt-4">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="focus-ring rounded-xl border border-[hsl(var(--border))] px-4 py-2 text-xs font-semibold"
+            >
+              Done
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <EditTemplateSubjectDialog
+        templateId={template.id}
+        subject={editingSub}
+        open={Boolean(editingSub)}
+        onOpenChange={(open) => { if (!open) setEditingSub(null); }}
+      />
+    </>
+  );
+}
+
+function EditTemplateSubjectDialog({
+  templateId,
+  subject,
+  open,
+  onOpenChange,
+}: {
+  templateId: number;
+  subject: CurriculumTemplateSubjectItem | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [description, setDescription] = useState("");
+
+  const updateSub = useUpdateTemplateSubject();
+
+  useEffect(() => {
+    if (subject) {
+      setName(subject.name);
+      setCode(subject.code || "");
+      setDescription(subject.description || "");
+    }
+  }, [subject, open]);
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!subject || !name.trim()) return;
+
+    updateSub.mutate(
+      {
+        templateId,
+        subjectId: subject.id,
+        data: {
+          name: name.trim(),
+          code: code.trim(),
+          description: description.trim(),
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Subject updated" });
+          onOpenChange(false);
+        },
+      },
+    );
+  };
+
+  if (!subject) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit Template Subject</DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-bold text-[hsl(var(--foreground))]">Subject name *</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="input-style h-10 w-full text-xs"
+              required
+              data-testid="input-edit-sub-name"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-bold text-[hsl(var(--foreground))]">Subject code</label>
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="e.g. 21CS34"
+              className="input-style h-10 w-full text-xs"
+              data-testid="input-edit-sub-code"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-bold text-[hsl(var(--foreground))]">Description</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              className="input-style w-full p-2.5 text-xs"
+              data-testid="input-edit-sub-description"
+            />
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="focus-ring rounded-xl border border-[hsl(var(--border))] px-4 py-2 text-xs font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={updateSub.isPending || !name.trim()}
+              className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[hsl(var(--primary))] px-4 py-2 text-xs font-bold text-[hsl(var(--primary-foreground))] disabled:opacity-60"
+              data-testid="button-save-sub-edit"
+            >
+              {updateSub.isPending && <Loader2 size={13} className="animate-spin" />}
+              Save Changes
+            </button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ApplyTemplateDialog({
+  template,
+  open,
+  onOpenChange,
+}: {
+  template: CurriculumTemplateItem;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const applyTemplate = useApplyCurriculumTemplate();
+  const sortedSubjects = [...template.subjects].sort((a, b) => a.displayOrder - b.displayOrder);
+
+  const handleApply = () => {
+    if (applyTemplate.isPending) return;
+
+    applyTemplate.mutate(
+      { templateId: template.id },
+      {
+        onSuccess: (res) => {
+          toast({
+            title: "Template applied",
+            description: res.message,
+          });
+          onOpenChange(false);
+        },
+        onError: (err: unknown) => {
+          toast({
+            variant: "destructive",
+            title: "Apply failed",
+            description: getErrorMessage(err) || "Failed to apply template.",
+          });
+        },
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <div className="flex items-center gap-2 text-[hsl(var(--accent-foreground))]">
+            <Sparkles size={18} />
+            <DialogTitle>Apply Curriculum Template</DialogTitle>
+          </div>
+          <DialogDescription>
+            Apply subjects from this blueprint into the live academic catalog.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.3)] p-4 text-xs space-y-2">
+          <div className="grid grid-cols-3 gap-2 font-semibold">
+            <div>
+              <span className="block text-[10px] text-[hsl(var(--muted-foreground))] uppercase">Branch</span>
+              <span>{template.branchShortName}</span>
+            </div>
+            <div>
+              <span className="block text-[10px] text-[hsl(var(--muted-foreground))] uppercase">Year</span>
+              <span>{template.yearName}</span>
+            </div>
+            <div>
+              <span className="block text-[10px] text-[hsl(var(--muted-foreground))] uppercase">Semester</span>
+              <span>{template.semesterName}</span>
+            </div>
+          </div>
+          {template.name && (
+            <p className="text-[11px] italic text-[hsl(var(--muted-foreground))] pt-1 border-t border-[hsl(var(--border)/.5)]">
+              Template label: "{template.name}"
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-2 mt-2">
+          <p className="text-xs font-bold text-[hsl(var(--foreground))]">
+            Blueprint subjects to create ({sortedSubjects.length}):
+          </p>
+
+          {sortedSubjects.length === 0 ? (
+            <p className="text-xs text-[hsl(var(--destructive))] p-3 rounded-xl bg-[hsl(var(--destructive)/.1)]">
+              This template has no subjects. Please add subjects to the template before applying.
+            </p>
+          ) : (
+            <ol className="space-y-1.5 text-xs rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 max-h-48 overflow-y-auto">
+              {sortedSubjects.map((s, idx) => (
+                <li key={s.id} className="flex items-center justify-between gap-2 border-b border-[hsl(var(--border)/.5)] pb-1 last:border-0 last:pb-0">
+                  <span className="font-semibold">
+                    {idx + 1}. {s.name}
+                  </span>
+                  {s.code && (
+                    <span className="rounded bg-[hsl(var(--muted))] px-1.5 py-0.5 text-[10px] font-bold text-[hsl(var(--accent-foreground))]">
+                      {s.code}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+
+          <div className="rounded-xl border border-[hsl(var(--secondary)/.3)] bg-[hsl(var(--secondary)/.1)] p-3 text-xs leading-5 text-[hsl(var(--secondary-foreground))]">
+            <span className="font-bold">Safe Sync Note: </span>
+            Any subjects in this template that already exist in the catalog for this semester will be skipped to prevent duplicate records.
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2 sm:gap-0 mt-4">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="focus-ring rounded-xl border border-[hsl(var(--border))] px-4 py-2 text-xs font-semibold"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleApply}
+            disabled={applyTemplate.isPending || sortedSubjects.length === 0}
+            className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[hsl(var(--primary))] px-5 py-2 text-xs font-bold text-[hsl(var(--primary-foreground))] disabled:opacity-60"
+            data-testid="button-confirm-apply-template"
+          >
+            {applyTemplate.isPending ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+            Apply to Catalog
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function NotFound() { return <div className="mx-auto max-w-xl px-5 py-24 text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[hsl(var(--muted))]"><CircleAlert size={25} /></div><h1 className="display-font mt-5 text-4xl font-bold">That path is empty.</h1><p className="mt-3 text-sm text-[hsl(var(--muted-foreground))]">The page you were looking for has moved or never made it into the library.</p><Link href="/" className="focus-ring mt-6 inline-flex rounded-xl bg-[hsl(var(--primary))] px-5 py-3 text-sm font-bold text-[hsl(var(--primary-foreground))]" data-testid="link-not-found-home">Back to home</Link></div>; }
 
 function RoutedErrorBoundary({ children }: { children: ReactNode }) { const [location] = useLocation(); return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>; }
@@ -3488,6 +4487,7 @@ function AppRouter() {
     <Route path="/reset-password"><ResetPasswordPage /></Route>
     <Route path="/admin"><RequireAdmin><AdminOverview /></RequireAdmin></Route>
     <Route path="/admin/catalog"><RequireAdmin><AdminLayout><AdminCatalog /></AdminLayout></RequireAdmin></Route>
+    <Route path="/admin/templates"><RequireAdmin><AdminCurriculumTemplates /></RequireAdmin></Route>
     <Route path="/admin/submissions"><RequireAdmin><AdminSubmissions /></RequireAdmin></Route>
     <Route path="/admin/resources"><RequireAdmin><AdminResources /></RequireAdmin></Route>
     <Route path="/admin/reports"><RequireAdmin><AdminReports /></RequireAdmin></Route>
