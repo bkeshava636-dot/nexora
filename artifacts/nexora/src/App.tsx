@@ -2,12 +2,21 @@ import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "re
 import { Link, Redirect, Route, Switch, Router as WouterRouter, useLocation, useParams } from "wouter";
 import {
   ArrowRight, BarChart3, BadgeCheck, BookOpen, Check, CheckCircle2, ChevronDown, ChevronRight,
-  CircleAlert, Clock3, ExternalLink, FileText, Filter, FolderOpen, GraduationCap, Layers3,
+  CircleAlert, Clock3, ExternalLink, FileText, Filter, Flag, FolderOpen, GraduationCap, Layers3,
   LayoutDashboard, LibraryBig, Link2, Loader2, Lock, LogOut, Menu, MoreHorizontal, Plus, Search, Send, ShieldCheck,
   SlidersHorizontal, Sparkles, Trash2, Upload, Users, X,
 } from "lucide-react";
 import { ApiWakeOverlay } from "@/components/api-wake-overlay";
 import { ErrorBoundary } from "@/components/error-boundary";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { MutationCache, QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
@@ -19,6 +28,7 @@ import {
   getListYearsQueryKey,
   useApproveSubmission,
   useCreateBranch,
+  useCreateReport,
   useCreateSemester,
   useCreateSubject,
   useCreateSubmission,
@@ -28,11 +38,13 @@ import {
   useDeleteSemester,
   useDeleteSubject,
   useDeleteYear,
+  useDismissReport,
   useGetBranch,
   useGetSemester,
   useGetSubject,
   useGetYear,
   useListBranches,
+  useListReports,
   useListResources,
   useListSemesters,
   useListSubjects,
@@ -42,12 +54,15 @@ import {
   useReorderBranches,
   useReorderSemesters,
   useReorderYears,
+  useResolveReport,
   useUpdateBranch,
   useUpdateResource,
   useUpdateSemester,
   useUpdateSubject,
   useUpdateYear,
   type Branch,
+  type ReportItem,
+  type ReportReason,
   type Resource,
   type ResourceType,
   type Semester,
@@ -190,11 +205,394 @@ function ResourceIcon({ type }: { type: ResourceType }) {
 function ClipboardIcon({ size = 18 }: { size?: number }) { return <FileText size={size} />; }
 
 function ResourceCard({ resource, compact = false }: { resource: Resource; compact?: boolean }) {
-  return <a href={resource.googleDriveUrl} target="_blank" rel="noreferrer" className={`card-lift focus-ring group block rounded-2xl border border-[hsl(var(--card-border))] bg-[hsl(var(--card))] p-4 ${compact ? "" : "p-5"}`} data-testid={`card-resource-${resource.id}`}>
-    <div className="flex items-start gap-3"><ResourceIcon type={resource.resourceType} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-1.5"><span className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">{resource.resourceType}</span>{resource.isNew && <span className="rounded-full bg-[hsl(var(--secondary)/.22)] px-2 py-0.5 text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">New</span>}{resource.isFeatured && <span className="rounded-full bg-[hsl(var(--accent)/.8)] px-2 py-0.5 text-[10px] font-bold text-[hsl(var(--accent-foreground))]">Featured</span>}</div><h3 className="mt-1 line-clamp-2 text-sm font-bold leading-5 group-hover:text-[hsl(var(--accent-foreground))]">{resource.title}</h3></div><ExternalLink size={15} className="shrink-0 text-[hsl(var(--muted-foreground))]" /></div>
-    {!compact && <p className="mt-3 line-clamp-2 text-xs leading-5 text-[hsl(var(--muted-foreground))]">{resource.description}</p>}
-    <div className="mt-4 flex items-center justify-between gap-2 border-t border-[hsl(var(--border))] pt-3"><span className="truncate text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">{resource.branchName} · {resource.yearName} · {resource.semesterName}</span><VerifiedBadge verified={resource.isVerified} /></div>
-  </a>;
+  const [open, setOpen] = useState(false);
+  const formattedDate = resource.createdAt ? formatDate(resource.createdAt) : null;
+  const pathParts = [resource.branchName, resource.yearName, resource.semesterName].filter(Boolean);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={`card-lift focus-ring group flex flex-col justify-between rounded-2xl border border-[hsl(var(--card-border))] bg-[hsl(var(--card))] text-left p-4 transition-all sm:p-5 w-full cursor-pointer`}
+        data-testid={`card-resource-${resource.id}`}
+        aria-label={`View details for ${resource.title}`}
+      >
+        <div className="w-full">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-2.5 min-w-0">
+              <ResourceIcon type={resource.resourceType} />
+              <div className="min-w-0">
+                <span className="block text-[11px] font-semibold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                  {resource.resourceType}
+                </span>
+                {resource.subjectName && (
+                  <p className="mt-0.5 text-xs font-bold text-[hsl(var(--foreground))] truncate" title={resource.subjectName}>
+                    {resource.subjectName}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {resource.isNew && (
+                <span className="rounded-full bg-[hsl(var(--secondary)/.22)] px-2 py-0.5 text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">
+                  New
+                </span>
+              )}
+              {resource.isFeatured && (
+                <span className="rounded-full bg-[hsl(var(--accent)/.8)] px-2 py-0.5 text-[10px] font-bold text-[hsl(var(--accent-foreground))]">
+                  Featured
+                </span>
+              )}
+            </div>
+          </div>
+
+          <h3 className="mt-3 text-sm font-bold leading-snug group-hover:text-[hsl(var(--accent-foreground))] transition-colors line-clamp-2">
+            {resource.title}
+          </h3>
+
+          {!compact && resource.description && (
+            <p className="mt-2 line-clamp-2 text-xs leading-5 text-[hsl(var(--muted-foreground))]">
+              {resource.description}
+            </p>
+          )}
+        </div>
+
+        <div className="mt-4 w-full border-t border-[hsl(var(--border))] pt-3">
+          <div className="flex items-center justify-between gap-2">
+            {pathParts.length > 0 ? (
+              <span className="truncate text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                {pathParts.join(" · ")}
+              </span>
+            ) : <span />}
+            <VerifiedBadge verified={resource.isVerified} />
+          </div>
+          {formattedDate && (
+            <p className="mt-1.5 text-[10px] text-[hsl(var(--muted-foreground)/.8)]">
+              Added {formattedDate}
+            </p>
+          )}
+        </div>
+      </button>
+
+      <ResourceDetailsDialog
+        resource={resource}
+        open={open}
+        onOpenChange={setOpen}
+      />
+    </>
+  );
+}
+
+function ResourceDetailsDialog({
+  resource,
+  open,
+  onOpenChange,
+}: {
+  resource: Resource;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [reportOpen, setReportOpen] = useState(false);
+  const formattedDate = resource.createdAt ? formatDate(resource.createdAt) : null;
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent
+          className="sm:max-w-lg p-5 sm:p-6 rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))]"
+          data-testid={`modal-resource-details-${resource.id}`}
+        >
+          <DialogHeader className="text-left space-y-2">
+            <div className="flex items-center justify-between gap-2 pr-6">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="rounded-md bg-[hsl(var(--muted))] px-2.5 py-1 text-xs font-bold text-[hsl(var(--foreground))]">
+                  {resource.resourceType}
+                </span>
+                {resource.isNew && (
+                  <span className="rounded-full bg-[hsl(var(--secondary)/.22)] px-2.5 py-0.5 text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">
+                    New
+                  </span>
+                )}
+                {resource.isFeatured && (
+                  <span className="rounded-full bg-[hsl(var(--accent)/.8)] px-2.5 py-0.5 text-[10px] font-bold text-[hsl(var(--accent-foreground))]">
+                    Featured
+                  </span>
+                )}
+                <VerifiedBadge verified={resource.isVerified} />
+              </div>
+            </div>
+            <DialogTitle className="display-font text-xl font-bold tracking-tight text-[hsl(var(--foreground))] sm:text-2xl pt-1">
+              {resource.title}
+            </DialogTitle>
+            {resource.subjectName && (
+              <DialogDescription className="text-xs font-semibold text-[hsl(var(--accent-foreground))]">
+                {resource.subjectName}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+
+          <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.3)] p-4 text-xs">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {resource.branchName && (
+                <div>
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Branch</span>
+                  <span className="font-semibold text-[hsl(var(--foreground))]">{resource.branchName}</span>
+                </div>
+              )}
+              {resource.yearName && (
+                <div>
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Year</span>
+                  <span className="font-semibold text-[hsl(var(--foreground))]">{resource.yearName}</span>
+                </div>
+              )}
+              {resource.semesterName && (
+                <div>
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Semester</span>
+                  <span className="font-semibold text-[hsl(var(--foreground))]">{resource.semesterName}</span>
+                </div>
+              )}
+              {resource.subjectName && (
+                <div className="col-span-2 sm:col-span-3">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Subject</span>
+                  <span className="font-semibold text-[hsl(var(--foreground))]">{resource.subjectName}</span>
+                </div>
+              )}
+              {formattedDate && (
+                <div className="col-span-2 sm:col-span-3">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Date added</span>
+                  <span className="font-semibold text-[hsl(var(--foreground))]">{formattedDate}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {resource.description ? (
+            <div className="space-y-1 text-xs">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Description</span>
+              <p className="leading-relaxed text-[hsl(var(--muted-foreground))]">{resource.description}</p>
+            </div>
+          ) : null}
+
+          <DialogFooter className="mt-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setReportOpen(true)}
+              className="focus-ring text-xs font-semibold text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--destructive))] transition-colors flex items-center justify-center sm:justify-start gap-1.5 py-1 px-1"
+              data-testid="button-open-report"
+            >
+              <Flag size={13} /> Report resource
+            </button>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <DialogClose asChild>
+                <button
+                  type="button"
+                  className="focus-ring rounded-xl border border-[hsl(var(--border))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/.5)] transition-colors w-full sm:w-auto"
+                >
+                  Close
+                </button>
+              </DialogClose>
+              <a
+                href={resource.googleDriveUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="focus-ring inline-flex items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-5 py-2.5 text-xs font-bold text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity w-full sm:w-auto"
+                data-testid="button-open-resource"
+              >
+                <ExternalLink size={14} /> Open Resource
+              </a>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ReportResourceDialog
+        resource={resource}
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+      />
+    </>
+  );
+}
+
+function ReportResourceDialog({
+  resource,
+  open,
+  onOpenChange,
+}: {
+  resource: Resource;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [reason, setReason] = useState<ReportReason | "">("");
+  const [explanation, setExplanation] = useState("");
+  const [error, setError] = useState("");
+  const createReport = useCreateReport();
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (createReport.isPending) return;
+    if (!reason) {
+      setError("Please select a reason for reporting.");
+      return;
+    }
+    if (reason === "Other" && !explanation.trim()) {
+      setError("Please provide a short explanation for 'Other'.");
+      return;
+    }
+
+    createReport.mutate(
+      {
+        data: {
+          resourceId: resource.id,
+          reason: reason as ReportReason,
+          explanation: explanation.trim() || undefined,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Report submitted",
+            description: "Thanks for helping us keep Nexora accurate.",
+          });
+          onOpenChange(false);
+          setReason("");
+          setExplanation("");
+          setError("");
+        },
+        onError: (err: unknown) => {
+          setError(getErrorMessage(err) || "Unable to submit report. Please try again.");
+        },
+      },
+    );
+  };
+
+  const reportReasonsList: ReportReason[] = [
+    "Broken link",
+    "Wrong subject",
+    "Wrong branch/year/semester",
+    "Duplicate resource",
+    "Incorrect content",
+    "Other",
+  ];
+
+  return (
+    <Dialog open={open} onOpenChange={(val) => { onOpenChange(val); if (!val) { setReason(""); setExplanation(""); setError(""); } }}>
+      <DialogContent
+        className="sm:max-w-md p-5 sm:p-6 rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))]"
+        data-testid={`modal-report-resource-${resource.id}`}
+      >
+        <DialogHeader className="text-left space-y-1.5">
+          <div className="flex items-center gap-2 text-[hsl(var(--destructive))]">
+            <Flag size={18} />
+            <DialogTitle className="display-font text-xl font-bold tracking-tight text-[hsl(var(--foreground))]">
+              Report resource
+            </DialogTitle>
+          </div>
+          <DialogDescription className="text-xs text-[hsl(var(--muted-foreground))]">
+            Help us fix issues with <span className="font-semibold text-[hsl(var(--foreground))]">"{resource.title}"</span>.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="mt-2 space-y-4">
+          <div className="space-y-2">
+            <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+              Reason <span className="text-[hsl(var(--destructive))]">*</span>
+            </label>
+            <div className="space-y-1.5">
+              {reportReasonsList.map((r) => (
+                <label
+                  key={r}
+                  className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-colors text-xs font-semibold ${
+                    reason === r
+                      ? "border-[hsl(var(--secondary))] bg-[hsl(var(--secondary)/.15)] text-[hsl(var(--foreground))]"
+                      : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:border-[hsl(var(--border)/.8)] hover:bg-[hsl(var(--muted)/.3)]"
+                  }`}
+                  data-testid={`radio-report-reason-${r.toLowerCase().replaceAll(/[\s/]+/g, "-")}`}
+                >
+                  <input
+                    type="radio"
+                    name="reportReason"
+                    value={r}
+                    checked={reason === r}
+                    onChange={() => {
+                      setReason(r);
+                      setError("");
+                    }}
+                    className="accent-[hsl(var(--secondary))]"
+                  />
+                  <span>{r}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+              {reason === "Other" ? (
+                <>
+                  Explanation <span className="text-[hsl(var(--destructive))]">*</span>
+                </>
+              ) : (
+                "Additional details (optional)"
+              )}
+            </label>
+            <textarea
+              value={explanation}
+              onChange={(e) => {
+                setExplanation(e.target.value);
+                if (error) setError("");
+              }}
+              rows={3}
+              placeholder={
+                reason === "Other"
+                  ? "Describe the issue..."
+                  : "Tell us more about what's wrong (optional)..."
+              }
+              className="input-style text-xs resize-none"
+              data-testid="textarea-report-explanation"
+            />
+          </div>
+
+          {error && (
+            <div
+              className="flex items-start gap-2 rounded-xl bg-[hsl(var(--destructive)/.1)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]"
+              role="alert"
+              data-testid="status-report-error"
+            >
+              <CircleAlert size={15} className="mt-0.5 shrink-0" />
+              {error}
+            </div>
+          )}
+
+          <DialogFooter className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <DialogClose asChild>
+              <button
+                type="button"
+                disabled={createReport.isPending}
+                className="focus-ring rounded-xl border border-[hsl(var(--border))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/.5)] transition-colors w-full sm:w-auto"
+              >
+                Cancel
+              </button>
+            </DialogClose>
+            <button
+              type="submit"
+              disabled={createReport.isPending}
+              className="focus-ring inline-flex items-center justify-center gap-2 rounded-xl bg-[hsl(var(--destructive))] px-5 py-2.5 text-xs font-bold text-[hsl(var(--destructive-foreground))] hover:opacity-90 disabled:opacity-60 transition-opacity w-full sm:w-auto"
+              data-testid="button-submit-report"
+            >
+              {createReport.isPending ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Send size={14} />
+              )}
+              Submit report
+            </button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function ResourceTypeGroups({ resources, compact = false }: { resources: Resource[]; compact?: boolean }) {
@@ -212,29 +610,100 @@ function ResourceTypeGroups({ resources, compact = false }: { resources: Resourc
 
 function Home() {
   const { data: resources = [], isLoading } = useListResources();
-  const featured = resources.filter((resource) => resource.isFeatured).slice(0, 3);
-  const latest = resources.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 4);
-  return <div className="hero-wash">
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-7 sm:py-12 lg:py-16">
-      <section className="soft-grid relative overflow-hidden rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card)/.7)] px-5 py-10 sm:px-10 sm:py-14 lg:px-16">
-        <div className="relative max-w-2xl fade-up"><div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1.5 text-xs font-bold text-[hsl(var(--accent-foreground))]"><span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--secondary))]" /> Your way through engineering</div>
-          <h1 className="display-font max-w-xl text-4xl font-bold leading-[1.05] tracking-[-.06em] sm:text-6xl">Find the right Resource.<br /><span className="text-[hsl(var(--accent-foreground))]">Keep moving.</span></h1>
-          <p className="mt-5 max-w-lg text-base leading-7 text-[hsl(var(--muted-foreground))] sm:text-lg">Notes, PYQs, and study materials — organized for your semester.</p>
-          <div className="mt-8 max-w-xl"><SearchBox /></div>
-        </div>
-        <div className="absolute -right-8 -top-8 hidden h-64 w-64 rounded-full border-[18px] border-[hsl(var(--secondary)/.26)] sm:block lg:h-80 lg:w-80" /><div className="absolute right-20 top-20 hidden h-20 w-20 rounded-full bg-[hsl(var(--accent)/.8)] sm:block" />
-      </section>
-      <section className="mt-12 fade-up fade-up-delay-1"><SectionHeading eyebrow="Start with your path" title="What are you studying?" action={<Link href="/resources" className="focus-ring hidden items-center gap-1 text-xs font-bold text-[hsl(var(--accent-foreground))] sm:flex" data-testid="link-all-branches">View all resources <ArrowRight size={14} /></Link>} />
-        <BranchGrid />
-      </section>
-      <section className="mt-12 fade-up fade-up-delay-2"><SectionHeading eyebrow="Handpicked" title="Featured resources" />
-        {isLoading ? <LoadingGrid /> : featured.length ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{featured.map((resource) => <ResourceCard key={resource.id} resource={resource} />)}</div> : <EmptyState title="Nothing featured yet" body="Once resources are marked featured, they will show up here." />}
-      </section>
-      <section className="mt-12 pb-10 fade-up fade-up-delay-2"><SectionHeading eyebrow="Fresh off the shelf" title="Recently added" />
-        {isLoading ? <LoadingGrid count={4} /> : latest.length ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{latest.map((resource) => <ResourceCard compact key={resource.id} resource={resource} />)}</div> : <EmptyState title="The library is still empty" body="Be the first to contribute a resource." />}
-      </section>
+  const featured = useMemo(
+    () => resources.filter((resource) => resource.isFeatured).slice(0, 3),
+    [resources],
+  );
+  const recentlyAdded = useMemo(
+    () =>
+      [...resources]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 6),
+    [resources],
+  );
+
+  return (
+    <div className="hero-wash">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-7 sm:py-12 lg:py-16">
+        <section className="soft-grid relative overflow-hidden rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card)/.7)] px-5 py-10 sm:px-10 sm:py-14 lg:px-16">
+          <div className="relative max-w-2xl fade-up">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1.5 text-xs font-bold text-[hsl(var(--accent-foreground))]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--secondary))]" /> Your way through engineering
+            </div>
+            <h1 className="display-font max-w-xl text-4xl font-bold leading-[1.05] tracking-[-.06em] sm:text-6xl">
+              Find the right Resource.<br />
+              <span className="text-[hsl(var(--accent-foreground))]">Keep moving.</span>
+            </h1>
+            <p className="mt-5 max-w-lg text-base leading-7 text-[hsl(var(--muted-foreground))] sm:text-lg">
+              Notes, PYQs, and study materials — organized for your semester.
+            </p>
+            <div className="mt-8 max-w-xl"><SearchBox /></div>
+          </div>
+          <div className="absolute -right-8 -top-8 hidden h-64 w-64 rounded-full border-[18px] border-[hsl(var(--secondary)/.26)] sm:block lg:h-80 lg:w-80" />
+          <div className="absolute right-20 top-20 hidden h-20 w-20 rounded-full bg-[hsl(var(--accent)/.8)] sm:block" />
+        </section>
+
+        <section className="mt-12 fade-up fade-up-delay-1">
+          <SectionHeading
+            eyebrow="Start with your path"
+            title="What are you studying?"
+            action={
+              <Link
+                href="/resources"
+                className="focus-ring hidden items-center gap-1 text-xs font-bold text-[hsl(var(--accent-foreground))] sm:flex"
+                data-testid="link-all-branches"
+              >
+                View all resources <ArrowRight size={14} />
+              </Link>
+            }
+          />
+          <BranchGrid />
+        </section>
+
+        {(isLoading || featured.length > 0) && (
+          <section className="mt-12 fade-up fade-up-delay-2">
+            <SectionHeading eyebrow="Handpicked" title="Featured resources" />
+            {isLoading ? (
+              <LoadingGrid />
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {featured.map((resource) => (
+                  <ResourceCard key={resource.id} resource={resource} />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {(isLoading || recentlyAdded.length > 0) && (
+          <section className="mt-12 pb-10 fade-up fade-up-delay-2" data-testid="section-recently-added">
+            <SectionHeading
+              eyebrow="Latest resources added to Nexora"
+              title="Recently Added"
+              action={
+                <Link
+                  href="/resources"
+                  className="focus-ring inline-flex items-center gap-1 text-xs font-bold text-[hsl(var(--accent-foreground))] hover:underline"
+                  data-testid="link-view-all-recently-added"
+                >
+                  View all resources <ArrowRight size={14} />
+                </Link>
+              }
+            />
+            {isLoading ? (
+              <LoadingGrid count={6} />
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {recentlyAdded.map((resource) => (
+                  <ResourceCard key={resource.id} resource={resource} />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+      </div>
     </div>
-  </div>;
+  );
 }
 
 function BranchGrid() {
@@ -264,7 +733,7 @@ function SearchBox({ value, onChange }: { value?: string; onChange?: (value: str
   const submit = (event: FormEvent) => { event.preventDefault(); if (!controlled) navigate(`/resources?query=${encodeURIComponent(current ?? "")}`); };
   return <form onSubmit={submit} className="relative">
     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" size={18} />
-    <input value={current} onChange={(e) => { controlled ? onChange?.(e.target.value) : setLocal(e.target.value); }} className="input-style h-14 pl-12 pr-10 text-sm shadow-sm" placeholder="Search notes, papers, subjects..." data-testid="input-search" />
+    <input value={current} onChange={(e) => { controlled ? onChange?.(e.target.value) : setLocal(e.target.value); }} className="input-style h-14 !pl-12 pr-10 text-sm shadow-sm" placeholder="Search notes, papers, subjects..." data-testid="input-search" />
     {current ? (
       <button
         type="button"
@@ -662,6 +1131,7 @@ function AdminLayout({ children }: { children: ReactNode }) {
     { href: "/admin/catalog", label: "Catalog", testId: "link-admin-catalog" },
     { href: "/admin/submissions", label: "Submissions", testId: "link-admin-submissions" },
     { href: "/admin/resources", label: "Resources", testId: "link-admin-resources" },
+    { href: "/admin/reports", label: "Reports", testId: "link-admin-reports" },
   ];
   return <div className="mx-auto max-w-6xl px-4 py-8 sm:px-7 sm:py-12"><div className="mb-8 flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><div className="mb-3 flex items-center gap-2 text-xs font-bold text-[hsl(var(--muted-foreground))]"><ShieldCheck size={15} /> Editorial workspace{username && <span className="font-normal text-[hsl(var(--muted-foreground)/.8)]">· signed in as {username}</span>}</div><h1 className="display-font text-4xl font-bold tracking-[-.05em]">Keep the shelf trustworthy.</h1><p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Review, organize, and keep the signal high.</p></div><div className="flex shrink-0 gap-2"><Link href="/contribute" className="focus-ring inline-flex w-fit items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-2.5 text-xs font-bold" data-testid="link-admin-contribute"><Plus size={15} /> Add resource</Link><button type="button" onClick={logout} className="focus-ring inline-flex w-fit items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--destructive))]" data-testid="button-logout"><LogOut size={15} /> Log out</button></div></div><div className="mb-8 flex gap-1 overflow-x-auto border-b border-[hsl(var(--border))] mobile-scroll">{tabs.map((tab) => <Link key={tab.href} href={tab.href} className={`focus-ring shrink-0 border-b-2 px-3 py-3 text-xs font-bold ${location === tab.href ? "border-[hsl(var(--secondary))] text-[hsl(var(--foreground))]" : "border-transparent text-[hsl(var(--muted-foreground))]"}`} data-testid={tab.testId}>{tab.label}</Link>)}</div>{children}</div>;
 }
@@ -956,8 +1426,10 @@ function SubjectManager({ branch, year, semesters, semesterId, onSelectSemester 
 function AdminOverview() {
   const { data: resources = [] } = useListResources();
   const { data: submissions = [] } = useListSubmissions();
+  const { data: reports = [] } = useListReports();
   const pending = submissions.filter((item) => item.status === "pending").length;
-  return <AdminLayout><div className="grid gap-4 sm:grid-cols-3"><Metric icon={LibraryBig} label="Published resources" value={resources.length} detail="Live on the shelf" /><Metric icon={Clock3} label="Awaiting review" value={pending} detail={pending ? "Needs your eye" : "All clear"} warm /><Metric icon={Users} label="Verified resources" value={resources.filter((r) => r.isVerified).length} detail={`of ${resources.length}`} /></div><div className="mt-8 grid gap-5 lg:grid-cols-[1.3fr_.7fr]"><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 sm:p-6"><div className="flex items-center justify-between"><div><p className="micro-label text-[hsl(var(--accent-foreground))]">Review queue</p><h2 className="mt-1 text-lg font-bold">Recent submissions</h2></div><Link href="/admin/submissions" className="focus-ring text-xs font-bold text-[hsl(var(--accent-foreground))]" data-testid="link-overview-submissions">View queue <ArrowRight size={13} className="ml-1 inline" /></Link></div><div className="mt-5 space-y-2">{submissions.slice(0, 3).map((item) => <SubmissionRow key={item.id} submission={item} />)}</div></div><div className="rounded-2xl bg-[hsl(var(--primary))] p-6 text-[hsl(var(--primary-foreground))]"><p className="micro-label text-[hsl(var(--secondary))]">Library health</p><h2 className="mt-2 text-lg font-bold">A little more signal, every week.</h2><div className="mt-7 space-y-5"><Progress label="Verified resources" value={resources.length ? Math.round((resources.filter((r) => r.isVerified).length / resources.length) * 100) : 0} /><Progress label="Featured resources" value={resources.length ? Math.round((resources.filter((r) => r.isFeatured).length / resources.length) * 100) : 0} /><Progress label="Submissions approved" value={submissions.length ? Math.round((submissions.filter((s) => s.status === "approved").length / submissions.length) * 100) : 0} /></div><Link href="/admin/resources" className="focus-ring mt-8 inline-flex items-center gap-2 text-xs font-bold text-[hsl(var(--secondary))]" data-testid="link-overview-resources">Manage resources <ArrowRight size={13} /></Link></div></div></AdminLayout>;
+  const pendingReports = (reports as ReportItem[]).filter((item: ReportItem) => item.status === "pending").length;
+  return <AdminLayout><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Metric icon={LibraryBig} label="Published resources" value={resources.length} detail="Live on the shelf" /><Metric icon={Clock3} label="Awaiting review" value={pending} detail={pending ? "Needs your eye" : "All clear"} warm={pending > 0} /><Metric icon={Flag} label="Pending reports" value={pendingReports} detail={pendingReports ? "Needs attention" : "All clear"} warm={pendingReports > 0} /><Metric icon={Users} label="Verified resources" value={resources.filter((r) => r.isVerified).length} detail={`of ${resources.length}`} /></div><div className="mt-8 grid gap-5 lg:grid-cols-[1.3fr_.7fr]"><div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 sm:p-6"><div className="flex items-center justify-between"><div><p className="micro-label text-[hsl(var(--accent-foreground))]">Review queue</p><h2 className="mt-1 text-lg font-bold">Recent submissions</h2></div><Link href="/admin/submissions" className="focus-ring text-xs font-bold text-[hsl(var(--accent-foreground))]" data-testid="link-overview-submissions">View queue <ArrowRight size={13} className="ml-1 inline" /></Link></div><div className="mt-5 space-y-2">{submissions.slice(0, 3).map((item) => <SubmissionRow key={item.id} submission={item} />)}</div></div><div className="rounded-2xl bg-[hsl(var(--primary))] p-6 text-[hsl(var(--primary-foreground))]"><p className="micro-label text-[hsl(var(--secondary))]">Library health</p><h2 className="mt-2 text-lg font-bold">A little more signal, every week.</h2><div className="mt-7 space-y-5"><Progress label="Verified resources" value={resources.length ? Math.round((resources.filter((r) => r.isVerified).length / resources.length) * 100) : 0} /><Progress label="Featured resources" value={resources.length ? Math.round((resources.filter((r) => r.isFeatured).length / resources.length) * 100) : 0} /><Progress label="Submissions approved" value={submissions.length ? Math.round((submissions.filter((s) => s.status === "approved").length / submissions.length) * 100) : 0} /></div><div className="mt-8 flex flex-wrap gap-4"><Link href="/admin/resources" className="focus-ring inline-flex items-center gap-2 text-xs font-bold text-[hsl(var(--secondary))]" data-testid="link-overview-resources">Manage resources <ArrowRight size={13} /></Link><Link href="/admin/reports" className="focus-ring inline-flex items-center gap-2 text-xs font-bold text-[hsl(var(--secondary))]" data-testid="link-overview-reports">View reports <ArrowRight size={13} /></Link></div></div></div></AdminLayout>;
 }
 function Metric({ icon: Icon, label, value, detail, warm }: { icon: typeof LibraryBig; label: string; value: number; detail: string; warm?: boolean }) { return <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5"><div className={`flex h-9 w-9 items-center justify-center rounded-xl ${warm ? "bg-[hsl(var(--secondary)/.3)] text-[hsl(var(--secondary-foreground))]" : "bg-[hsl(var(--muted))] text-[hsl(var(--primary))]"}`}><Icon size={18} /></div><p className="mt-5 text-xs font-semibold text-[hsl(var(--muted-foreground))]">{label}</p><div className="mt-1 flex items-end justify-between gap-2"><p className="display-font text-3xl font-bold">{value}</p><span className="text-[10px] font-bold text-[hsl(var(--accent-foreground))]">{detail}</span></div></div>; }
 function Progress({ label, value }: { label: string; value: number }) { return <div><div className="mb-2 flex justify-between text-xs font-semibold"><span className="text-[hsl(var(--primary-foreground)/.7)]">{label}</span><span>{value}%</span></div><div className="h-1.5 rounded-full bg-[hsl(var(--primary-foreground)/.15)]"><div className="h-full rounded-full bg-[hsl(var(--secondary))]" style={{ width: `${value}%` }} /></div></div>; }
@@ -980,6 +1452,166 @@ function AdminSubmissions() {
   const isRejecting = (id: number) => reject.isPending && reject.variables?.id === id;
   const busyId = approve.isPending ? approve.variables?.id : reject.isPending ? reject.variables?.id : undefined;
   return <AdminLayout><div className="mb-5 flex items-center justify-between"><div><h2 className="text-lg font-bold">Submission queue</h2><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Check context and link access before approving.</p></div><div className="flex rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-1"><button type="button" onClick={() => setFilter("pending")} className={`focus-ring rounded-lg px-3 py-2 text-xs font-bold ${filter === "pending" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : ""}`} data-testid="button-filter-pending">Pending</button><button type="button" onClick={() => setFilter("all")} className={`focus-ring rounded-lg px-3 py-2 text-xs font-bold ${filter === "all" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : ""}`} data-testid="button-filter-all-submissions">All</button></div></div>{isLoading ? <Loader2 className="mx-auto my-10 animate-spin text-[hsl(var(--muted-foreground))]" size={24} /> : shown.length ? <div className="space-y-3">{shown.map((submission) => <SubmissionRow key={submission.id} submission={submission} actions={submission.status === "pending"} busy={busyId === submission.id} isApproving={isApproving(submission.id)} isRejecting={isRejecting(submission.id)} onApprove={() => approve.mutate({ id: submission.id })} onReject={() => { const reason = window.prompt("Reason for rejecting this submission (optional):"); if (reason === null) return; reject.mutate({ id: submission.id, data: { rejectionReason: reason || undefined } }); }} />)}</div> : <EmptyState title="The queue is clear" body="No submissions are waiting for a review right now. A rare, satisfying moment." />}</AdminLayout>;
+}
+
+function AdminReports() {
+  const [filter, setFilter] = useState<"pending" | "all">("pending");
+  const { data: reports = [], isLoading } = useListReports();
+  const queryClient = useQueryClient();
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["/api/reports"] });
+  const resolve = useResolveReport();
+  const dismiss = useDismissReport();
+  const shown = (reports as ReportItem[]).filter((item: ReportItem) => filter === "all" || item.status === "pending");
+
+  const handleResolve = (id: number) => {
+    resolve.mutate({ id }, {
+      onSuccess: () => {
+        invalidate();
+        toast({ title: "Report resolved", description: "Marked as resolved." });
+      },
+    });
+  };
+
+  const handleDismiss = (id: number) => {
+    dismiss.mutate({ id }, {
+      onSuccess: () => {
+        invalidate();
+        toast({ title: "Report dismissed" });
+      },
+    });
+  };
+
+  const isResolving = (id: number) => resolve.isPending && resolve.variables?.id === id;
+  const isDismissing = (id: number) => dismiss.isPending && dismiss.variables?.id === id;
+
+  return (
+    <AdminLayout>
+      <div className="mb-5 flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold">Resource reports</h2>
+          <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Review issues reported by students.</p>
+        </div>
+        <div className="flex rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-1">
+          <button
+            type="button"
+            onClick={() => setFilter("pending")}
+            className={`focus-ring rounded-lg px-3 py-2 text-xs font-bold ${filter === "pending" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : ""}`}
+            data-testid="button-filter-pending-reports"
+          >
+            Pending
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter("all")}
+            className={`focus-ring rounded-lg px-3 py-2 text-xs font-bold ${filter === "all" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : ""}`}
+            data-testid="button-filter-all-reports"
+          >
+            All
+          </button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <Loader2 className="mx-auto my-10 animate-spin text-[hsl(var(--muted-foreground))]" size={24} />
+      ) : shown.length ? (
+        <div className="space-y-3">
+          {shown.map((report: ReportItem) => {
+            const isBusy = isResolving(report.id) || isDismissing(report.id);
+            return (
+              <div key={report.id} className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.7)] p-4" data-testid={`report-card-${report.id}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-[hsl(var(--destructive)/.15)] px-2.5 py-0.5 text-[11px] font-bold text-[hsl(var(--destructive))]">
+                        {report.reason}
+                      </span>
+                      {report.status === "pending" ? (
+                        <span className="rounded-full bg-[hsl(var(--secondary)/.25)] px-2 py-0.5 text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">
+                          Pending
+                        </span>
+                      ) : report.status === "resolved" ? (
+                        <span className="rounded-full bg-[hsl(var(--accent))] px-2 py-0.5 text-[10px] font-bold text-[hsl(var(--accent-foreground))]">
+                          Resolved
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-[hsl(var(--muted))] px-2 py-0.5 text-[10px] font-bold text-[hsl(var(--muted-foreground))]">
+                          Dismissed
+                        </span>
+                      )}
+                      <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                        {formatDate(report.createdAt)}
+                      </span>
+                    </div>
+
+                    <h3 className="mt-2 text-sm font-bold text-[hsl(var(--foreground))]">
+                      Resource: {report.resourceTitle || `ID #${report.resourceId}`}
+                    </h3>
+
+                    {report.googleDriveUrl && (
+                      <p className="mt-1 text-xs">
+                        <a
+                          href={report.googleDriveUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-semibold text-[hsl(var(--accent-foreground))] hover:underline inline-flex items-center gap-1"
+                          data-testid={`link-report-drive-${report.id}`}
+                        >
+                          View Resource Link <ExternalLink size={12} />
+                        </a>
+                      </p>
+                    )}
+
+                    {report.explanation && (
+                      <div className="mt-2 rounded-lg bg-[hsl(var(--muted)/.4)] p-2.5 text-xs text-[hsl(var(--foreground))]">
+                        <span className="font-semibold text-[hsl(var(--muted-foreground))]">Student notes: </span>
+                        {report.explanation}
+                      </div>
+                    )}
+
+                    {report.status !== "pending" && report.resolvedBy && (
+                      <p className="mt-2 text-[11px] text-[hsl(var(--muted-foreground))]">
+                        Handled by {report.resolvedBy}
+                        {report.resolvedAt ? ` on ${formatDate(report.resolvedAt)}` : ""}
+                      </p>
+                    )}
+                  </div>
+
+                  {report.status === "pending" && (
+                    <div className="flex shrink-0 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleResolve(report.id)}
+                        disabled={isBusy}
+                        className="focus-ring inline-flex items-center gap-1 rounded-lg bg-[hsl(var(--accent))] px-3 py-1.5 text-xs font-bold text-[hsl(var(--accent-foreground))] disabled:opacity-60"
+                        title="Mark resolved"
+                        data-testid={`button-resolve-report-${report.id}`}
+                      >
+                        {isResolving(report.id) ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                        <span>Resolve</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDismiss(report.id)}
+                        disabled={isBusy}
+                        className="focus-ring inline-flex items-center gap-1 rounded-lg bg-[hsl(var(--muted))] px-3 py-1.5 text-xs font-bold text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/.8)] disabled:opacity-60"
+                        title="Dismiss report"
+                        data-testid={`button-dismiss-report-${report.id}`}
+                      >
+                        {isDismissing(report.id) ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
+                        <span>Dismiss</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <EmptyState title="No reports" body="No resource issues have been reported." />
+      )}
+    </AdminLayout>
+  );
 }
 
 function AdminResources() {
@@ -1027,6 +1659,7 @@ function AppRouter() {
     <Route path="/admin/catalog"><RequireAdmin><AdminLayout><AdminCatalog /></AdminLayout></RequireAdmin></Route>
     <Route path="/admin/submissions"><RequireAdmin><AdminSubmissions /></RequireAdmin></Route>
     <Route path="/admin/resources"><RequireAdmin><AdminResources /></RequireAdmin></Route>
+    <Route path="/admin/reports"><RequireAdmin><AdminReports /></RequireAdmin></Route>
     <Route component={NotFound} />
   </Switch></RoutedErrorBoundary>;
 }
