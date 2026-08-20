@@ -5,3 +5,4 @@ export * from "./semesters";
 export * from "./subjects";
 export * from "./resources";
 export * from "./submissions";
+export * from "./reports";

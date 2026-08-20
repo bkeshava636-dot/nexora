@@ -7,6 +7,7 @@ import semestersRouter from "./semesters";
 import subjectsRouter from "./subjects";
 import resourcesRouter from "./resources";
 import submissionsRouter from "./submissions";
+import reportsRouter from "./reports";
 import { readSession } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -24,5 +25,6 @@ router.use(semestersRouter);
 router.use(subjectsRouter);
 router.use(resourcesRouter);
 router.use(submissionsRouter);
+router.use(reportsRouter);
 
 export default router;
