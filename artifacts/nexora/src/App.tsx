@@ -795,11 +795,22 @@ function Home() {
   );
 }
 
+function getUniqueYearsCount(yearsList: Array<{ name?: string }>): number {
+  return new Set(yearsList.map((y) => y.name?.trim()).filter(Boolean)).size;
+}
+
+function getUniqueSemestersCount(semestersList: Array<{ name?: string }>): number {
+  return new Set(semestersList.map((s) => s.name?.trim()).filter(Boolean)).size;
+}
+
 function CatalogQuickAccess() {
   const { data: branches = [] } = useListBranches();
   const { data: years = [] } = useListYears();
   const { data: semesters = [] } = useListSemesters();
   const { data: resources = [], isLoading } = useListResources();
+
+  const uniqueYearsCount = useMemo(() => getUniqueYearsCount(years), [years]);
+  const uniqueSemestersCount = useMemo(() => getUniqueSemestersCount(semesters), [semesters]);
 
   if (isLoading) {
     return (
@@ -811,7 +822,7 @@ function CatalogQuickAccess() {
 
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-      <Link href="/resources" className="card-lift focus-ring group flex flex-col items-center justify-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 text-center shadow-sm">
+      <Link href="/resources" className="card-lift focus-ring group flex flex-col items-center justify-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 text-center shadow-sm" data-testid="link-quick-resources">
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[hsl(var(--primary)/.1)] text-[hsl(var(--primary))] transition-transform group-hover:scale-110">
           <BookOpen size={24} />
         </div>
@@ -820,7 +831,7 @@ function CatalogQuickAccess() {
           <div className="text-xs font-medium text-[hsl(var(--muted-foreground))]">{resources.length} available</div>
         </div>
       </Link>
-      <Link href="/resources" className="card-lift focus-ring group flex flex-col items-center justify-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 text-center shadow-sm">
+      <Link href="/resources" className="card-lift focus-ring group flex flex-col items-center justify-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 text-center shadow-sm" data-testid="link-quick-branches">
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[hsl(var(--secondary)/.1)] text-[hsl(var(--secondary))] transition-transform group-hover:scale-110">
           <GitBranch size={24} />
         </div>
@@ -829,22 +840,22 @@ function CatalogQuickAccess() {
           <div className="text-xs font-medium text-[hsl(var(--muted-foreground))]">{branches.length} available</div>
         </div>
       </Link>
-      <Link href="/resources" className="card-lift focus-ring group flex flex-col items-center justify-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 text-center shadow-sm">
+      <Link href="/resources" className="card-lift focus-ring group flex flex-col items-center justify-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 text-center shadow-sm" data-testid="link-quick-years">
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[hsl(var(--accent)/.1)] text-[hsl(var(--accent-foreground))] transition-transform group-hover:scale-110">
           <Calendar size={24} />
         </div>
         <div>
           <div className="font-bold text-[hsl(var(--foreground))]">Years</div>
-          <div className="text-xs font-medium text-[hsl(var(--muted-foreground))]">{years.length} available</div>
+          <div className="text-xs font-medium text-[hsl(var(--muted-foreground))]">{uniqueYearsCount} available</div>
         </div>
       </Link>
-      <Link href="/resources" className="card-lift focus-ring group flex flex-col items-center justify-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 text-center shadow-sm">
+      <Link href="/resources" className="card-lift focus-ring group flex flex-col items-center justify-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 text-center shadow-sm" data-testid="link-quick-semesters">
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] transition-transform group-hover:scale-110">
           <Layers3 size={24} />
         </div>
         <div>
           <div className="font-bold text-[hsl(var(--foreground))]">Semesters</div>
-          <div className="text-xs font-medium text-[hsl(var(--muted-foreground))]">{semesters.length} available</div>
+          <div className="text-xs font-medium text-[hsl(var(--muted-foreground))]">{uniqueSemestersCount} available</div>
         </div>
       </Link>
     </div>
@@ -2193,14 +2204,8 @@ function AdminOverview() {
   const submissions = submissionsQuery.data ?? [];
   const reports = (reportsQuery.data ?? []) as ReportItem[];
 
-  const uniqueYearsCount = useMemo(
-    () => new Set(years.map((y) => y.name.trim())).size,
-    [years],
-  );
-  const uniqueSemestersCount = useMemo(
-    () => new Set(semesters.map((s) => s.name.trim())).size,
-    [semesters],
-  );
+  const uniqueYearsCount = useMemo(() => getUniqueYearsCount(years), [years]);
+  const uniqueSemestersCount = useMemo(() => getUniqueSemestersCount(semesters), [semesters]);
 
   const pendingSubmissions = useMemo(
     () => submissions.filter((s) => s.status === "pending"),

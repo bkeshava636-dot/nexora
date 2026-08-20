@@ -1,5 +1,5 @@
-﻿import { useState } from "react";
-import { CheckCircle2, CircleAlert, Heart, Loader2, Sparkles, X } from "lucide-react";
+﻿import { useRef, useState } from "react";
+import { CheckCircle2, CircleAlert, Heart, Loader2, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,8 @@ interface RazorpayOptions {
   handler: (response: RazorpayResponse) => void;
   modal?: {
     ondismiss?: () => void;
+    escape?: boolean;
+    backdropclose?: boolean;
   };
   theme?: {
     color?: string;
@@ -40,23 +42,43 @@ declare global {
     Razorpay?: new (options: RazorpayOptions) => {
       open: () => void;
       on: (event: string, handler: (response: unknown) => void) => void;
+      close?: () => void;
     };
   }
 }
 
+let razorpayScriptPromise: Promise<boolean> | null = null;
+
 function loadRazorpayScript(): Promise<boolean> {
-  return new Promise((resolve) => {
-    if (typeof window !== "undefined" && window.Razorpay) {
-      resolve(true);
+  if (typeof window === "undefined") {
+    return Promise.resolve(false);
+  }
+  if (window.Razorpay) {
+    return Promise.resolve(true);
+  }
+  if (razorpayScriptPromise) {
+    return razorpayScriptPromise;
+  }
+
+  razorpayScriptPromise = new Promise((resolve) => {
+    const existing = document.querySelector('script[src*="checkout.razorpay.com"]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve(true), { once: true });
+      existing.addEventListener("error", () => resolve(false), { once: true });
       return;
     }
     const script = document.createElement("script");
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
     script.async = true;
     script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
+    script.onerror = () => {
+      razorpayScriptPromise = null;
+      resolve(false);
+    };
     document.body.appendChild(script);
   });
+
+  return razorpayScriptPromise;
 }
 
 const PRESET_AMOUNTS = [50, 100, 200];
@@ -105,13 +127,13 @@ export function BuyMePaneerDialog({
   const [step, setStep] = useState<"select" | "processing" | "verifying" | "success" | "failed" | "cancelled">("select");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const isProcessingRef = useRef(false);
   const createOrder = useCreatePaymentOrder();
   const verifyPayment = useVerifyPayment();
 
   const handleClose = () => {
-    if (step === "processing" || step === "verifying") return;
+    if (isProcessingRef.current) return;
     onOpenChange(false);
-    // Reset state after dialog closes
     setTimeout(() => {
       setStep("select");
       setErrorMessage(null);
@@ -139,7 +161,6 @@ export function BuyMePaneerDialog({
   };
 
   const handleCustomChange = (val: string) => {
-    // Only allow digits
     const clean = val.replace(/\D/g, "");
     setCustomAmount(clean);
     setIsCustom(true);
@@ -148,6 +169,7 @@ export function BuyMePaneerDialog({
   };
 
   const handleProceed = async () => {
+    if (isProcessingRef.current) return;
     setErrorMessage(null);
     const amount = getEffectiveAmount();
 
@@ -160,19 +182,25 @@ export function BuyMePaneerDialog({
       return;
     }
 
+    isProcessingRef.current = true;
     setStep("processing");
 
     try {
       const isLoaded = await loadRazorpayScript();
       if (!isLoaded || !window.Razorpay) {
+        isProcessingRef.current = false;
         setStep("failed");
-        setErrorMessage("Failed to load Razorpay Checkout. Please check your internet connection.");
+        setErrorMessage("Failed to load Razorpay Checkout. Please check your network connection.");
         return;
       }
 
       const orderData = await createOrder.mutateAsync({
         data: { amount },
       });
+
+      // Close the Nexora Radix dialog so its focus-trap and pointer-event blocking
+      // do not interfere with the Razorpay iframe/modal
+      onOpenChange(false);
 
       const rzp = new window.Razorpay({
         key: orderData.keyId,
@@ -181,8 +209,21 @@ export function BuyMePaneerDialog({
         name: "Nexora",
         description: "Buy Me Paneer support",
         order_id: orderData.orderId,
+        modal: {
+          ondismiss: () => {
+            isProcessingRef.current = false;
+            setStep("cancelled");
+            onOpenChange(true);
+          },
+        },
+        theme: {
+          color: "#e5a93c",
+        },
         handler: async (response: RazorpayResponse) => {
+          isProcessingRef.current = false;
           setStep("verifying");
+          onOpenChange(true);
+
           try {
             const verificationResult = await verifyPayment.mutateAsync({
               data: {
@@ -204,23 +245,18 @@ export function BuyMePaneerDialog({
             setErrorMessage(msg);
           }
         },
-        modal: {
-          ondismiss: () => {
-            setStep("cancelled");
-          },
-        },
-        theme: {
-          color: "#e5a93c",
-        },
       });
 
       rzp.on("payment.failed", () => {
+        isProcessingRef.current = false;
         setStep("failed");
         setErrorMessage("Payment couldn't be completed.");
+        onOpenChange(true);
       });
 
       rzp.open();
     } catch (err: unknown) {
+      isProcessingRef.current = false;
       setStep("select");
       const errObj = err as { message?: string; error?: string };
       if (errObj?.error === "payment_not_configured" || errObj?.message?.includes("not configured")) {
@@ -237,7 +273,19 @@ export function BuyMePaneerDialog({
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-md rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 sm:p-8" data-testid="dialog-buy-me-paneer">
-        {step === "success" ? (
+        {step === "verifying" ? (
+          <div className="text-center py-6 fade-up">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] shadow-sm">
+              <Loader2 size={32} className="animate-spin" />
+            </div>
+            <h2 className="display-font mt-5 text-2xl font-bold tracking-[-.03em] text-[hsl(var(--foreground))]">
+              Verifying payment…
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-[hsl(var(--muted-foreground))]">
+              Confirming transaction with the server. Please do not refresh.
+            </p>
+          </div>
+        ) : step === "success" ? (
           <div className="text-center py-4 fade-up">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] shadow-sm">
               <CheckCircle2 size={32} />
@@ -411,7 +459,7 @@ export function BuyMePaneerDialog({
                   {isBusy ? (
                     <>
                       <Loader2 size={16} className="animate-spin" />
-                      <span>{step === "verifying" ? "Verifying payment…" : "Connecting to Razorpay…"}</span>
+                      <span>Connecting to Razorpay…</span>
                     </>
                   ) : (
                     <>
