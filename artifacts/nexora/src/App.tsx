@@ -676,8 +676,11 @@ function Home() {
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-7 sm:py-12 lg:py-16">
         <section className="soft-grid relative overflow-hidden rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card)/.7)] px-5 py-10 sm:px-10 sm:py-14 lg:px-16">
           <div className="relative max-w-2xl fade-up">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1.5 text-xs font-bold text-[hsl(var(--accent-foreground))]">
-              Nexora
+            <div className="mb-5 flex flex-wrap items-center gap-2.5">
+              <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3.5 py-1.5 text-xs font-bold text-[hsl(var(--accent-foreground))] shadow-xs">
+                Nexora
+              </div>
+              <TotalVisitsCounter />
             </div>
             <h1 className="display-font max-w-xl text-4xl font-bold leading-[1.05] tracking-[-.06em] sm:text-6xl">
               Your BITM academic resource hub.
@@ -778,8 +781,6 @@ function Home() {
             </div>
           </div>
         </section>
-
-        <TotalVisitsCounter />
       </div>
     </div>
   );
@@ -800,17 +801,18 @@ function TotalVisitsCounter() {
     }
   }, [recordVisit]);
 
-  if (isError || !data?.totalVisits) {
+  if (isError || data?.totalVisits === undefined || data?.totalVisits === null) {
     return null;
   }
 
   return (
     <div
-      className="mt-6 flex items-center justify-center gap-1.5 text-xs font-semibold text-[hsl(var(--muted-foreground))] fade-up"
+      className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-[hsl(var(--muted-foreground))] shadow-xs transition-colors hover:border-[hsl(var(--secondary)/.5)]"
       data-testid="stat-total-visits"
     >
       <span aria-hidden="true">👀</span>
-      <span>{data.totalVisits.toLocaleString()} visits</span>
+      <span className="font-bold text-[hsl(var(--foreground))]">{data.totalVisits.toLocaleString()}</span>
+      <span>visits</span>
     </div>
   );
 }

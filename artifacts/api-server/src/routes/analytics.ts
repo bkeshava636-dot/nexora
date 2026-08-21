@@ -1,4 +1,4 @@
-﻿import { Router, type IRouter } from "express";
+import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, appSettings, ensureTables, pool } from "@workspace/db";
 import { logger } from "../lib/logger";
@@ -6,7 +6,7 @@ import { logger } from "../lib/logger";
 const router: IRouter = Router();
 
 const TOTAL_VISITS_KEY = "total_site_visits";
-const BASELINE_SEED_VISITS = 12450;
+const BASELINE_SEED_VISITS = 0;
 
 async function getStoredTotalVisits(): Promise<number> {
   try {
@@ -57,7 +57,7 @@ router.post("/analytics/visit", async (_req, res) => {
         `INSERT INTO app_settings (key, value, updated_at)
          VALUES ($1, $2, now())
          ON CONFLICT (key) DO UPDATE
-         SET value = (COALESCE(NULLIF(app_settings.value, ''), '${BASELINE_SEED_VISITS}')::bigint + 1)::text,
+         SET value = (COALESCE(NULLIF(app_settings.value, ''), '0')::bigint + 1)::text,
              updated_at = now()`,
         [TOTAL_VISITS_KEY, nextVal],
       );
