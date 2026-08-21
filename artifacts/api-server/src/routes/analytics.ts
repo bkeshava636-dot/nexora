@@ -17,7 +17,15 @@ async function getStoredTotalVisits(): Promise<number> {
 
     if (record && record.value) {
       const parsed = parseInt(record.value, 10);
-      if (!isNaN(parsed) && parsed >= 0) {
+      if (!isNaN(parsed)) {
+        // Auto-clean any legacy 12k placeholder seed value from database
+        if (parsed >= 12400) {
+          await db
+            .update(appSettings)
+            .set({ value: "1", updatedAt: new Date() })
+            .where(eq(appSettings.key, TOTAL_VISITS_KEY));
+          return 1;
+        }
         return parsed;
       }
     }
@@ -57,8 +65,11 @@ router.post("/analytics/visit", async (_req, res) => {
         `INSERT INTO app_settings (key, value, updated_at)
          VALUES ($1, $2, now())
          ON CONFLICT (key) DO UPDATE
-         SET value = (COALESCE(NULLIF(app_settings.value, ''), '0')::bigint + 1)::text,
-             updated_at = now()`,
+         SET value = CASE
+           WHEN COALESCE(NULLIF(app_settings.value, ''), '0')::bigint >= 12400 THEN '1'
+           ELSE (COALESCE(NULLIF(app_settings.value, ''), '0')::bigint + 1)::text
+         END,
+         updated_at = now()`,
         [TOTAL_VISITS_KEY, nextVal],
       );
 
@@ -76,11 +87,11 @@ router.post("/analytics/visit", async (_req, res) => {
     const pgErr = (err as { cause?: { code?: string }; code?: string })?.cause || (err as { code?: string });
     if (pgErr?.code === "42P01") {
       await ensureTables();
-      res.json({ totalVisits: BASELINE_SEED_VISITS + 1 });
+      res.json({ totalVisits: 1 });
       return;
     }
     logger.warn({ err }, "Error recording visit ping");
-    res.json({ totalVisits: BASELINE_SEED_VISITS });
+    res.json({ totalVisits: 1 });
   }
 });
 
