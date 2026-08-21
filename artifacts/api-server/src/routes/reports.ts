@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
 import { desc, eq } from "drizzle-orm";
-import { db, reports, resources } from "@workspace/db";
+import { db, ensureTables, reports, resources } from "@workspace/db";
 import { requireAdmin } from "../middlewares/auth";
 import { handleDbError } from "../lib/db-errors";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -51,18 +52,39 @@ router.post("/reports", async (req, res) => {
       return;
     }
 
-    const [created] = await db
-      .insert(reports)
-      .values({
-        resourceId: idNum,
-        reason,
-        explanation: expTrimmed || null,
-        status: "pending",
-      })
-      .returning();
+    try {
+      const [created] = await db
+        .insert(reports)
+        .values({
+          resourceId: idNum,
+          reason,
+          explanation: expTrimmed || null,
+          status: "pending",
+        })
+        .returning();
 
-    res.status(201).json(created);
+      res.status(201).json(created);
+    } catch (insertErr: unknown) {
+      const pgErr = (insertErr as { cause?: { code?: string }; code?: string })?.cause || (insertErr as { code?: string });
+      if (pgErr?.code === "42P01") {
+        // Table not created yet; ensure tables and retry
+        await ensureTables();
+        const [created] = await db
+          .insert(reports)
+          .values({
+            resourceId: idNum,
+            reason,
+            explanation: expTrimmed || null,
+            status: "pending",
+          })
+          .returning();
+        res.status(201).json(created);
+        return;
+      }
+      throw insertErr;
+    }
   } catch (err) {
+    logger.error({ err, resourceId: idNum, reason }, "Failed to submit report");
     if (!handleDbError(err, res)) {
       res.status(500).json({ error: "internal_error", message: "Failed to submit report." });
     }

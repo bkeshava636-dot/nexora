@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, appSettings } from "@workspace/db";
+import { db, appSettings, ensureTables } from "@workspace/db";
 import { requireAdmin } from "../middlewares/auth";
 import { handleDbError } from "../lib/db-errors";
 import { logger } from "../lib/logger";

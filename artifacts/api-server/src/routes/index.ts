@@ -11,6 +11,7 @@ import reportsRouter from "./reports";
 import curriculumTemplatesRouter from "./curriculum-templates";
 import paymentsRouter from "./payments";
 import settingsRouter from "./settings";
+import analyticsRouter from "./analytics";
 import { readSession } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -32,5 +33,6 @@ router.use(reportsRouter);
 router.use(curriculumTemplatesRouter);
 router.use(paymentsRouter);
 router.use(settingsRouter);
+router.use(analyticsRouter);
 
 export default router;

@@ -57,12 +57,14 @@ import {
   useGetSemester,
   useGetSubject,
   useGetSubmissionMode,
+  useGetTotalVisits,
   useGetYear,
   useListBranches,
   useListCurriculumTemplates,
   useListReports,
   useListResources,
   useListSemesters,
+  useRecordVisit,
   useListSubjects,
   useListSubmissions,
   useListYears,
@@ -451,11 +453,11 @@ function ReportResourceDialog({
     e.preventDefault();
     if (createReport.isPending) return;
     if (!reason) {
-      setError("Please select a reason for reporting.");
+      setError("Please select a report reason.");
       return;
     }
     if (reason === "Other" && !explanation.trim()) {
-      setError("Please provide a short explanation for 'Other'.");
+      setError("Please provide an explanation for 'Other'.");
       return;
     }
 
@@ -470,7 +472,7 @@ function ReportResourceDialog({
       {
         onSuccess: () => {
           toast({
-            title: "Report submitted",
+            title: "Report submitted successfully.",
             description: "Thanks for helping us keep Nexora accurate.",
           });
           onOpenChange(false);
@@ -776,7 +778,39 @@ function Home() {
             </div>
           </div>
         </section>
+
+        <TotalVisitsCounter />
       </div>
+    </div>
+  );
+}
+
+function TotalVisitsCounter() {
+  const { data, isError } = useGetTotalVisits();
+  const recordVisit = useRecordVisit();
+
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined" && !sessionStorage.getItem("nexora_visit_recorded")) {
+        sessionStorage.setItem("nexora_visit_recorded", "1");
+        recordVisit.mutate();
+      }
+    } catch {
+      // Storage unavailable / blocked
+    }
+  }, [recordVisit]);
+
+  if (isError || !data?.totalVisits) {
+    return null;
+  }
+
+  return (
+    <div
+      className="mt-6 flex items-center justify-center gap-1.5 text-xs font-semibold text-[hsl(var(--muted-foreground))] fade-up"
+      data-testid="stat-total-visits"
+    >
+      <span aria-hidden="true">👀</span>
+      <span>{data.totalVisits.toLocaleString()} visits</span>
     </div>
   );
 }

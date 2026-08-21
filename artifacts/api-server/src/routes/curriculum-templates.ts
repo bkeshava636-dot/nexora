@@ -5,6 +5,7 @@ import {
   curriculumTemplates,
   curriculumTemplateSubjects,
   db,
+  ensureTables,
   semesters,
   subjects,
   years,
@@ -168,7 +169,25 @@ router.post("/curriculum-templates", requireAdmin, async (req, res) => {
 
     const full = await getFullTemplate(created.id);
     res.status(201).json(full);
-  } catch (err) {
+  } catch (err: unknown) {
+    const pgErr = (err as { cause?: { code?: string }; code?: string })?.cause || (err as { code?: string });
+    if (pgErr?.code === "42P01") {
+      await ensureTables();
+      const [created] = await db
+        .insert(curriculumTemplates)
+        .values({
+          branchId: Number(branchId),
+          yearId: Number(yearId),
+          semesterId: Number(semesterId),
+          name: typeof name === "string" ? name.trim() : "",
+        })
+        .returning();
+      if (created) {
+        const full = await getFullTemplate(created.id);
+        res.status(201).json(full);
+        return;
+      }
+    }
     if (!handleDbError(err, res)) throw err;
   }
 });
