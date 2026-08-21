@@ -924,6 +924,22 @@ function ResourcesPage() {
   const { data: resources = [], isLoading } = useListResources();
   const { data: branches = [] } = useListBranches();
 
+  const availableBranches = useMemo(() => {
+    const list: { label: string; value: string }[] = [{ label: "All branches", value: "All branches" }];
+    if (branches.length > 0) {
+      branches.forEach((b) => {
+        const label = b.shortName ? `${b.shortName} · ${b.name}` : b.name;
+        list.push({ label, value: b.name });
+      });
+    } else {
+      const distinctNames = Array.from(new Set(resources.map((r) => r.branchName).filter((v): v is string => Boolean(v))));
+      distinctNames.forEach((name) => {
+        list.push({ label: name, value: name });
+      });
+    }
+    return list;
+  }, [branches, resources]);
+
   const availableYears = useMemo(() => {
     const subset = branch === "All branches" ? resources : resources.filter((r) => r.branchName === branch);
     return ["All years", ...new Set(subset.map((r) => r.yearName).filter((v): v is string => Boolean(v)))];
@@ -1011,7 +1027,7 @@ function ResourcesPage() {
     <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.72)] p-3 sm:p-4">
       <SearchBox value={query} onChange={setQuery} />
       <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1 mobile-scroll">
-        <SelectPill label={branch} options={["All branches", ...branches.map((item) => item.shortName)]} onChange={handleBranchChange} testId="select-branch-filter" />
+        <SelectPill label={branch} options={availableBranches} onChange={handleBranchChange} testId="select-branch-filter" />
         <SelectPill label={year} options={availableYears} onChange={handleYearChange} testId="select-year-filter" />
         <SelectPill label={semester} options={availableSemesters} onChange={handleSemesterChange} testId="select-semester-filter" />
         <SelectPill label={subject} options={availableSubjects} onChange={setSubject} testId="select-subject-filter" />
@@ -1094,24 +1110,66 @@ function ResourcesPage() {
   </div>;
 }
 
-function SelectPill({ label, options, onChange, testId }: { label: string; options: string[]; onChange: (value: string) => void; testId: string }) {
-  const isFiltered = !label.startsWith("All ");
-  return <label className="relative flex shrink-0 items-center">
-    <span className="sr-only">{label}</span>
-    <select
-      value={label}
-      onChange={(event) => onChange(event.target.value)}
-      className={`focus-ring appearance-none rounded-xl border py-2 pl-3 pr-8 text-xs font-bold transition-colors cursor-pointer ${
-        isFiltered
-          ? "border-[hsl(var(--accent-foreground))] bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
-          : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))]"
-      }`}
-      data-testid={testId}
-    >
-      {options.map((option) => <option key={option} value={option}>{option}</option>)}
-    </select>
-    <ChevronDown size={13} className={`pointer-events-none absolute right-2.5 ${isFiltered ? "text-[hsl(var(--accent-foreground))]" : "text-[hsl(var(--muted-foreground))]"}`} />
-  </label>;
+type SelectOption = string | { label: string; value: string };
+
+function SelectPill({
+  label,
+  options,
+  onChange,
+  testId,
+}: {
+  label: string;
+  options: SelectOption[];
+  onChange: (value: string) => void;
+  testId: string;
+}) {
+  const normalizedOptions = useMemo(
+    () =>
+      options.map((opt) =>
+        typeof opt === "string" ? { label: opt, value: opt } : opt,
+      ),
+    [options],
+  );
+
+  const isFiltered = Boolean(label && !label.startsWith("All "));
+  const selectedOption = normalizedOptions.find(
+    (opt) => opt.value === label || opt.label === label,
+  );
+  const currentValue = selectedOption?.value ?? (normalizedOptions[0]?.value ?? "");
+
+  return (
+    <div className="relative inline-flex shrink-0 items-center">
+      <select
+        value={currentValue}
+        onChange={(event) => onChange(event.target.value)}
+        aria-label={selectedOption?.label ?? label}
+        className={`focus-ring appearance-none rounded-xl border py-2 pl-3 pr-8 text-xs font-bold transition-colors cursor-pointer ${
+          isFiltered
+            ? "border-[hsl(var(--accent-foreground))] bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
+            : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))]"
+        }`}
+        data-testid={testId}
+      >
+        {normalizedOptions.map((opt) => (
+          <option
+            key={opt.value}
+            value={opt.value}
+            className="bg-[hsl(var(--card))] text-[hsl(var(--foreground))]"
+          >
+            {opt.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown
+        size={13}
+        className={`pointer-events-none absolute right-2.5 ${
+          isFiltered
+            ? "text-[hsl(var(--accent-foreground))]"
+            : "text-[hsl(var(--muted-foreground))]"
+        }`}
+      />
+    </div>
+  );
 }
 
 function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) {
