@@ -7,6 +7,7 @@ import { verifyAdminCredentials, setAdminPassword } from "../lib/admin-credentia
 import { createSessionToken, sessionCookieName, sessionCookieOptions } from "../lib/session";
 import { requireAdmin } from "../middlewares/auth";
 import { logger } from "../lib/logger";
+import { sendPasswordResetEmail } from "../lib/email";
 
 const router: IRouter = Router();
 
@@ -124,11 +125,40 @@ router.post("/auth/forgot-password", async (req, res) => {
         expiresAt,
       });
 
-      // If email delivery is configured, trigger sending here.
-      // In development or when email transport is not configured, we do not log secrets.
+      // Generate secure reset URL
+      const originHeader = req.get("origin") || req.get("referer");
+      let baseUrl =
+        process.env["APP_BASE_URL"] ||
+        process.env["CLIENT_URL"] ||
+        process.env["FRONTEND_URL"];
+
+      if (!baseUrl && originHeader) {
+        try {
+          const parsed = new URL(originHeader);
+          baseUrl = `${parsed.protocol}//${parsed.host}`;
+        } catch {
+          // Ignore parse errors
+        }
+      }
+
+      if (!baseUrl) {
+        const proto = req.secure || req.get("x-forwarded-proto") === "https" ? "https" : "http";
+        const host = req.get("x-forwarded-host") || req.get("host") || "localhost:5173";
+        baseUrl = `${proto}://${host}`;
+      }
+
+      const cleanBaseUrl = baseUrl.replace(/\/+$/, "");
+      const resetUrl = `${cleanBaseUrl}/reset-password?token=${rawToken}`;
+
+      await sendPasswordResetEmail({
+        to: normalizedEmail,
+        resetUrl,
+        username: targetUsername,
+      });
+
       logger.info(
         { username: targetUsername },
-        "Password reset token generated for admin account.",
+        "Password reset token generated and email dispatch requested for admin account.",
       );
     }
   } catch (err) {
