@@ -4,7 +4,7 @@ import {
   ArrowLeft, ArrowRight, BarChart3, BadgeCheck, BookOpen, Calendar, Check, CheckCircle2, ChevronDown, ChevronRight,
   CircleAlert, Clock3, ExternalLink, Eye, EyeOff, FileText, Filter, Flag, FolderOpen, GitBranch, GraduationCap, KeyRound, Layers3,
   LayoutDashboard, LibraryBig, Link2, Loader2, Lock, LogOut, Menu, MoreHorizontal, Pencil, Plus, RotateCcw, Search, Send, ShieldCheck,
-  SlidersHorizontal, Sparkles, Trash2, Upload, Users, X,
+  SlidersHorizontal, Sparkles, Trash2, Upload, Users, X, Zap,
 } from "lucide-react";
 import { ApiWakeOverlay } from "@/components/api-wake-overlay";
 import { BuyMePaneerFooter } from "@/components/buy-me-paneer";
@@ -31,6 +31,7 @@ import {
   getListSubjectsQueryKey,
   getListSubmissionsQueryKey,
   getListYearsQueryKey,
+  getSubmissionModeQueryKey,
   useApplyCurriculumTemplate,
   useApproveSubmission,
   useChangePassword,
@@ -55,6 +56,7 @@ import {
   useGetCurriculumTemplate,
   useGetSemester,
   useGetSubject,
+  useGetSubmissionMode,
   useGetYear,
   useListBranches,
   useListCurriculumTemplates,
@@ -76,6 +78,7 @@ import {
   useUpdateResource,
   useUpdateSemester,
   useUpdateSubject,
+  useUpdateSubmissionMode,
   useUpdateTemplateSubject,
   useUpdateYear,
   type Branch,
@@ -87,6 +90,7 @@ import {
   type ResourceType,
   type Semester,
   type Submission,
+  type SubmissionApprovalMode,
   type Subject,
   type Year,
 } from "@workspace/api-client-react";
@@ -1217,6 +1221,7 @@ function SubjectPage() {
 
 function ContributePage() {
   const [submitted, setSubmitted] = useState(false);
+  const [submittedData, setSubmittedData] = useState<{ status: string; autoPublished?: boolean } | null>(null);
   const [branchId, setBranchId] = useState<number | undefined>(undefined);
   const [yearId, setYearId] = useState<number | undefined>(undefined);
   const [semesterId, setSemesterId] = useState<number | undefined>(undefined);
@@ -1252,13 +1257,22 @@ function ContributePage() {
       return;
     }
     createSubmission.mutate({ data: { ...form, branchId, yearId, semesterId, subjectId } }, {
-      onSuccess: () => {
+      onSuccess: (data: Submission & { autoPublished?: boolean }) => {
+        const isAuto = data.status === "approved" || Boolean(data.autoPublished);
+        setSubmittedData({ status: data.status, autoPublished: isAuto });
         setSubmitted(true);
         setError("");
-        toast({
-          title: "Resource submitted successfully!",
-          description: "Your submission will appear after admin review.",
-        });
+        if (isAuto) {
+          toast({
+            title: "Resource published successfully!",
+            description: "You can now find it in the resource library.",
+          });
+        } else {
+          toast({
+            title: "Resource submitted successfully!",
+            description: "Your submission will appear after admin review.",
+          });
+        }
       },
       onError: (err) => {
         setError(getErrorMessage(err) || "Unable to submit the resource. Please try again.");
@@ -1266,7 +1280,51 @@ function ContributePage() {
     });
   };
 
-  if (submitted) return <div className="mx-auto max-w-3xl px-4 py-12 sm:px-7 sm:py-20"><div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-6 py-14 text-center sm:px-12"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"><CheckCircle2 size={32} /></div><p className="micro-label mt-6 text-[hsl(var(--accent-foreground))]">In the review queue</p><h1 className="display-font mt-2 text-3xl font-bold tracking-[-.05em] sm:text-4xl">Resource submitted successfully!</h1><p className="mx-auto mt-4 max-w-md text-sm leading-6 text-[hsl(var(--muted-foreground))]">Your submission will appear after admin review. Our student editors will check the link and details before it joins Nexora. That keeps the Verified badge meaningful for everyone.</p><div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row"><Link href="/resources" className="focus-ring rounded-xl bg-[hsl(var(--primary))] px-5 py-3 text-sm font-bold text-[hsl(var(--primary-foreground))]" data-testid="link-confirmation-library">Browse the library</Link><button type="button" onClick={() => { setSubmitted(false); setForm({ ...form, title: "", description: "", googleDriveUrl: "" }); setError(""); }} className="focus-ring rounded-xl border border-[hsl(var(--border))] px-5 py-3 text-sm font-bold" data-testid="button-submit-another">Share another</button></div></div></div>;
+  if (submitted) {
+    const isAuto = submittedData?.autoPublished || submittedData?.status === "approved";
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-12 sm:px-7 sm:py-20">
+        <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-6 py-14 text-center sm:px-12">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]">
+            <CheckCircle2 size={32} />
+          </div>
+          <p className="micro-label mt-6 text-[hsl(var(--accent-foreground))]">
+            {isAuto ? "Published to library" : "In the review queue"}
+          </p>
+          <h1 className="display-font mt-2 text-3xl font-bold tracking-[-.05em] sm:text-4xl">
+            {isAuto ? "Resource published successfully!" : "Resource submitted successfully!"}
+          </h1>
+          <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-[hsl(var(--muted-foreground))]">
+            {isAuto
+              ? "You can now find it in the resource library. Thank you for contributing to Nexora!"
+              : "Your submission will appear after admin review. Our student editors will check the link and details before it joins Nexora. That keeps the Verified badge meaningful for everyone."}
+          </p>
+          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+            <Link
+              href="/resources"
+              className="focus-ring rounded-xl bg-[hsl(var(--primary))] px-5 py-3 text-sm font-bold text-[hsl(var(--primary-foreground))]"
+              data-testid="link-confirmation-library"
+            >
+              Browse the library
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                setSubmitted(false);
+                setSubmittedData(null);
+                setForm({ ...form, title: "", description: "", googleDriveUrl: "" });
+                setError("");
+              }}
+              className="focus-ring rounded-xl border border-[hsl(var(--border))] px-5 py-3 text-sm font-bold"
+              data-testid="button-submit-another"
+            >
+              Share another
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return <div className="mx-auto max-w-4xl px-4 py-8 sm:px-7 sm:py-12"><Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Contribute" }]} /><div className="mb-8 max-w-2xl"><p className="micro-label mb-2 text-[hsl(var(--accent-foreground))]">Give back a little</p><h1 className="display-font text-4xl font-bold tracking-[-.05em] sm:text-5xl">Put a useful file<br />in the right hands.</h1><p className="mt-4 text-sm leading-6 text-[hsl(var(--muted-foreground))]">Share material you trust. We review every submission before it becomes part of the library.</p></div>
     <section className="mb-8 rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.6)] p-5 sm:p-7" aria-labelledby="how-to-contribute-title" data-testid="section-how-to-contribute">
@@ -2791,6 +2849,159 @@ function SubmissionRow({ submission, actions = false, onApprove, onReject, isApp
     {submission.status !== "pending" && submission.reviewedBy && <p className="mt-2 text-[11px] text-[hsl(var(--muted-foreground))]">Reviewed by {submission.reviewedBy}{submission.reviewedAt ? ` on ${formatDate(submission.reviewedAt)}` : ""}</p>}</div>;
 }
 
+function AdminSubmissionApprovalSetting() {
+  const { data: setting, isLoading } = useGetSubmissionMode();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const updateMode = useUpdateSubmissionMode({
+    onSuccess: (data) => {
+      queryClient.setQueryData(getSubmissionModeQueryKey(), data);
+      queryClient.invalidateQueries({ queryKey: getSubmissionModeQueryKey() });
+      toast({
+        title: "Submission approval mode updated",
+        description:
+          data.mode === "auto_publish"
+            ? "New valid submissions will now publish automatically."
+            : "New submissions will now require manual admin approval.",
+      });
+      setConfirmOpen(false);
+    },
+    onError: (err) => {
+      toast({
+        title: "Failed to update mode",
+        description: getErrorMessage(err) || "An error occurred.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const currentMode: SubmissionApprovalMode = setting?.mode ?? "approval_required";
+  const isAutoPublish = currentMode === "auto_publish";
+
+  const handleToggle = () => {
+    if (updateMode.isPending) return;
+    if (!isAutoPublish) {
+      setConfirmOpen(true);
+    } else {
+      updateMode.mutate({ data: { mode: "approval_required" } });
+    }
+  };
+
+  const handleConfirmEnableAuto = () => {
+    updateMode.mutate({ data: { mode: "auto_publish" } });
+  };
+
+  return (
+    <>
+      <div
+        className="mb-6 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.75)] p-4 sm:p-5 shadow-xs"
+        data-testid="card-submission-approval-setting"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                Submission Approval
+              </span>
+              {isLoading ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--muted))] px-2.5 py-0.5 text-xs font-bold text-[hsl(var(--muted-foreground))]">
+                  <Loader2 size={12} className="animate-spin" /> Loading…
+                </span>
+              ) : isAutoPublish ? (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--accent))] px-2.5 py-0.5 text-xs font-bold text-[hsl(var(--accent-foreground))]"
+                  data-testid="badge-mode-auto-publish"
+                >
+                  ⚡ Auto Publish
+                </span>
+              ) : (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-[hsl(var(--secondary)/.25)] px-2.5 py-0.5 text-xs font-bold text-[hsl(var(--secondary-foreground))]"
+                  data-testid="badge-mode-approval-required"
+                >
+                  🔒 Approval Required
+                </span>
+              )}
+            </div>
+            <p className="text-xs leading-relaxed text-[hsl(var(--muted-foreground))]">
+              {isAutoPublish
+                ? "New submissions are published automatically."
+                : "New submissions require admin approval."}
+            </p>
+            {setting?.updatedAt && (
+              <p className="text-[11px] text-[hsl(var(--muted-foreground)/.8)]">
+                Last updated {setting.updatedBy ? `by ${setting.updatedBy}` : ""} on{" "}
+                {formatDate(setting.updatedAt)}
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              disabled={isLoading || updateMode.isPending}
+              onClick={handleToggle}
+              className={`focus-ring inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition-all disabled:opacity-60 cursor-pointer ${
+                isAutoPublish
+                  ? "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted)/.6)]"
+                  : "border-[hsl(var(--accent-foreground)/.4)] bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))] hover:opacity-90"
+              }`}
+              data-testid="button-toggle-approval-mode"
+            >
+              {updateMode.isPending ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : isAutoPublish ? (
+                <Lock size={14} />
+              ) : (
+                <Zap size={14} />
+              )}
+              {isAutoPublish ? "Switch to Approval Required" : "Switch to Auto Publish"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="max-w-md rounded-3xl" data-testid="dialog-confirm-auto-publish">
+          <DialogHeader>
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]">
+              <Zap size={22} />
+            </div>
+            <DialogTitle className="text-center text-xl font-bold tracking-[-.03em]">
+              Enable automatic publishing?
+            </DialogTitle>
+            <DialogDescription className="text-center text-xs leading-relaxed text-[hsl(var(--muted-foreground))]">
+              New valid submissions will be published without manual admin review.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="mt-4 flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmOpen(false)}
+              disabled={updateMode.isPending}
+              className="focus-ring w-full sm:w-auto rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-2.5 text-xs font-semibold text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted)/.6)]"
+              data-testid="button-cancel-auto-publish"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmEnableAuto}
+              disabled={updateMode.isPending}
+              className="focus-ring inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-60"
+              data-testid="button-confirm-auto-publish"
+            >
+              {updateMode.isPending && <Loader2 size={14} className="animate-spin" />}
+              Enable Auto Publish
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function AdminSubmissions() {
   const [filter, setFilter] = useState<"pending" | "all">("pending");
   const { data: submissions = [], isLoading } = useListSubmissions();
@@ -2802,7 +3013,45 @@ function AdminSubmissions() {
   const isApproving = (id: number) => approve.isPending && approve.variables?.id === id;
   const isRejecting = (id: number) => reject.isPending && reject.variables?.id === id;
   const busyId = approve.isPending ? approve.variables?.id : reject.isPending ? reject.variables?.id : undefined;
-  return <AdminLayout><div className="mb-5 flex items-center justify-between"><div><h2 className="text-lg font-bold">Submission queue</h2><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Check context and link access before approving.</p></div><div className="flex rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-1"><button type="button" onClick={() => setFilter("pending")} className={`focus-ring rounded-lg px-3 py-2 text-xs font-bold ${filter === "pending" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : ""}`} data-testid="button-filter-pending">Pending</button><button type="button" onClick={() => setFilter("all")} className={`focus-ring rounded-lg px-3 py-2 text-xs font-bold ${filter === "all" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : ""}`} data-testid="button-filter-all-submissions">All</button></div></div>{isLoading ? <Loader2 className="mx-auto my-10 animate-spin text-[hsl(var(--muted-foreground))]" size={24} /> : shown.length ? <div className="space-y-3">{shown.map((submission) => <SubmissionRow key={submission.id} submission={submission} actions={submission.status === "pending"} busy={busyId === submission.id} isApproving={isApproving(submission.id)} isRejecting={isRejecting(submission.id)} onApprove={() => approve.mutate({ id: submission.id })} onReject={() => { const reason = window.prompt("Reason for rejecting this submission (optional):"); if (reason === null) return; reject.mutate({ id: submission.id, data: { rejectionReason: reason || undefined } }); }} />)}</div> : <EmptyState title="The queue is clear" body="No submissions are waiting for a review right now. A rare, satisfying moment." />}</AdminLayout>;
+  return (
+    <AdminLayout>
+      <AdminSubmissionApprovalSetting />
+      <div className="mb-5 flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold">Submission queue</h2>
+          <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">Check context and link access before approving.</p>
+        </div>
+        <div className="flex rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-1">
+          <button type="button" onClick={() => setFilter("pending")} className={`focus-ring rounded-lg px-3 py-2 text-xs font-bold ${filter === "pending" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : ""}`} data-testid="button-filter-pending">Pending</button>
+          <button type="button" onClick={() => setFilter("all")} className={`focus-ring rounded-lg px-3 py-2 text-xs font-bold ${filter === "all" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : ""}`} data-testid="button-filter-all-submissions">All</button>
+        </div>
+      </div>
+      {isLoading ? (
+        <Loader2 className="mx-auto my-10 animate-spin text-[hsl(var(--muted-foreground))]" size={24} />
+      ) : shown.length ? (
+        <div className="space-y-3">
+          {shown.map((submission) => (
+            <SubmissionRow
+              key={submission.id}
+              submission={submission}
+              actions={submission.status === "pending"}
+              busy={busyId === submission.id}
+              isApproving={isApproving(submission.id)}
+              isRejecting={isRejecting(submission.id)}
+              onApprove={() => approve.mutate({ id: submission.id })}
+              onReject={() => {
+                const reason = window.prompt("Reason for rejecting this submission (optional):");
+                if (reason === null) return;
+                reject.mutate({ id: submission.id, data: { rejectionReason: reason || undefined } });
+              }}
+            />
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="The queue is clear" body="No submissions are waiting for a review right now. A rare, satisfying moment." />
+      )}
+    </AdminLayout>
+  );
 }
 
 function AdminReports() {

@@ -11,11 +11,13 @@ import {
 import { requireAdmin } from "../middlewares/auth";
 import { handleDbError } from "../lib/db-errors";
 import { GOOGLE_DRIVE_URL_ERROR, isValidGoogleDriveUrl } from "../lib/google-drive";
+import { getSubmissionApprovalMode } from "./settings";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
-// Public: students submit a resource for review. No auth required so the
-// public site keeps working without a login.
+// Public: students submit a resource. If auto_publish mode is enabled, the resource
+// is automatically validated and published into the catalog; otherwise it enters the review queue.
 router.post("/submissions", async (req, res) => {
   const parsed = CreateSubmissionBody.safeParse(req.body);
   if (!parsed.success) {
@@ -26,6 +28,74 @@ router.post("/submissions", async (req, res) => {
     res.status(400).json({ error: "invalid_google_drive_url", message: GOOGLE_DRIVE_URL_ERROR });
     return;
   }
+
+  const mode = await getSubmissionApprovalMode();
+
+  if (mode === "auto_publish" && parsed.data.subjectId) {
+    try {
+      const result = await db.transaction(async (tx) => {
+        const [createdResource] = await tx
+          .insert(resources)
+          .values({
+            subjectId: parsed.data.subjectId as number,
+            title: parsed.data.title,
+            description: parsed.data.description ?? "",
+            resourceType: parsed.data.resourceType,
+            googleDriveUrl: parsed.data.googleDriveUrl,
+            isNew: true,
+            isFeatured: false,
+            isVerified: true,
+            verifiedAt: new Date(),
+            verifiedBy: "auto_publish",
+          })
+          .returning();
+
+        const [createdSubmission] = await tx
+          .insert(submissions)
+          .values({
+            ...parsed.data,
+            status: "approved",
+            reviewedAt: new Date(),
+            reviewedBy: "auto_publish",
+            adminNote: "Auto-published upon student submission.",
+          })
+          .returning();
+
+        return { ...createdSubmission, resourceId: createdResource.id };
+      });
+
+      logger.info(
+        { submissionId: result.id, resourceId: result.resourceId },
+        "Submission auto-published to catalog.",
+      );
+
+      res.status(201).json(result);
+      return;
+    } catch (err) {
+      logger.error(
+        { err },
+        "Auto-publish failed during resource creation; falling back to pending submission for manual recovery",
+      );
+
+      try {
+        const [fallbackSubmission] = await db
+          .insert(submissions)
+          .values({
+            ...parsed.data,
+            status: "pending",
+            adminNote: "Auto-publish failed; queued for manual review.",
+          })
+          .returning();
+
+        res.status(201).json(fallbackSubmission);
+        return;
+      } catch (innerErr) {
+        if (!handleDbError(innerErr, res)) throw innerErr;
+        return;
+      }
+    }
+  }
+
   try {
     const [created] = await db.insert(submissions).values(parsed.data).returning();
     res.status(201).json(created);

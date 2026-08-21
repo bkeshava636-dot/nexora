@@ -6,3 +6,5 @@ export * from "./reports";
 export * from "./auth-ext";
 export * from "./curriculum-templates";
 export * from "./payments";
+export * from "./settings";
+
