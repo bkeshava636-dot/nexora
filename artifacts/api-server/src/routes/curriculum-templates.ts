@@ -1,5 +1,5 @@
-﻿import { Router, type IRouter } from "express";
-import { asc, eq } from "drizzle-orm";
+import { Router, type IRouter } from "express";
+import { and, asc, eq } from "drizzle-orm";
 import {
   branches,
   curriculumTemplates,
@@ -32,9 +32,9 @@ async function getFullTemplate(templateId: number) {
       semesterName: semesters.name,
     })
     .from(curriculumTemplates)
-    .innerJoin(branches, eq(curriculumTemplates.branchId, branches.id))
-    .innerJoin(years, eq(curriculumTemplates.yearId, years.id))
-    .innerJoin(semesters, eq(curriculumTemplates.semesterId, semesters.id))
+    .leftJoin(branches, eq(curriculumTemplates.branchId, branches.id))
+    .leftJoin(years, eq(curriculumTemplates.yearId, years.id))
+    .leftJoin(semesters, eq(curriculumTemplates.semesterId, semesters.id))
     .where(eq(curriculumTemplates.id, templateId));
 
   if (!template) return null;
@@ -50,6 +50,10 @@ async function getFullTemplate(templateId: number) {
 
   return {
     ...template,
+    branchName: template.branchName ?? "Branch",
+    branchShortName: template.branchShortName ?? "",
+    yearName: template.yearName ?? "Year",
+    semesterName: template.semesterName ?? "Semester",
     subjects: templateSubjects,
     subjectCount: templateSubjects.length,
   };
@@ -73,9 +77,9 @@ router.get("/curriculum-templates", requireAdmin, async (_req, res) => {
         semesterName: semesters.name,
       })
       .from(curriculumTemplates)
-      .innerJoin(branches, eq(curriculumTemplates.branchId, branches.id))
-      .innerJoin(years, eq(curriculumTemplates.yearId, years.id))
-      .innerJoin(semesters, eq(curriculumTemplates.semesterId, semesters.id))
+      .leftJoin(branches, eq(curriculumTemplates.branchId, branches.id))
+      .leftJoin(years, eq(curriculumTemplates.yearId, years.id))
+      .leftJoin(semesters, eq(curriculumTemplates.semesterId, semesters.id))
       .orderBy(
         asc(branches.displayOrder),
         asc(years.displayOrder),
@@ -102,6 +106,10 @@ router.get("/curriculum-templates", requireAdmin, async (_req, res) => {
       const tplSubs = subjectsByTemplate.get(tpl.id) ?? [];
       return {
         ...tpl,
+        branchName: tpl.branchName ?? "Branch",
+        branchShortName: tpl.branchShortName ?? "",
+        yearName: tpl.yearName ?? "Year",
+        semesterName: tpl.semesterName ?? "Semester",
         subjects: tplSubs,
         subjectCount: tplSubs.length,
       };
@@ -316,7 +324,10 @@ router.patch(
           updatedAt: new Date(),
         })
         .where(
-          eq(curriculumTemplateSubjects.id, subjectId),
+          and(
+            eq(curriculumTemplateSubjects.id, subjectId),
+            eq(curriculumTemplateSubjects.templateId, templateId),
+          ),
         )
         .returning();
 
@@ -347,7 +358,12 @@ router.delete(
     try {
       const [deleted] = await db
         .delete(curriculumTemplateSubjects)
-        .where(eq(curriculumTemplateSubjects.id, subjectId))
+        .where(
+          and(
+            eq(curriculumTemplateSubjects.id, subjectId),
+            eq(curriculumTemplateSubjects.templateId, templateId),
+          ),
+        )
         .returning({ id: curriculumTemplateSubjects.id });
 
       if (!deleted) {
@@ -386,7 +402,12 @@ router.post(
             await tx
               .update(curriculumTemplateSubjects)
               .set({ displayOrder: item.displayOrder, updatedAt: new Date() })
-              .where(eq(curriculumTemplateSubjects.id, item.id));
+              .where(
+                and(
+                  eq(curriculumTemplateSubjects.id, item.id),
+                  eq(curriculumTemplateSubjects.templateId, templateId),
+                ),
+              );
           }
         }
       });
@@ -466,7 +487,7 @@ router.post(
             await tx.insert(subjects).values({
               semesterId: template.semesterId,
               name: tplSub.name.trim(),
-              description: desc,
+              description: desc ?? "",
             });
             appliedCount++;
             existingNames.add(normalized);

@@ -413,8 +413,11 @@ function ResourceDetailsDialog({
           <DialogFooter className="mt-4 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
             <button
               type="button"
-              onClick={() => setReportOpen(true)}
-              className="focus-ring text-xs font-semibold text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--destructive))] transition-colors flex items-center justify-center sm:justify-start gap-1.5 py-1 px-1"
+              onClick={() => {
+                onOpenChange(false);
+                setReportOpen(true);
+              }}
+              className="focus-ring text-xs font-semibold text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--destructive))] transition-colors flex items-center justify-center sm:justify-start gap-1.5 py-1 px-1 cursor-pointer"
               data-testid="button-open-report"
             >
               <Flag size={13} /> Report resource
@@ -3058,7 +3061,7 @@ function AdminReports() {
   const [filter, setFilter] = useState<"pending" | "all">("pending");
   const { data: reports = [], isLoading } = useListReports();
   const queryClient = useQueryClient();
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: getListReportsQueryKey() });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["/api/reports"] });
   const resolve = useResolveReport();
   const dismiss = useDismissReport();
   const shown = (reports as ReportItem[]).filter((item: ReportItem) => filter === "all" || item.status === "pending");
