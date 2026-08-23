@@ -27,12 +27,10 @@ export const semesterQps = pgTable(
 );
 
 export const insertSemesterQpSchema = createInsertSchema(semesterQps).omit({
-  id: true,
   createdAt: true,
   updatedAt: true,
 });
 export const updateSemesterQpSchema = createUpdateSchema(semesterQps).omit({
-  id: true,
   createdAt: true,
   updatedAt: true,
 });

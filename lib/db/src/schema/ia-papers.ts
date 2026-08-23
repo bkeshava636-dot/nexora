@@ -1,4 +1,4 @@
-﻿import { boolean, index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-zod";
 
 export const iaPapers = pgTable(
@@ -27,12 +27,10 @@ export const iaPapers = pgTable(
 );
 
 export const insertIaPaperSchema = createInsertSchema(iaPapers).omit({
-  id: true,
   createdAt: true,
   updatedAt: true,
 });
 export const updateIaPaperSchema = createUpdateSchema(iaPapers).omit({
-  id: true,
   createdAt: true,
   updatedAt: true,
 });
