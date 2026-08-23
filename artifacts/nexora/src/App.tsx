@@ -2,7 +2,7 @@ import { type FormEvent, type ReactNode, memo, useCallback, useEffect, useMemo, 
 import { Link, Redirect, Route, Switch, Router as WouterRouter, useLocation, useParams } from "wouter";
 import {
   ArrowLeft, ArrowRight, BarChart3, BadgeCheck, BookOpen, Calendar, Check, CheckCircle2, ChevronDown, ChevronRight,
-  CircleAlert, Clock3, ExternalLink, Eye, EyeOff, FileText, Filter, Flag, FolderOpen, GitBranch, GraduationCap, KeyRound, Layers3,
+  CircleAlert, Clock3, Download, ExternalLink, Eye, EyeOff, FileArchive, FileDown, FileText, Filter, Flag, FolderOpen, GitBranch, GraduationCap, KeyRound, Layers3,
   LayoutDashboard, LibraryBig, Link2, Loader2, Lock, LogOut, Menu, MoreHorizontal, Pencil, Plus, RotateCcw, Search, Send, ShieldCheck,
   SlidersHorizontal, Sparkles, Trash2, Upload, Users, X, Zap,
 } from "lucide-react";
@@ -27,6 +27,7 @@ import {
   getListCurriculumTemplatesQueryKey,
   getListReportsQueryKey,
   getListResourcesQueryKey,
+  getListSemesterQpsQueryKey,
   getListSemestersQueryKey,
   getListSubjectsQueryKey,
   getListSubmissionsQueryKey,
@@ -39,6 +40,7 @@ import {
   useCreateCurriculumTemplate,
   useCreateReport,
   useCreateSemester,
+  useCreateSemesterQp,
   useCreateSubject,
   useCreateSubmission,
   useCreateTemplateSubject,
@@ -47,6 +49,7 @@ import {
   useDeleteCurriculumTemplate,
   useDeleteResource,
   useDeleteSemester,
+  useDeleteSemesterQp,
   useDeleteSubject,
   useDeleteTemplateSubject,
   useDeleteYear,
@@ -63,6 +66,8 @@ import {
   useListCurriculumTemplates,
   useListReports,
   useListResources,
+  useListSemesterQps,
+  useListIaPapers,
   useListSemesters,
   useRecordVisit,
   useListSubjects,
@@ -79,6 +84,10 @@ import {
   useUpdateCurriculumTemplate,
   useUpdateResource,
   useUpdateSemester,
+  useUpdateSemesterQp,
+  useUpdateIaPaper,
+  useCreateIaPaper,
+  useDeleteIaPaper,
   useUpdateSubject,
   useUpdateSubmissionMode,
   useUpdateTemplateSubject,
@@ -91,6 +100,8 @@ import {
   type Resource,
   type ResourceType,
   type Semester,
+  type SemesterQpItem,
+  type IaPaperItem,
   type Submission,
   type SubmissionApprovalMode,
   type Subject,
@@ -180,6 +191,7 @@ function Shell({ children }: { children: ReactNode }) {
   const nav = [
     { href: "/", label: "Home", icon: LayoutDashboard },
     { href: "/resources", label: "Resource library", icon: LibraryBig },
+    { href: "/pyqs", label: "PYQs", icon: GraduationCap },
     { href: "/contribute", label: "Contribute", icon: Upload },
   ];
   return <div className="noise nexora-shell min-h-[100dvh] text-[hsl(var(--foreground))]">
@@ -1945,6 +1957,7 @@ function AdminLayout({ children }: { children: ReactNode }) {
     { href: "/admin/templates", label: "Curriculum Templates", testId: "link-admin-templates" },
     { href: "/admin/submissions", label: "Submissions", testId: "link-admin-submissions" },
     { href: "/admin/resources", label: "Resources", testId: "link-admin-resources" },
+    { href: "/admin/pyqs", label: "PYQs", testId: "link-admin-pyqs" },
     { href: "/admin/reports", label: "Reports", testId: "link-admin-reports" },
   ];
   return (
@@ -2301,6 +2314,8 @@ function AdminOverview() {
   const resourcesQuery = useListResources();
   const submissionsQuery = useListSubmissions();
   const reportsQuery = useListReports();
+  const qpsQuery = useListSemesterQps({ isPublished: "all" });
+  const iaPapersQuery = useListIaPapers({ isPublished: "all" });
 
   const isLoading =
     branchesQuery.isLoading ||
@@ -2309,7 +2324,9 @@ function AdminOverview() {
     subjectsQuery.isLoading ||
     resourcesQuery.isLoading ||
     submissionsQuery.isLoading ||
-    reportsQuery.isLoading;
+    reportsQuery.isLoading ||
+    qpsQuery.isLoading ||
+    iaPapersQuery.isLoading;
 
   const isError =
     branchesQuery.isError ||
@@ -2318,7 +2335,9 @@ function AdminOverview() {
     subjectsQuery.isError ||
     resourcesQuery.isError ||
     submissionsQuery.isError ||
-    reportsQuery.isError;
+    reportsQuery.isError ||
+    qpsQuery.isError ||
+    iaPapersQuery.isError;
 
   const handleRetry = () => {
     branchesQuery.refetch();
@@ -2328,6 +2347,8 @@ function AdminOverview() {
     resourcesQuery.refetch();
     submissionsQuery.refetch();
     reportsQuery.refetch();
+    qpsQuery.refetch();
+    iaPapersQuery.refetch();
   };
 
   const branches = branchesQuery.data ?? [];
@@ -2337,6 +2358,8 @@ function AdminOverview() {
   const resources = resourcesQuery.data ?? [];
   const submissions = submissionsQuery.data ?? [];
   const reports = (reportsQuery.data ?? []) as ReportItem[];
+  const qps = qpsQuery.data ?? [];
+  const iaPapers = iaPapersQuery.data ?? [];
 
   const uniqueYearsCount = useMemo(() => getUniqueYearsCount(years), [years]);
   const uniqueSemestersCount = useMemo(() => getUniqueSemestersCount(semesters), [semesters]);
@@ -2358,6 +2381,8 @@ function AdminOverview() {
   );
 
   const totalNeedsAttention = pendingSubmissions.length + pendingReports.length;
+  const totalPyqs = qps.length + iaPapers.length;
+  const publishedPyqs = qps.filter((q) => q.isPublished).length + iaPapers.filter((p) => p.isPublished).length;
 
   return (
     <AdminLayout>
@@ -2384,8 +2409,8 @@ function AdminOverview() {
 
       {isLoading ? (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
-            {Array.from({ length: 7 }).map((_, i) => (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+            {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={i}
                 className="h-28 animate-pulse rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)]"
@@ -2407,7 +2432,7 @@ function AdminOverview() {
                 Overview statistics
               </h2>
             </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
               <Metric
                 icon={GraduationCap}
                 label="Branches"
@@ -2449,6 +2474,14 @@ function AdminOverview() {
                 testId="metric-resources"
               />
               <Metric
+                icon={FileArchive}
+                label="PYQs"
+                value={totalPyqs}
+                detail={qpsQuery.isError || iaPapersQuery.isError ? "Error loading" : `${publishedPyqs} published (${qps.length} sem / ${iaPapers.length} IA)`}
+                isError={qpsQuery.isError || iaPapersQuery.isError}
+                testId="metric-pyqs"
+              />
+              <Metric
                 icon={Clock3}
                 label="Pending Submissions"
                 value={pendingSubmissions.length}
@@ -2474,7 +2507,7 @@ function AdminOverview() {
             <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
               Quick actions
             </h2>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
               <Link
                 href="/admin/catalog"
                 className="focus-ring card-lift group flex flex-col justify-between rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 transition-colors hover:border-[hsl(var(--secondary))]"
@@ -2563,6 +2596,23 @@ function AdminOverview() {
                 <div className="mt-4">
                   <p className="text-xs font-bold text-[hsl(var(--foreground))]">Review Submissions</p>
                   <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">{pendingSubmissions.length ? `${pendingSubmissions.length} waiting` : "All clear"}</p>
+                </div>
+              </Link>
+
+              <Link
+                href="/admin/pyqs"
+                className="focus-ring card-lift group flex flex-col justify-between rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 transition-colors hover:border-[hsl(var(--secondary))]"
+                data-testid="quick-action-manage-pyqs"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[hsl(var(--muted))] text-[hsl(var(--primary))] group-hover:bg-[hsl(var(--secondary)/.2)]">
+                    <GraduationCap size={18} />
+                  </div>
+                  <ArrowRight size={14} className="text-[hsl(var(--muted-foreground))] transition-transform group-hover:translate-x-0.5" />
+                </div>
+                <div className="mt-4">
+                  <p className="text-xs font-bold text-[hsl(var(--foreground))]">Manage PYQs</p>
+                  <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">Question paper archives</p>
                 </div>
               </Link>
 
@@ -4876,6 +4926,3246 @@ function ApplyTemplateDialog({
   );
 }
 
+const POPULAR_YEARS = ["All", "2026", "2025", "2024", "2023", "2022 & Model Papers"];
+const POPULAR_SEMESTERS = [
+  "All",
+  "8th Semester",
+  "7th Semester",
+  "6th Semester",
+  "5th Semester",
+  "4th Semester",
+  "3rd Semester",
+  "2nd Semester",
+  "1st Semester",
+  "Model Papers",
+];
+
+const IA_YEARS = ["1st Year", "2nd Year", "3rd Year", "4th Year"] as const;
+const IA_TYPES = ["IA-1", "IA-2", "IA-3", "Other"] as const;
+const IA_YEAR_SEMESTERS: Record<string, string[]> = {
+  "1st Year": ["1st Semester", "2nd Semester"],
+  "2nd Year": ["3rd Semester", "4th Semester"],
+  "3rd Year": ["5th Semester", "6th Semester"],
+  "4th Year": ["7th Semester", "8th Semester"],
+};
+
+function getIaSemesterLabel(sem: string): string {
+  const s = sem.trim();
+  if (s === "1st Semester" || s === "1st Sem" || s.toLowerCase() === "1st semester") {
+    return "1st Semester • Odd";
+  }
+  if (s === "2nd Semester" || s === "2nd Sem" || s.toLowerCase() === "2nd semester") {
+    return "2nd Semester • Even";
+  }
+  return s;
+}
+
+function PyqsPage() {
+  const [activeTab, setActiveTab] = useState<"semester" | "ia">(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      const tabParam = sp.get("tab") || sp.get("type");
+      if (tabParam === "ia" || tabParam === "internal") return "ia";
+    }
+    return "semester";
+  });
+
+  const handleTabChange = (tab: "semester" | "ia") => {
+    setActiveTab(tab);
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      sp.set("tab", tab);
+      const qs = sp.toString() ? `?${sp.toString()}` : window.location.pathname;
+      window.history.replaceState(null, "", qs);
+    }
+  };
+
+  return (
+    <div className="hero-wash min-h-screen">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-7 sm:py-12">
+        {/* Header */}
+        <div className="mb-8 fade-up">
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1.5 text-xs font-bold text-[hsl(var(--accent-foreground))] shadow-xs">
+            <GraduationCap size={14} /> PYQs
+          </div>
+          <h1 className="display-font text-3xl font-bold tracking-[-.04em] sm:text-5xl">
+            Previous Question Papers
+          </h1>
+          <p className="mt-3 max-w-2xl text-sm text-[hsl(var(--muted-foreground))] sm:text-base leading-relaxed">
+            Direct question paper bundles, semester examinations, and internal assessment papers organized for fast student access.
+          </p>
+        </div>
+
+        {/* Navigation Tabs */}
+        <div className="mb-8 flex border-b border-[hsl(var(--border))] gap-2">
+          <button
+            type="button"
+            onClick={() => handleTabChange("semester")}
+            className={`focus-ring inline-flex items-center gap-2 border-b-2 px-4 py-3 text-xs sm:text-sm font-bold transition-colors cursor-pointer ${
+              activeTab === "semester"
+                ? "border-[hsl(var(--secondary))] text-[hsl(var(--foreground))]"
+                : "border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+            }`}
+            data-testid="tab-semester-qps"
+          >
+            <BookOpen size={16} /> Semester QPs
+          </button>
+          <button
+            type="button"
+            onClick={() => handleTabChange("ia")}
+            className={`focus-ring inline-flex items-center gap-2 border-b-2 px-4 py-3 text-xs sm:text-sm font-bold transition-colors cursor-pointer ${
+              activeTab === "ia"
+                ? "border-[hsl(var(--secondary))] text-[hsl(var(--foreground))]"
+                : "border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+            }`}
+            data-testid="tab-internal-assessment"
+          >
+            <Clock3 size={16} /> Internal Assessment
+          </button>
+        </div>
+
+        {activeTab === "semester" ? <PyqsSemesterSection /> : <PyqsIaSection />}
+      </div>
+    </div>
+  );
+}
+
+function PyqsSemesterSection() {
+  const [selectedYear, setSelectedYear] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      return sp.get("year") || "All";
+    }
+    return "All";
+  });
+  const [selectedSemester, setSelectedSemester] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      return sp.get("semester") || sp.get("sem") || "All";
+    }
+    return "All";
+  });
+  const [selectedDepartment, setSelectedDepartment] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      return sp.get("department") || sp.get("dept") || "All";
+    }
+    return "All";
+  });
+  const [search, setSearch] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      return sp.get("q") || sp.get("search") || "";
+    }
+    return "";
+  });
+
+  const { data: branches = [] } = useListBranches({ includeInactive: false });
+
+  const { data: qps = [], isLoading, isError, refetch } = useListSemesterQps({
+    examYear: selectedYear !== "All" ? selectedYear : undefined,
+    semester: selectedSemester !== "All" ? selectedSemester : undefined,
+    department: selectedDepartment !== "All" ? selectedDepartment : undefined,
+    search: search.trim() || undefined,
+  });
+
+  const availableYears = useMemo(() => {
+    const set = new Set<string>();
+    for (const qp of qps) {
+      if (qp.examYear) set.add(qp.examYear);
+    }
+    for (const y of POPULAR_YEARS) {
+      if (y !== "All") set.add(y);
+    }
+    return ["All", ...Array.from(set).sort((a, b) => b.localeCompare(a))];
+  }, [qps]);
+
+  const availableSemesters = useMemo(() => {
+    const set = new Set<string>();
+    for (const qp of qps) {
+      if (qp.semester) set.add(qp.semester);
+    }
+    for (const s of POPULAR_SEMESTERS) {
+      if (s !== "All") set.add(s);
+    }
+    const order = [
+      "All",
+      "8th Semester",
+      "7th Semester",
+      "6th Semester",
+      "5th Semester",
+      "4th Semester",
+      "3rd Semester",
+      "2nd Semester",
+      "1st Semester",
+      "1st & 2nd Semester",
+      "Model Papers",
+    ];
+    return Array.from(set).sort((a, b) => {
+      const idxA = order.indexOf(a);
+      const idxB = order.indexOf(b);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      return a.localeCompare(b);
+    });
+  }, [qps]);
+
+  const availableDepartments = useMemo(() => {
+    const set = new Set<string>();
+    for (const b of branches) {
+      if (b.name) set.add(b.name);
+      if (b.shortName) set.add(b.shortName);
+    }
+    for (const qp of qps) {
+      if (qp.department) set.add(qp.department);
+    }
+    return ["All", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
+  }, [branches, qps]);
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, { examYear: string; semester: string; items: SemesterQpItem[] }>();
+    for (const item of qps) {
+      const key = `${item.examYear}__${item.semester}`;
+      const existing = map.get(key);
+      if (existing) {
+        existing.items.push(item);
+      } else {
+        map.set(key, { examYear: item.examYear, semester: item.semester, items: [item] });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => {
+      const yearComp = b.examYear.localeCompare(a.examYear);
+      if (yearComp !== 0) return yearComp;
+      return a.semester.localeCompare(b.semester);
+    });
+  }, [qps]);
+
+  const syncUrlParams = (year: string, sem: string, dept: string, qText: string) => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      sp.set("tab", "semester");
+      if (year !== "All") sp.set("year", year); else sp.delete("year");
+      if (sem !== "All") sp.set("semester", sem); else sp.delete("semester");
+      if (dept !== "All") sp.set("department", dept); else sp.delete("department");
+      if (qText.trim()) sp.set("q", qText.trim()); else sp.delete("q");
+      const qs = sp.toString() ? `?${sp.toString()}` : window.location.pathname;
+      window.history.replaceState(null, "", qs);
+    }
+  };
+
+  const handleYearChange = (year: string) => {
+    setSelectedYear(year);
+    syncUrlParams(year, selectedSemester, selectedDepartment, search);
+  };
+
+  const handleSemesterChange = (sem: string) => {
+    setSelectedSemester(sem);
+    syncUrlParams(selectedYear, sem, selectedDepartment, search);
+  };
+
+  const handleDepartmentChange = (dept: string) => {
+    setSelectedDepartment(dept);
+    syncUrlParams(selectedYear, selectedSemester, dept, search);
+  };
+
+  const handleSearchChange = (val: string) => {
+    setSearch(val);
+    syncUrlParams(selectedYear, selectedSemester, selectedDepartment, val);
+  };
+
+  const hasActiveFilters =
+    selectedYear !== "All" ||
+    selectedSemester !== "All" ||
+    selectedDepartment !== "All" ||
+    Boolean(search.trim());
+
+  const resetFilters = () => {
+    setSelectedYear("All");
+    setSelectedSemester("All");
+    setSelectedDepartment("All");
+    setSearch("");
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams();
+      sp.set("tab", "semester");
+      window.history.replaceState(null, "", `?${sp.toString()}`);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Filter Bar */}
+      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.7)] p-4 sm:p-5 shadow-xs space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          {/* Search */}
+          <div className="relative flex-1 max-w-md">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Search branch, year, or department..."
+              className="input-style h-10 w-full pl-9 pr-8 text-xs sm:text-sm"
+              data-testid="input-search-qps"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => handleSearchChange("")}
+                className="focus-ring absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                aria-label="Clear search"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="focus-ring inline-flex items-center gap-1.5 self-start rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3.5 py-2 text-xs font-bold text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted)/.5)] transition-colors cursor-pointer"
+              data-testid="button-reset-qp-filters"
+            >
+              <RotateCcw size={12} /> Reset filters
+            </button>
+          )}
+        </div>
+
+        {/* Filter Selectors */}
+        <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-[hsl(var(--border)/.5)]">
+          {/* Exam Year Filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Exam Year:</span>
+            <select
+              value={selectedYear}
+              onChange={(e) => handleYearChange(e.target.value)}
+              className="input-style h-8 px-2.5 text-xs font-semibold rounded-lg bg-[hsl(var(--card))] cursor-pointer"
+              data-testid="select-exam-year"
+            >
+              {availableYears.map((y) => (
+                <option key={y} value={y}>{y === "All" ? "All Years" : y}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Semester Filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Semester:</span>
+            <select
+              value={selectedSemester}
+              onChange={(e) => handleSemesterChange(e.target.value)}
+              className="input-style h-8 px-2.5 text-xs font-semibold rounded-lg bg-[hsl(var(--card))] cursor-pointer"
+              data-testid="select-semester"
+            >
+              {availableSemesters.map((s) => (
+                <option key={s} value={s}>{s === "All" ? "All Semesters" : s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Department Filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Department:</span>
+            <select
+              value={selectedDepartment}
+              onChange={(e) => handleDepartmentChange(e.target.value)}
+              className="input-style h-8 px-2.5 text-xs font-semibold rounded-lg bg-[hsl(var(--card))] cursor-pointer"
+              data-testid="select-department"
+            >
+              {availableDepartments.map((d) => (
+                <option key={d} value={d}>{d === "All" ? "All Departments" : d}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Content / Groups */}
+      {isLoading ? (
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-44 animate-pulse rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)]" />
+          ))}
+        </div>
+      ) : isError ? (
+        <div className="rounded-2xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-6 text-center" role="alert">
+          <CircleAlert size={24} className="mx-auto text-[hsl(var(--destructive))] mb-2" />
+          <p className="text-sm font-bold text-[hsl(var(--destructive))]">Failed to load question papers.</p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="focus-ring mt-3 inline-flex items-center gap-1.5 rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--card))] px-4 py-2 text-xs font-bold text-[hsl(var(--destructive))]"
+          >
+            <RotateCcw size={12} /> Retry
+          </button>
+        </div>
+      ) : grouped.length === 0 ? (
+        <div className="rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-8 sm:p-12 text-center shadow-xs" data-testid="status-empty-qps">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] mb-3">
+            <FileText size={24} />
+          </div>
+          <h3 className="display-font text-xl font-bold">No Semester QPs available for this selection.</h3>
+          <p className="mt-1.5 text-xs sm:text-sm text-[hsl(var(--muted-foreground))] max-w-sm mx-auto">
+            {hasActiveFilters
+              ? "Try adjusting or clearing your filters to see available papers."
+              : "No semester question papers have been published yet."}
+          </p>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="focus-ring mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[hsl(var(--primary))] px-4 py-2 text-xs font-bold text-[hsl(var(--primary-foreground))] shadow-xs cursor-pointer"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {grouped.map((group) => (
+            <div
+              key={`${group.examYear}__${group.semester}`}
+              className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.75)] p-5 sm:p-6 shadow-xs fade-up"
+              data-testid={`card-qp-group-${group.examYear.replace(/[\s&]+/g, "-")}-${group.semester.replace(/[\s&]+/g, "-")}`}
+            >
+              {/* Group Header */}
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-[hsl(var(--border)/.6)] pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center rounded-full border border-[hsl(var(--secondary)/.4)] bg-[hsl(var(--secondary)/.15)] px-3 py-1 text-xs font-bold text-[hsl(var(--secondary-foreground))]">
+                    {group.examYear}
+                  </span>
+                  <span className="inline-flex items-center rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-3 py-1 text-xs font-semibold text-[hsl(var(--muted-foreground))]">
+                    {group.semester}
+                  </span>
+                </div>
+                <span className="text-xs text-[hsl(var(--muted-foreground))] font-semibold">
+                  {group.items.length} {group.items.length === 1 ? "stream" : "streams"}
+                </span>
+              </div>
+
+              {/* Department Stream Tiles */}
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {group.items.map((item) => {
+                  const urlLower = item.downloadUrl.toLowerCase();
+                  const rType = item.resourceType || (urlLower.endsWith(".pdf") ? "pdf" : urlLower.endsWith(".zip") ? "zip" : urlLower.includes("drive.google.com") ? "drive" : "link");
+
+                  let buttonLabel = "Download ZIP";
+                  let buttonIcon = <FileArchive size={13} />;
+                  if (rType === "pdf") {
+                    buttonLabel = "View PDF";
+                    buttonIcon = <FileText size={13} />;
+                  } else if (rType === "drive") {
+                    buttonLabel = "Open Drive";
+                    buttonIcon = <FolderOpen size={13} />;
+                  } else if (rType === "link") {
+                    buttonLabel = "Open Link";
+                    buttonIcon = <ExternalLink size={13} />;
+                  }
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="card-lift flex flex-col justify-between rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-xs hover:border-[hsl(var(--secondary)/.6)] transition-all"
+                      data-testid={`tile-qp-${item.id}`}
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-bold text-sm text-[hsl(var(--foreground))] line-clamp-2">
+                            {item.department}
+                          </span>
+                          <span className={`shrink-0 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ${
+                            rType === "pdf"
+                              ? "bg-[hsl(var(--destructive)/.12)] text-[hsl(var(--destructive))]"
+                              : rType === "drive"
+                              ? "bg-[hsl(var(--primary)/.15)] text-[hsl(var(--primary))]"
+                              : rType === "link"
+                              ? "bg-[hsl(var(--accent)/.2)] text-[hsl(var(--accent-foreground))]"
+                              : "bg-[hsl(var(--secondary)/.18)] text-[hsl(var(--secondary-foreground))]"
+                          }`}>
+                            {rType === "pdf" ? <FileText size={10} /> : rType === "drive" ? <FolderOpen size={10} /> : rType === "link" ? <ExternalLink size={10} /> : <FileArchive size={10} />}
+                            {rType}
+                          </span>
+                        </div>
+                        {item.title && item.title !== group.items[0]?.title && (
+                          <p className="text-[11px] text-[hsl(var(--muted-foreground))] line-clamp-1">
+                            {item.title}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-end pt-2 border-t border-[hsl(var(--border)/.4)]">
+                        <a
+                          href={item.downloadUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[hsl(var(--primary))] px-3.5 py-2 text-xs font-bold text-[hsl(var(--primary-foreground))] shadow-xs hover:bg-[hsl(var(--primary)/.9)] transition-all cursor-pointer"
+                          data-testid={`button-download-qp-${item.id}`}
+                        >
+                          {buttonIcon}
+                          <span>{buttonLabel}</span>
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PyqsIaSection() {
+  const [selectedYear, setSelectedYear] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      return sp.get("year") || "All";
+    }
+    return "All";
+  });
+  const [selectedSemester, setSelectedSemester] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      return sp.get("semester") || sp.get("sem") || "All";
+    }
+    return "All";
+  });
+  const [selectedDepartment, setSelectedDepartment] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      return sp.get("department") || sp.get("dept") || "All";
+    }
+    return "All";
+  });
+  const [selectedIaType, setSelectedIaType] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      return sp.get("iaType") || sp.get("type") || "All";
+    }
+    return "All";
+  });
+  const [search, setSearch] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      return sp.get("q") || sp.get("search") || "";
+    }
+    return "";
+  });
+
+  const { data: iaPapers = [], isLoading, isError, refetch } = useListIaPapers({
+    academicYear: selectedYear !== "All" ? selectedYear : undefined,
+    semester: selectedSemester !== "All" ? selectedSemester : undefined,
+    department: selectedDepartment !== "All" ? selectedDepartment : undefined,
+    iaType: selectedIaType !== "All" ? selectedIaType : undefined,
+    search: search.trim() || undefined,
+  });
+
+  const { data: branches = [] } = useListBranches({ includeInactive: false });
+
+  const syncUrlParams = (year: string, sem: string, dept: string, type: string, qText: string) => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      sp.set("tab", "ia");
+      if (year !== "All") sp.set("year", year); else sp.delete("year");
+      if (sem !== "All") sp.set("semester", sem); else sp.delete("semester");
+      if (dept !== "All") sp.set("department", dept); else sp.delete("department");
+      if (type !== "All") sp.set("iaType", type); else sp.delete("iaType");
+      if (qText.trim()) sp.set("q", qText.trim()); else sp.delete("q");
+      const qs = sp.toString() ? `?${sp.toString()}` : window.location.pathname;
+      window.history.replaceState(null, "", qs);
+    }
+  };
+
+  const handleYearChange = (year: string) => {
+    setSelectedYear(year);
+    let nextSem = selectedSemester;
+    if (year !== "All") {
+      const allowed = IA_YEAR_SEMESTERS[year] ?? [];
+      if (selectedSemester !== "All" && !allowed.includes(selectedSemester)) {
+        nextSem = "All";
+        setSelectedSemester("All");
+      }
+    }
+    syncUrlParams(year, nextSem, selectedDepartment, selectedIaType, search);
+  };
+
+  const handleSemesterChange = (sem: string) => {
+    setSelectedSemester(sem);
+    syncUrlParams(selectedYear, sem, selectedDepartment, selectedIaType, search);
+  };
+
+  const handleDepartmentChange = (dept: string) => {
+    setSelectedDepartment(dept);
+    syncUrlParams(selectedYear, selectedSemester, dept, selectedIaType, search);
+  };
+
+  const handleIaTypeChange = (type: string) => {
+    setSelectedIaType(type);
+    syncUrlParams(selectedYear, selectedSemester, selectedDepartment, type, search);
+  };
+
+  const handleSearchChange = (val: string) => {
+    setSearch(val);
+    syncUrlParams(selectedYear, selectedSemester, selectedDepartment, selectedIaType, val);
+  };
+
+  const availableSemesters = useMemo(() => {
+    if (selectedYear !== "All" && IA_YEAR_SEMESTERS[selectedYear]) {
+      return ["All", ...IA_YEAR_SEMESTERS[selectedYear]];
+    }
+    return [
+      "All",
+      "1st Semester",
+      "2nd Semester",
+      "3rd Semester",
+      "4th Semester",
+      "5th Semester",
+      "6th Semester",
+      "7th Semester",
+      "8th Semester",
+    ];
+  }, [selectedYear]);
+
+  const availableDepartments = useMemo(() => {
+    const set = new Set<string>();
+    for (const b of branches) {
+      if (b.name) set.add(b.name);
+      if (b.shortName) set.add(b.shortName);
+    }
+    for (const p of iaPapers) {
+      if (p.department) set.add(p.department);
+    }
+    return ["All", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
+  }, [branches, iaPapers]);
+
+  const hasActiveFilters =
+    selectedYear !== "All" ||
+    selectedSemester !== "All" ||
+    selectedDepartment !== "All" ||
+    selectedIaType !== "All" ||
+    Boolean(search.trim());
+
+  const resetFilters = () => {
+    setSelectedYear("All");
+    setSelectedSemester("All");
+    setSelectedDepartment("All");
+    setSelectedIaType("All");
+    setSearch("");
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams();
+      sp.set("tab", "ia");
+      window.history.replaceState(null, "", `?${sp.toString()}`);
+    }
+  };
+
+  // Group papers by academicYear -> semester -> department
+  const grouped = useMemo(() => {
+    const map = new Map<string, { academicYear: string; semester: string; department: string; items: IaPaperItem[] }>();
+    for (const item of iaPapers) {
+      const key = `${item.academicYear}__${item.semester}__${item.department}`;
+      const existing = map.get(key);
+      if (existing) {
+        existing.items.push(item);
+      } else {
+        map.set(key, {
+          academicYear: item.academicYear,
+          semester: item.semester,
+          department: item.department,
+          items: [item],
+        });
+      }
+    }
+    const yearOrder = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
+    const semOrder = [
+      "1st Semester",
+      "2nd Semester",
+      "3rd Semester",
+      "4th Semester",
+      "5th Semester",
+      "6th Semester",
+      "7th Semester",
+      "8th Semester",
+    ];
+
+    return Array.from(map.values()).sort((a, b) => {
+      const yA = yearOrder.indexOf(a.academicYear);
+      const yB = yearOrder.indexOf(b.academicYear);
+      if (yA !== -1 && yB !== -1 && yA !== yB) return yA - yB;
+      const sA = semOrder.indexOf(a.semester);
+      const sB = semOrder.indexOf(b.semester);
+      if (sA !== -1 && sB !== -1 && sA !== sB) return sA - sB;
+      return a.department.localeCompare(b.department);
+    });
+  }, [iaPapers]);
+
+  return (
+    <div className="space-y-6">
+      {/* Year Tabs Selector */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => handleYearChange("All")}
+          className={`focus-ring inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer border ${
+            selectedYear === "All"
+              ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-xs"
+              : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted)/.5)]"
+          }`}
+          data-testid="button-ia-year-all"
+        >
+          <Layers3 size={13} /> All Years
+        </button>
+        {IA_YEARS.map((y) => (
+          <button
+            key={y}
+            type="button"
+            onClick={() => handleYearChange(y)}
+            className={`focus-ring inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer border ${
+              selectedYear === y
+                ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-xs"
+                : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted)/.5)]"
+            }`}
+            data-testid={`button-ia-year-${y.toLowerCase().replace(/\s+/g, "-")}`}
+          >
+            {y}
+          </button>
+        ))}
+      </div>
+
+      {/* Filter Bar */}
+      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.7)] p-4 sm:p-5 shadow-xs space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative flex-1 max-w-md">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Search by title, department, or IA type..."
+              className="input-style h-10 w-full pl-9 pr-8 text-xs sm:text-sm"
+              data-testid="input-search-ia-papers"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => handleSearchChange("")}
+                className="focus-ring absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                aria-label="Clear search"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="focus-ring inline-flex items-center gap-1.5 self-start rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3.5 py-2 text-xs font-bold text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted)/.5)] transition-colors cursor-pointer"
+              data-testid="button-reset-ia-filters"
+            >
+              <RotateCcw size={12} /> Reset filters
+            </button>
+          )}
+        </div>
+
+        {/* Filter Selectors */}
+        <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-[hsl(var(--border)/.5)]">
+          {/* Semester Selector */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Semester:</span>
+            <select
+              value={selectedSemester}
+              onChange={(e) => handleSemesterChange(e.target.value)}
+              className="input-style h-8 px-2.5 text-xs font-semibold rounded-lg bg-[hsl(var(--card))] cursor-pointer"
+              data-testid="select-ia-semester"
+            >
+              {availableSemesters.map((s) => (
+                <option key={s} value={s}>
+                  {s === "All" ? "All Semesters" : getIaSemesterLabel(s)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Department Selector */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Department:</span>
+            <select
+              value={selectedDepartment}
+              onChange={(e) => handleDepartmentChange(e.target.value)}
+              className="input-style h-8 px-2.5 text-xs font-semibold rounded-lg bg-[hsl(var(--card))] cursor-pointer"
+              data-testid="select-ia-department"
+            >
+              {availableDepartments.map((d) => (
+                <option key={d} value={d}>
+                  {d === "All" ? "All Departments" : d}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* IA Type Selector */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-[hsl(var(--muted-foreground))]">IA Type:</span>
+            <select
+              value={selectedIaType}
+              onChange={(e) => handleIaTypeChange(e.target.value)}
+              className="input-style h-8 px-2.5 text-xs font-semibold rounded-lg bg-[hsl(var(--card))] cursor-pointer"
+              data-testid="select-ia-type"
+            >
+              <option value="All">All Types</option>
+              {IA_TYPES.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      {isLoading ? (
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-44 animate-pulse rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)]" />
+          ))}
+        </div>
+      ) : isError ? (
+        <div className="rounded-2xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-6 text-center" role="alert">
+          <CircleAlert size={24} className="mx-auto text-[hsl(var(--destructive))] mb-2" />
+          <p className="text-sm font-bold text-[hsl(var(--destructive))]">Failed to load Internal Assessment papers.</p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="focus-ring mt-3 inline-flex items-center gap-1.5 rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--card))] px-4 py-2 text-xs font-bold text-[hsl(var(--destructive))]"
+          >
+            <RotateCcw size={12} /> Retry
+          </button>
+        </div>
+      ) : grouped.length === 0 ? (
+        <div className="rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-8 sm:p-12 text-center shadow-xs" data-testid="status-empty-ia-papers">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] mb-3">
+            <Clock3 size={24} />
+          </div>
+          <h3 className="display-font text-xl font-bold">
+            {hasActiveFilters ? "No IA papers available for this selection." : "No Internal Assessment papers available yet."}
+          </h3>
+          <p className="mt-1.5 text-xs sm:text-sm text-[hsl(var(--muted-foreground))] max-w-sm mx-auto">
+            {hasActiveFilters
+              ? "Try adjusting or clearing your filters to view available IA papers."
+              : "Internal assessment papers and question banks will appear here as soon as they are published."}
+          </p>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="focus-ring mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[hsl(var(--primary))] px-4 py-2 text-xs font-bold text-[hsl(var(--primary-foreground))] shadow-xs cursor-pointer"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {grouped.map((group) => (
+            <div
+              key={`${group.academicYear}__${group.semester}__${group.department}`}
+              className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.75)] p-5 sm:p-6 shadow-xs fade-up"
+              data-testid={`card-ia-group-${group.department.toLowerCase().replace(/[\s/]+/g, "-")}`}
+            >
+              {/* Group Header */}
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-[hsl(var(--border)/.6)] pb-3">
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-[hsl(var(--foreground))]">
+                    {group.department}
+                  </h3>
+                  <p className="mt-0.5 text-xs font-semibold text-[hsl(var(--muted-foreground))]">
+                    {group.academicYear} • {getIaSemesterLabel(group.semester)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center rounded-full border border-[hsl(var(--secondary)/.4)] bg-[hsl(var(--secondary)/.15)] px-3 py-1 text-xs font-bold text-[hsl(var(--secondary-foreground))]">
+                    {group.academicYear}
+                  </span>
+                  <span className="inline-flex items-center rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-3 py-1 text-xs font-semibold text-[hsl(var(--muted-foreground))]">
+                    {getIaSemesterLabel(group.semester)}
+                  </span>
+                </div>
+              </div>
+
+              {/* IA Paper Cards */}
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {group.items.map((item) => {
+                  const iaType = item.iaType || "IA-1";
+                  return (
+                    <div
+                      key={item.id}
+                      className="card-lift flex flex-col justify-between rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-xs hover:border-[hsl(var(--primary)/.5)] transition-all"
+                      data-testid={`tile-ia-${item.id}`}
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <span
+                            className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-bold ${
+                              iaType === "IA-1"
+                                ? "bg-[hsl(var(--primary)/.15)] text-[hsl(var(--primary))]"
+                                : iaType === "IA-2"
+                                ? "bg-[hsl(var(--secondary)/.18)] text-[hsl(var(--secondary-foreground))]"
+                                : iaType === "IA-3"
+                                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                                : "bg-[hsl(var(--accent)/.2)] text-[hsl(var(--accent-foreground))]"
+                            }`}
+                          >
+                            {iaType}
+                          </span>
+                          <span className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">
+                            Internal Assessment
+                          </span>
+                        </div>
+                        {item.title ? (
+                          <h4 className="font-bold text-sm text-[hsl(var(--foreground))] line-clamp-2">
+                            {item.title}
+                          </h4>
+                        ) : (
+                          <h4 className="font-bold text-sm text-[hsl(var(--foreground))] line-clamp-2">
+                            {item.academicYear} • {getIaSemesterLabel(item.semester)} • {item.department} • {item.iaType}
+                          </h4>
+                        )}
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-end pt-2 border-t border-[hsl(var(--border)/.4)]">
+                        <a
+                          href={item.googleDriveUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[hsl(var(--primary))] px-3.5 py-2 text-xs font-bold text-[hsl(var(--primary-foreground))] shadow-xs hover:bg-[hsl(var(--primary)/.9)] transition-all cursor-pointer"
+                          data-testid={`button-view-ia-paper-${item.id}`}
+                        >
+                          <FolderOpen size={13} />
+                          <span>View Paper</span>
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminPyqs() {
+  const [activeTab, setActiveTab] = useState<"semester" | "ia">(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      const tabParam = sp.get("tab") || sp.get("type");
+      if (tabParam === "ia" || tabParam === "internal") return "ia";
+    }
+    return "semester";
+  });
+
+  const handleTabChange = (tab: "semester" | "ia") => {
+    setActiveTab(tab);
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      sp.set("tab", tab);
+      const qs = sp.toString() ? `?${sp.toString()}` : window.location.pathname;
+      window.history.replaceState(null, "", qs);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Sub Navigation */}
+      <div className="flex border-b border-[hsl(var(--border))] gap-2">
+        <button
+          type="button"
+          onClick={() => handleTabChange("semester")}
+          className={`focus-ring inline-flex items-center gap-2 border-b-2 px-4 py-3 text-xs sm:text-sm font-bold transition-colors cursor-pointer ${
+            activeTab === "semester"
+              ? "border-[hsl(var(--secondary))] text-[hsl(var(--foreground))]"
+              : "border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+          }`}
+          data-testid="admin-tab-semester-qps"
+        >
+          <BookOpen size={16} /> Semester QPs
+        </button>
+        <button
+          type="button"
+          onClick={() => handleTabChange("ia")}
+          className={`focus-ring inline-flex items-center gap-2 border-b-2 px-4 py-3 text-xs sm:text-sm font-bold transition-colors cursor-pointer ${
+            activeTab === "ia"
+              ? "border-[hsl(var(--secondary))] text-[hsl(var(--foreground))]"
+              : "border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+          }`}
+          data-testid="admin-tab-internal-assessment"
+        >
+          <Clock3 size={16} /> Internal Assessment
+        </button>
+      </div>
+
+      {activeTab === "semester" ? <AdminSemesterQpsSection /> : <AdminIaPapersSection />}
+    </div>
+  );
+}
+
+function AdminSemesterQpsSection() {
+  const [search, setSearch] = useState("");
+  const [yearFilter, setYearFilter] = useState("All");
+  const [semesterFilter, setSemesterFilter] = useState("All");
+  const [departmentFilter, setDepartmentFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">("all");
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editItem, setEditItem] = useState<SemesterQpItem | null>(null);
+  const [deleteItem, setDeleteItem] = useState<SemesterQpItem | null>(null);
+
+  const { data: qps = [], isLoading, isError, refetch } = useListSemesterQps({
+    isPublished: "all",
+  });
+  const { data: branches = [] } = useListBranches({ includeInactive: false });
+
+  const updateQp = useUpdateSemesterQp();
+
+  const availableYears = useMemo(() => {
+    const set = new Set<string>();
+    for (const qp of qps) {
+      if (qp.examYear) set.add(qp.examYear);
+    }
+    for (const y of POPULAR_YEARS) {
+      if (y !== "All") set.add(y);
+    }
+    return ["All", ...Array.from(set).sort((a, b) => b.localeCompare(a))];
+  }, [qps]);
+
+  const availableSemesters = useMemo(() => {
+    const set = new Set<string>();
+    for (const qp of qps) {
+      if (qp.semester) set.add(qp.semester);
+    }
+    for (const s of POPULAR_SEMESTERS) {
+      if (s !== "All") set.add(s);
+    }
+    const order = [
+      "All",
+      "8th Semester",
+      "7th Semester",
+      "6th Semester",
+      "5th Semester",
+      "4th Semester",
+      "3rd Semester",
+      "2nd Semester",
+      "1st Semester",
+      "Model Papers",
+    ];
+    return Array.from(set).sort((a, b) => {
+      const idxA = order.indexOf(a);
+      const idxB = order.indexOf(b);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      return a.localeCompare(b);
+    });
+  }, [qps]);
+
+  const availableDepartments = useMemo(() => {
+    const set = new Set<string>();
+    for (const b of branches) {
+      if (b.name) set.add(b.name);
+      if (b.shortName) set.add(b.shortName);
+    }
+    for (const qp of qps) {
+      if (qp.department) set.add(qp.department);
+    }
+    return ["All", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
+  }, [branches, qps]);
+
+  const filteredQps = useMemo(() => {
+    return qps.filter((qp) => {
+      if (yearFilter !== "All" && qp.examYear !== yearFilter) return false;
+      if (semesterFilter !== "All" && qp.semester !== semesterFilter) return false;
+      if (departmentFilter !== "All" && qp.department !== departmentFilter) return false;
+      if (statusFilter === "published" && !qp.isPublished) return false;
+      if (statusFilter === "draft" && qp.isPublished) return false;
+      if (search.trim()) {
+        const q = search.toLowerCase().trim();
+        const match =
+          qp.department.toLowerCase().includes(q) ||
+          qp.semester.toLowerCase().includes(q) ||
+          qp.examYear.toLowerCase().includes(q) ||
+          (qp.title && qp.title.toLowerCase().includes(q)) ||
+          qp.downloadUrl.toLowerCase().includes(q);
+        if (!match) return false;
+      }
+      return true;
+    });
+  }, [qps, yearFilter, semesterFilter, departmentFilter, statusFilter, search]);
+
+  const handleTogglePublish = (item: SemesterQpItem) => {
+    if (updateQp.isPending) return;
+    setUpdatingId(item.id);
+    updateQp.mutate(
+      { id: item.id, data: { isPublished: !item.isPublished } },
+      {
+        onSuccess: () => {
+          setUpdatingId(null);
+          toast({
+            title: item.isPublished ? "Paper unpublished" : "Paper published",
+            description: `${item.department} (${item.semester}) is now ${item.isPublished ? "in draft" : "public"}.`,
+          });
+        },
+        onError: (err) => {
+          setUpdatingId(null);
+          toast({
+            title: "Error updating status",
+            description: getErrorMessage(err),
+            variant: "destructive",
+          });
+        },
+      },
+    );
+  };
+
+  const hasActiveFilters =
+    yearFilter !== "All" || semesterFilter !== "All" || departmentFilter !== "All" || statusFilter !== "all" || Boolean(search.trim());
+
+  const resetFilters = () => {
+    setSearch("");
+    setYearFilter("All");
+    setSemesterFilter("All");
+    setDepartmentFilter("All");
+    setStatusFilter("all");
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-[hsl(var(--foreground))]">Semester Question Papers</h2>
+          <p className="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">
+            Manage question paper archives, department links, resource types, and publish states.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setCreateOpen(true)}
+          className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--primary-foreground))] shadow-xs hover:bg-[hsl(var(--primary)/.9)] transition-colors cursor-pointer w-fit"
+          data-testid="button-add-semester-qp"
+        >
+          <Plus size={15} /> Add Semester QP
+        </button>
+      </div>
+
+      {/* Filters Bar */}
+      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="lg:col-span-1">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search papers..."
+                className="input-style h-9 w-full pl-8 pr-7 text-xs"
+                data-testid="input-admin-search-qps"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          </div>
+          <div>
+            <select
+              value={yearFilter}
+              onChange={(e) => setYearFilter(e.target.value)}
+              className="input-style h-9 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+              data-testid="select-admin-year-filter"
+            >
+              {availableYears.map((y) => (
+                <option key={y} value={y}>{y === "All" ? "All Years" : y}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <select
+              value={semesterFilter}
+              onChange={(e) => setSemesterFilter(e.target.value)}
+              className="input-style h-9 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+              data-testid="select-admin-semester-filter"
+            >
+              {availableSemesters.map((s) => (
+                <option key={s} value={s}>{s === "All" ? "All Semesters" : s}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <select
+              value={departmentFilter}
+              onChange={(e) => setDepartmentFilter(e.target.value)}
+              className="input-style h-9 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+              data-testid="select-admin-dept-filter"
+            >
+              {availableDepartments.map((d) => (
+                <option key={d} value={d}>{d === "All" ? "All Departments" : d}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as "all" | "published" | "draft")}
+              className="input-style h-9 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+              data-testid="select-admin-status-filter"
+            >
+              <option value="all">All Statuses</option>
+              <option value="published">Published only</option>
+              <option value="draft">Drafts only</option>
+            </select>
+          </div>
+        </div>
+
+        {hasActiveFilters && (
+          <div className="flex items-center justify-between pt-1 border-t border-[hsl(var(--border)/.5)] text-xs text-[hsl(var(--muted-foreground))]">
+            <span>Showing {filteredQps.length} of {qps.length} question papers</span>
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="focus-ring inline-flex items-center gap-1 font-bold text-[hsl(var(--primary))] hover:underline cursor-pointer"
+            >
+              <RotateCcw size={11} /> Reset filters
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* List */}
+      {isLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-16 animate-pulse rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)]" />
+          ))}
+        </div>
+      ) : isError ? (
+        <div className="rounded-2xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-6 text-center">
+          <p className="text-xs font-bold text-[hsl(var(--destructive))]">Failed to load question papers.</p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="focus-ring mt-2 inline-flex items-center gap-1.5 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1.5 text-xs font-bold"
+          >
+            <RotateCcw size={12} /> Retry
+          </button>
+        </div>
+      ) : filteredQps.length === 0 ? (
+        <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-8 text-center" data-testid="status-admin-empty-qps">
+          <p className="text-xs font-bold text-[hsl(var(--muted-foreground))]">No question papers found.</p>
+          <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">
+            {hasActiveFilters ? "Try clearing or changing your filters." : "Add the first question paper using the button above."}
+          </p>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="focus-ring mt-3 inline-flex items-center gap-1.5 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-3 py-1.5 text-xs font-semibold"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {filteredQps.map((item) => {
+            const urlLower = item.downloadUrl.toLowerCase();
+            const rType = item.resourceType || (urlLower.endsWith(".pdf") ? "pdf" : urlLower.endsWith(".zip") ? "zip" : urlLower.includes("drive.google.com") ? "drive" : "link");
+            const isRowUpdating = updateQp.isPending && updatingId === item.id;
+
+            return (
+              <div
+                key={item.id}
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3.5 shadow-xs hover:border-[hsl(var(--border)/.8)] transition-colors"
+                data-testid={`row-admin-qp-${item.id}`}
+              >
+                <div className="space-y-1 min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold text-sm text-[hsl(var(--foreground))] truncate">
+                      {item.department}
+                    </span>
+                    <span className="inline-flex items-center rounded-md bg-[hsl(var(--secondary)/.15)] px-2 py-0.5 text-[11px] font-bold text-[hsl(var(--secondary-foreground))]">
+                      {item.examYear}
+                    </span>
+                    <span className="inline-flex items-center rounded-md bg-[hsl(var(--muted))] px-2 py-0.5 text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                      {item.semester}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase ${
+                      rType === "pdf"
+                        ? "bg-[hsl(var(--destructive)/.12)] text-[hsl(var(--destructive))]"
+                        : rType === "drive"
+                        ? "bg-[hsl(var(--primary)/.15)] text-[hsl(var(--primary))]"
+                        : rType === "link"
+                        ? "bg-[hsl(var(--accent)/.2)] text-[hsl(var(--accent-foreground))]"
+                        : "bg-[hsl(var(--secondary)/.18)] text-[hsl(var(--secondary-foreground))]"
+                    }`}>
+                      {rType === "pdf" ? <FileText size={10} /> : rType === "drive" ? <FolderOpen size={10} /> : rType === "link" ? <ExternalLink size={10} /> : <FileArchive size={10} />}
+                      {rType}
+                    </span>
+                  </div>
+                  {item.title && (
+                    <p className="text-xs text-[hsl(var(--muted-foreground))] truncate">
+                      {item.title}
+                    </p>
+                  )}
+                  <div className="pt-0.5">
+                    <a
+                      href={item.downloadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="focus-ring inline-flex items-center gap-1 text-[11px] font-medium text-[hsl(var(--accent-foreground))] hover:underline max-w-sm truncate"
+                    >
+                      <ExternalLink size={11} /> {item.downloadUrl}
+                    </a>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                  <button
+                    type="button"
+                    disabled={updateQp.isPending}
+                    onClick={() => handleTogglePublish(item)}
+                    className={`focus-ring inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold cursor-pointer transition-colors disabled:opacity-50 ${
+                      item.isPublished
+                        ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
+                        : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
+                    }`}
+                    data-testid={`button-toggle-qp-publish-${item.id}`}
+                  >
+                    {isRowUpdating ? (
+                      <Loader2 size={11} className="animate-spin" />
+                    ) : item.isPublished ? (
+                      <Check size={11} />
+                    ) : null}
+                    {item.isPublished ? "Published" : "Draft"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditItem(item)}
+                    className="focus-ring rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-1.5 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted)/.6)] transition-colors cursor-pointer"
+                    aria-label="Edit question paper"
+                    data-testid={`button-edit-qp-${item.id}`}
+                  >
+                    <SlidersHorizontal size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteItem(item)}
+                    className="focus-ring rounded-lg border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-1.5 text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive)/.15)] transition-colors cursor-pointer"
+                    aria-label="Delete question paper"
+                    data-testid={`button-delete-qp-${item.id}`}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Dialogs */}
+      <CreateSemesterQpDialog open={createOpen} onOpenChange={setCreateOpen} />
+      {editItem && (
+        <EditSemesterQpDialog
+          item={editItem}
+          open={Boolean(editItem)}
+          onOpenChange={(open) => { if (!open) setEditItem(null); }}
+        />
+      )}
+      {deleteItem && (
+        <DeleteSemesterQpDialog
+          item={deleteItem}
+          open={Boolean(deleteItem)}
+          onOpenChange={(open) => { if (!open) setDeleteItem(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function AdminIaPapersSection() {
+  const [search, setSearch] = useState("");
+  const [yearFilter, setYearFilter] = useState("All");
+  const [semesterFilter, setSemesterFilter] = useState("All");
+  const [departmentFilter, setDepartmentFilter] = useState("All");
+  const [iaTypeFilter, setIaTypeFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">("all");
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editItem, setEditItem] = useState<IaPaperItem | null>(null);
+  const [deleteItem, setDeleteItem] = useState<IaPaperItem | null>(null);
+
+  const { data: iaPapers = [], isLoading, isError, refetch } = useListIaPapers({
+    isPublished: "all",
+  });
+  const { data: branches = [] } = useListBranches({ includeInactive: false });
+
+  const updateIaPaper = useUpdateIaPaper();
+
+  const availableSemesters = useMemo(() => {
+    if (yearFilter !== "All" && IA_YEAR_SEMESTERS[yearFilter]) {
+      return ["All", ...IA_YEAR_SEMESTERS[yearFilter]];
+    }
+    return [
+      "All",
+      "1st Semester",
+      "2nd Semester",
+      "3rd Semester",
+      "4th Semester",
+      "5th Semester",
+      "6th Semester",
+      "7th Semester",
+      "8th Semester",
+    ];
+  }, [yearFilter]);
+
+  const availableDepartments = useMemo(() => {
+    const set = new Set<string>();
+    for (const b of branches) {
+      if (b.name) set.add(b.name);
+      if (b.shortName) set.add(b.shortName);
+    }
+    for (const p of iaPapers) {
+      if (p.department) set.add(p.department);
+    }
+    return ["All", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
+  }, [branches, iaPapers]);
+
+  const filteredIaPapers = useMemo(() => {
+    return iaPapers.filter((item) => {
+      if (yearFilter !== "All" && item.academicYear !== yearFilter) return false;
+      if (semesterFilter !== "All" && item.semester !== semesterFilter) return false;
+      if (departmentFilter !== "All" && item.department !== departmentFilter) return false;
+      if (iaTypeFilter !== "All" && item.iaType !== iaTypeFilter) return false;
+      if (statusFilter === "published" && !item.isPublished) return false;
+      if (statusFilter === "draft" && item.isPublished) return false;
+      if (search.trim()) {
+        const q = search.toLowerCase().trim();
+        const match =
+          item.department.toLowerCase().includes(q) ||
+          item.semester.toLowerCase().includes(q) ||
+          item.academicYear.toLowerCase().includes(q) ||
+          item.iaType.toLowerCase().includes(q) ||
+          (item.title && item.title.toLowerCase().includes(q)) ||
+          item.googleDriveUrl.toLowerCase().includes(q);
+        if (!match) return false;
+      }
+      return true;
+    });
+  }, [iaPapers, yearFilter, semesterFilter, departmentFilter, iaTypeFilter, statusFilter, search]);
+
+  const handleTogglePublish = (item: IaPaperItem) => {
+    if (updateIaPaper.isPending) return;
+    setUpdatingId(item.id);
+    updateIaPaper.mutate(
+      { id: item.id, data: { isPublished: !item.isPublished } },
+      {
+        onSuccess: () => {
+          setUpdatingId(null);
+          toast({
+            title: item.isPublished ? "Paper unpublished" : "Paper published",
+            description: `${item.department} (${item.iaType} - ${item.academicYear}) is now ${item.isPublished ? "in draft" : "public"}.`,
+          });
+        },
+        onError: (err) => {
+          setUpdatingId(null);
+          toast({
+            title: "Error updating status",
+            description: getErrorMessage(err),
+            variant: "destructive",
+          });
+        },
+      },
+    );
+  };
+
+  const hasActiveFilters =
+    yearFilter !== "All" ||
+    semesterFilter !== "All" ||
+    departmentFilter !== "All" ||
+    iaTypeFilter !== "All" ||
+    statusFilter !== "all" ||
+    Boolean(search.trim());
+
+  const resetFilters = () => {
+    setSearch("");
+    setYearFilter("All");
+    setSemesterFilter("All");
+    setDepartmentFilter("All");
+    setIaTypeFilter("All");
+    setStatusFilter("all");
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-[hsl(var(--foreground))]">Internal Assessment Papers</h2>
+          <p className="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">
+            Manage continuous internal evaluation papers, Google Drive share links, and publish states.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setCreateOpen(true)}
+          className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--primary-foreground))] shadow-xs hover:bg-[hsl(var(--primary)/.9)] transition-colors cursor-pointer w-fit"
+          data-testid="button-add-ia-paper"
+        >
+          <Plus size={15} /> Add IA Paper
+        </button>
+      </div>
+
+      {/* Filters Bar */}
+      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+          <div className="lg:col-span-1">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search IA papers..."
+                className="input-style h-9 w-full pl-8 pr-7 text-xs"
+                data-testid="input-admin-search-ia"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          </div>
+          <div>
+            <select
+              value={yearFilter}
+              onChange={(e) => {
+                setYearFilter(e.target.value);
+                if (e.target.value !== "All") {
+                  const allowed = IA_YEAR_SEMESTERS[e.target.value] ?? [];
+                  if (semesterFilter !== "All" && !allowed.includes(semesterFilter)) {
+                    setSemesterFilter("All");
+                  }
+                }
+              }}
+              className="input-style h-9 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+              data-testid="select-admin-ia-year-filter"
+            >
+              <option value="All">All Years</option>
+              {IA_YEARS.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <select
+              value={semesterFilter}
+              onChange={(e) => setSemesterFilter(e.target.value)}
+              className="input-style h-9 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+              data-testid="select-admin-ia-semester-filter"
+            >
+              {availableSemesters.map((s) => (
+                <option key={s} value={s}>
+                  {s === "All" ? "All Semesters" : getIaSemesterLabel(s)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <select
+              value={departmentFilter}
+              onChange={(e) => setDepartmentFilter(e.target.value)}
+              className="input-style h-9 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+              data-testid="select-admin-ia-dept-filter"
+            >
+              {availableDepartments.map((d) => (
+                <option key={d} value={d}>{d === "All" ? "All Departments" : d}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <select
+              value={iaTypeFilter}
+              onChange={(e) => setIaTypeFilter(e.target.value)}
+              className="input-style h-9 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+              data-testid="select-admin-ia-type-filter"
+            >
+              <option value="All">All Types</option>
+              {IA_TYPES.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as "all" | "published" | "draft")}
+              className="input-style h-9 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+              data-testid="select-admin-ia-status-filter"
+            >
+              <option value="all">All Statuses</option>
+              <option value="published">Published only</option>
+              <option value="draft">Drafts only</option>
+            </select>
+          </div>
+        </div>
+
+        {hasActiveFilters && (
+          <div className="flex items-center justify-between pt-1 border-t border-[hsl(var(--border)/.5)] text-xs text-[hsl(var(--muted-foreground))]">
+            <span>Showing {filteredIaPapers.length} of {iaPapers.length} IA papers</span>
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="focus-ring inline-flex items-center gap-1 font-bold text-[hsl(var(--primary))] hover:underline cursor-pointer"
+            >
+              <RotateCcw size={11} /> Reset filters
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* List */}
+      {isLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-16 animate-pulse rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)]" />
+          ))}
+        </div>
+      ) : isError ? (
+        <div className="rounded-2xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-6 text-center">
+          <p className="text-xs font-bold text-[hsl(var(--destructive))]">Failed to load Internal Assessment papers.</p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="focus-ring mt-2 inline-flex items-center gap-1.5 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1.5 text-xs font-bold"
+          >
+            <RotateCcw size={12} /> Retry
+          </button>
+        </div>
+      ) : filteredIaPapers.length === 0 ? (
+        <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-8 text-center" data-testid="status-admin-empty-ia">
+          <p className="text-xs font-bold text-[hsl(var(--muted-foreground))]">No Internal Assessment papers found.</p>
+          <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">
+            {hasActiveFilters ? "Try clearing or changing your filters." : "Add the first IA paper using the button above."}
+          </p>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="focus-ring mt-3 inline-flex items-center gap-1.5 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-3 py-1.5 text-xs font-semibold"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {filteredIaPapers.map((item) => {
+            const isRowUpdating = updateIaPaper.isPending && updatingId === item.id;
+            const iaType = item.iaType || "IA-1";
+
+            return (
+              <div
+                key={item.id}
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3.5 shadow-xs hover:border-[hsl(var(--border)/.8)] transition-colors"
+                data-testid={`row-admin-ia-${item.id}`}
+              >
+                <div className="space-y-1 min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold text-sm text-[hsl(var(--foreground))] truncate">
+                      {item.department}
+                    </span>
+                    <span className="inline-flex items-center rounded-md bg-[hsl(var(--secondary)/.15)] px-2 py-0.5 text-[11px] font-bold text-[hsl(var(--secondary-foreground))]">
+                      {item.academicYear}
+                    </span>
+                    <span className="inline-flex items-center rounded-md bg-[hsl(var(--muted))] px-2 py-0.5 text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                      {getIaSemesterLabel(item.semester)}
+                    </span>
+                    <span
+                      className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
+                        iaType === "IA-1"
+                          ? "bg-[hsl(var(--primary)/.15)] text-[hsl(var(--primary))]"
+                          : iaType === "IA-2"
+                          ? "bg-[hsl(var(--secondary)/.18)] text-[hsl(var(--secondary-foreground))]"
+                          : iaType === "IA-3"
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                          : "bg-[hsl(var(--accent)/.2)] text-[hsl(var(--accent-foreground))]"
+                      }`}
+                    >
+                      {iaType}
+                    </span>
+                  </div>
+                  {item.title && (
+                    <p className="text-xs text-[hsl(var(--muted-foreground))] truncate">
+                      {item.title}
+                    </p>
+                  )}
+                  <div className="pt-0.5">
+                    <a
+                      href={item.googleDriveUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="focus-ring inline-flex items-center gap-1 text-[11px] font-medium text-[hsl(var(--primary))] hover:underline max-w-sm truncate"
+                    >
+                      <FolderOpen size={11} /> {item.googleDriveUrl}
+                    </a>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                  <button
+                    type="button"
+                    disabled={updateIaPaper.isPending}
+                    onClick={() => handleTogglePublish(item)}
+                    className={`focus-ring inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold cursor-pointer transition-colors disabled:opacity-50 ${
+                      item.isPublished
+                        ? "bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]"
+                        : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
+                    }`}
+                    data-testid={`button-toggle-ia-publish-${item.id}`}
+                  >
+                    {isRowUpdating ? (
+                      <Loader2 size={11} className="animate-spin" />
+                    ) : item.isPublished ? (
+                      <Check size={11} />
+                    ) : null}
+                    {item.isPublished ? "Published" : "Draft"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditItem(item)}
+                    className="focus-ring rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-1.5 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted)/.6)] transition-colors cursor-pointer"
+                    aria-label="Edit IA paper"
+                    data-testid={`button-edit-ia-${item.id}`}
+                  >
+                    <SlidersHorizontal size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteItem(item)}
+                    className="focus-ring rounded-lg border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] p-1.5 text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive)/.15)] transition-colors cursor-pointer"
+                    aria-label="Delete IA paper"
+                    data-testid={`button-delete-ia-${item.id}`}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Dialogs */}
+      <CreateIaPaperDialog open={createOpen} onOpenChange={setCreateOpen} />
+      {editItem && (
+        <EditIaPaperDialog
+          item={editItem}
+          open={Boolean(editItem)}
+          onOpenChange={(open) => { if (!open) setEditItem(null); }}
+        />
+      )}
+      {deleteItem && (
+        <DeleteIaPaperDialog
+          item={deleteItem}
+          open={Boolean(deleteItem)}
+          onOpenChange={(open) => { if (!open) setDeleteItem(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function CreateSemesterQpDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (val: boolean) => void }) {
+  const createQp = useCreateSemesterQp();
+  const { data: branches = [] } = useListBranches({ includeInactive: false });
+  const { data: qps = [] } = useListSemesterQps({ isPublished: "all" });
+
+  const [examYear, setExamYear] = useState("2026");
+  const [semester, setSemester] = useState("7th Semester");
+  const [department, setDepartment] = useState("");
+  const [title, setTitle] = useState("");
+  const [downloadUrl, setDownloadUrl] = useState("");
+  const [resourceType, setResourceType] = useState<"zip" | "pdf" | "drive" | "link">("zip");
+  const [isPublished, setIsPublished] = useState(true);
+  const [hasCustomTitle, setHasCustomTitle] = useState(false);
+  const [error, setError] = useState("");
+
+  const distinctDepartments = useMemo(() => {
+    const set = new Set<string>();
+    for (const b of branches) {
+      if (b.name) set.add(b.name);
+      if (b.shortName) set.add(b.shortName);
+    }
+    for (const qp of qps) {
+      if (qp.department) set.add(qp.department);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [branches, qps]);
+
+  const distinctYears = useMemo(() => {
+    const set = new Set<string>(["2028", "2027", "2026", "2025", "2024", "2023", "2022 & Model Papers"]);
+    for (const qp of qps) {
+      if (qp.examYear) set.add(qp.examYear);
+    }
+    return Array.from(set).sort((a, b) => b.localeCompare(a));
+  }, [qps]);
+
+  const computeSmartTitle = (yr: string, sem: string, dept: string) => {
+    if (dept.trim()) {
+      return `${yr.trim()} • ${sem.trim()} • ${dept.trim()}`;
+    }
+    return `${yr.trim()} • ${sem.trim()}`;
+  };
+
+  const handleYearChange = (val: string) => {
+    setExamYear(val);
+    if (!hasCustomTitle) {
+      setTitle(computeSmartTitle(val, semester, department));
+    }
+  };
+
+  const handleSemesterChange = (val: string) => {
+    setSemester(val);
+    if (!hasCustomTitle) {
+      setTitle(computeSmartTitle(examYear, val, department));
+    }
+  };
+
+  const handleDepartmentChange = (val: string) => {
+    setDepartment(val);
+    if (!hasCustomTitle) {
+      setTitle(computeSmartTitle(examYear, semester, val));
+    }
+  };
+
+  const handleUrlChange = (val: string) => {
+    setDownloadUrl(val);
+    const urlLower = val.trim().toLowerCase();
+    if (urlLower.endsWith(".pdf")) {
+      setResourceType("pdf");
+    } else if (urlLower.endsWith(".zip")) {
+      setResourceType("zip");
+    } else if (urlLower.includes("drive.google.com") || urlLower.includes("docs.google.com")) {
+      setResourceType("drive");
+    }
+  };
+
+  const handleRegenerateTitle = () => {
+    setTitle(computeSmartTitle(examYear, semester, department));
+    setHasCustomTitle(false);
+  };
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (createQp.isPending) return;
+
+    if (!examYear.trim()) {
+      setError("Exam year is required.");
+      return;
+    }
+    if (!semester.trim()) {
+      setError("Semester is required.");
+      return;
+    }
+    if (!department.trim()) {
+      setError("Department/stream is required.");
+      return;
+    }
+    if (!downloadUrl.trim()) {
+      setError("Download URL is required.");
+      return;
+    }
+    try {
+      new URL(downloadUrl.trim());
+    } catch {
+      setError("Please enter a valid download URL (http:// or https://).");
+      return;
+    }
+
+    createQp.mutate(
+      {
+        data: {
+          examYear: examYear.trim(),
+          semester: semester.trim(),
+          department: department.trim(),
+          title: title.trim() || undefined,
+          downloadUrl: downloadUrl.trim(),
+          resourceType,
+          isPublished,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Semester Question Paper added successfully" });
+          onOpenChange(false);
+          setDepartment("");
+          setTitle("");
+          setDownloadUrl("");
+          setHasCustomTitle(false);
+          setError("");
+        },
+        onError: (err) => {
+          const msg = getErrorMessage(err);
+          if (msg.toLowerCase().includes("duplicate") || msg.toLowerCase().includes("already exists")) {
+            setError("This Semester QP already exists.");
+          } else {
+            setError(msg);
+          }
+        },
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(val) => { onOpenChange(val); if (!val) setError(""); }}>
+      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto p-6 rounded-3xl" data-testid="dialog-create-semester-qp">
+        <DialogHeader className="text-left space-y-1">
+          <DialogTitle className="display-font text-xl font-bold">Add Semester Question Paper</DialogTitle>
+          <DialogDescription className="text-xs text-[hsl(var(--muted-foreground))]">
+            Fill the template to publish a newly released question paper bundle without changing application code.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="mt-3 space-y-4">
+          <datalist id="create-exam-years">
+            {distinctYears.map((y) => (
+              <option key={y} value={y} />
+            ))}
+          </datalist>
+          <datalist id="create-dept-streams">
+            {distinctDepartments.map((d) => (
+              <option key={d} value={d} />
+            ))}
+          </datalist>
+
+          {/* Row 1: Exam Year & Semester */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+                Exam Year <span className="text-[hsl(var(--destructive))]">*</span>
+              </label>
+              <input
+                type="text"
+                list="create-exam-years"
+                value={examYear}
+                onChange={(e) => handleYearChange(e.target.value)}
+                placeholder="e.g. 2026 or 2027"
+                className="input-style h-9 text-xs"
+                data-testid="input-create-exam-year"
+                required
+              />
+              <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Type any current or future exam year</span>
+            </div>
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+                Semester <span className="text-[hsl(var(--destructive))]">*</span>
+              </label>
+              <select
+                value={semester}
+                onChange={(e) => handleSemesterChange(e.target.value)}
+                className="input-style h-9 text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+                data-testid="select-create-semester"
+              >
+                {POPULAR_SEMESTERS.filter((s) => s !== "All").map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Row 2: Department / Stream */}
+          <div className="space-y-1">
+            <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+              Department / Stream <span className="text-[hsl(var(--destructive))]">*</span>
+            </label>
+            <input
+              type="text"
+              list="create-dept-streams"
+              value={department}
+              onChange={(e) => handleDepartmentChange(e.target.value)}
+              placeholder="e.g. CSE / AIML / AI / DS or ECE or Civil (CV)"
+              className="input-style h-9 text-xs"
+              data-testid="input-create-department"
+              required
+            />
+            <span className="text-[10px] text-[hsl(var(--muted-foreground))]">Select from existing branches or type a custom stream</span>
+          </div>
+
+          {/* Row 3: Smart Title */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+                Display Title (Smart Generated)
+              </label>
+              {hasCustomTitle && (
+                <button
+                  type="button"
+                  onClick={handleRegenerateTitle}
+                  className="text-[10px] font-bold text-[hsl(var(--primary))] hover:underline cursor-pointer"
+                >
+                  Regenerate
+                </button>
+              )}
+            </div>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                setHasCustomTitle(true);
+              }}
+              placeholder="e.g. 2026 • 7th Semester • ME"
+              className="input-style h-9 text-xs"
+              data-testid="input-create-title"
+            />
+          </div>
+
+          {/* Row 4: Resource Type Segmented Selector */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+              Resource Type <span className="text-[hsl(var(--destructive))]">*</span>
+            </label>
+            <div className="grid grid-cols-4 gap-2">
+              <button
+                type="button"
+                onClick={() => setResourceType("zip")}
+                className={`focus-ring inline-flex items-center justify-center gap-1 rounded-xl py-2 text-xs font-bold transition-colors cursor-pointer border ${
+                  resourceType === "zip"
+                    ? "border-[hsl(var(--secondary))] bg-[hsl(var(--secondary)/.15)] text-[hsl(var(--secondary-foreground))]"
+                    : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/.5)]"
+                }`}
+              >
+                <FileArchive size={12} /> ZIP
+              </button>
+              <button
+                type="button"
+                onClick={() => setResourceType("pdf")}
+                className={`focus-ring inline-flex items-center justify-center gap-1 rounded-xl py-2 text-xs font-bold transition-colors cursor-pointer border ${
+                  resourceType === "pdf"
+                    ? "border-[hsl(var(--destructive))] bg-[hsl(var(--destructive)/.12)] text-[hsl(var(--destructive))]"
+                    : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/.5)]"
+                }`}
+              >
+                <FileText size={12} /> PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => setResourceType("drive")}
+                className={`focus-ring inline-flex items-center justify-center gap-1 rounded-xl py-2 text-xs font-bold transition-colors cursor-pointer border ${
+                  resourceType === "drive"
+                    ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary)/.15)] text-[hsl(var(--primary))]"
+                    : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/.5)]"
+                }`}
+              >
+                <FolderOpen size={12} /> Drive Link
+              </button>
+              <button
+                type="button"
+                onClick={() => setResourceType("link")}
+                className={`focus-ring inline-flex items-center justify-center gap-1 rounded-xl py-2 text-xs font-bold transition-colors cursor-pointer border ${
+                  resourceType === "link"
+                    ? "border-[hsl(var(--accent))] bg-[hsl(var(--accent)/.2)] text-[hsl(var(--accent-foreground))]"
+                    : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/.5)]"
+                }`}
+              >
+                <ExternalLink size={12} /> Web Link
+              </button>
+            </div>
+            {resourceType === "drive" && (
+              <p className="text-[11px] text-[hsl(var(--primary))] font-medium">
+                Make sure your Google Drive link is set to "Anyone with the link can view".
+              </p>
+            )}
+          </div>
+
+          {/* Row 5: Download URL */}
+          <div className="space-y-1">
+            <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+              Download / Access URL <span className="text-[hsl(var(--destructive))]">*</span>
+            </label>
+            <input
+              type="url"
+              value={downloadUrl}
+              onChange={(e) => handleUrlChange(e.target.value)}
+              placeholder="https://www.bitm.edu.in/assets/.../sample.zip or Google Drive URL"
+              className="input-style h-9 text-xs"
+              data-testid="input-create-download-url"
+              required
+            />
+          </div>
+
+          {/* Row 6: Published Toggle */}
+          <div className="flex items-center justify-between rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.6)] p-3">
+            <div className="space-y-0.5">
+              <span className="text-xs font-bold text-[hsl(var(--foreground))]">Publication Status</span>
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                {isPublished ? "Visible to all students on the public PYQs page" : "Saved as draft, visible only to admins"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsPublished(!isPublished)}
+              className={`focus-ring inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold cursor-pointer transition-colors ${
+                isPublished
+                  ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                  : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
+              }`}
+              data-testid="button-toggle-create-published"
+            >
+              {isPublished ? <Check size={13} /> : null}
+              {isPublished ? "Published (ON)" : "Draft (OFF)"}
+            </button>
+          </div>
+
+          {error && (
+            <div className="flex items-start gap-2 rounded-xl bg-[hsl(var(--destructive)/.1)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" data-testid="alert-create-qp-error">
+              <CircleAlert size={14} className="mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <DialogFooter className="mt-5 flex gap-2 sm:justify-end">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="focus-ring rounded-xl border border-[hsl(var(--border))] px-4 py-2 text-xs font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={createQp.isPending}
+              className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[hsl(var(--primary))] px-5 py-2 text-xs font-bold text-[hsl(var(--primary-foreground))] disabled:opacity-60 cursor-pointer"
+              data-testid="button-submit-create-semester-qp"
+            >
+              {createQp.isPending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+              {createQp.isPending ? "Adding Paper..." : "Add Semester QP"}
+            </button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditSemesterQpDialog({ item, open, onOpenChange }: { item: SemesterQpItem; open: boolean; onOpenChange: (val: boolean) => void }) {
+  const updateQp = useUpdateSemesterQp();
+  const { data: branches = [] } = useListBranches({ includeInactive: false });
+  const { data: qps = [] } = useListSemesterQps({ isPublished: "all" });
+
+  const [examYear, setExamYear] = useState(item.examYear);
+  const [semester, setSemester] = useState(item.semester);
+  const [department, setDepartment] = useState(item.department);
+  const [title, setTitle] = useState(item.title || "");
+  const [downloadUrl, setDownloadUrl] = useState(item.downloadUrl);
+  const [resourceType, setResourceType] = useState<"zip" | "pdf" | "drive" | "link">(
+    (item.resourceType as "zip" | "pdf" | "drive" | "link") ||
+      (item.downloadUrl.toLowerCase().endsWith(".pdf")
+        ? "pdf"
+        : item.downloadUrl.toLowerCase().endsWith(".zip")
+        ? "zip"
+        : item.downloadUrl.toLowerCase().includes("drive.google.com")
+        ? "drive"
+        : "link"),
+  );
+  const [isPublished, setIsPublished] = useState(item.isPublished);
+  const [error, setError] = useState("");
+
+  const distinctDepartments = useMemo(() => {
+    const set = new Set<string>();
+    for (const b of branches) {
+      if (b.name) set.add(b.name);
+      if (b.shortName) set.add(b.shortName);
+    }
+    for (const q of qps) {
+      if (q.department) set.add(q.department);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [branches, qps]);
+
+  const distinctYears = useMemo(() => {
+    const set = new Set<string>(["2028", "2027", "2026", "2025", "2024", "2023", "2022 & Model Papers"]);
+    for (const q of qps) {
+      if (q.examYear) set.add(q.examYear);
+    }
+    return Array.from(set).sort((a, b) => b.localeCompare(a));
+  }, [qps]);
+
+  const handleRegenerateTitle = () => {
+    if (department.trim()) {
+      setTitle(`${examYear.trim()} • ${semester.trim()} • ${department.trim()}`);
+    } else {
+      setTitle(`${examYear.trim()} • ${semester.trim()}`);
+    }
+  };
+
+  const handleUrlChange = (val: string) => {
+    setDownloadUrl(val);
+    const urlLower = val.trim().toLowerCase();
+    if (urlLower.endsWith(".pdf")) {
+      setResourceType("pdf");
+    } else if (urlLower.endsWith(".zip")) {
+      setResourceType("zip");
+    } else if (urlLower.includes("drive.google.com") || urlLower.includes("docs.google.com")) {
+      setResourceType("drive");
+    }
+  };
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (updateQp.isPending) return;
+
+    if (!examYear.trim()) {
+      setError("Exam year is required.");
+      return;
+    }
+    if (!semester.trim()) {
+      setError("Semester is required.");
+      return;
+    }
+    if (!department.trim()) {
+      setError("Department/stream is required.");
+      return;
+    }
+    if (!downloadUrl.trim()) {
+      setError("Download URL is required.");
+      return;
+    }
+    try {
+      new URL(downloadUrl.trim());
+    } catch {
+      setError("Please enter a valid download URL (http:// or https://).");
+      return;
+    }
+
+    updateQp.mutate(
+      {
+        id: item.id,
+        data: {
+          examYear: examYear.trim(),
+          semester: semester.trim(),
+          department: department.trim(),
+          title: title.trim(),
+          downloadUrl: downloadUrl.trim(),
+          resourceType,
+          isPublished,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Question paper updated successfully" });
+          onOpenChange(false);
+        },
+        onError: (err) => {
+          const msg = getErrorMessage(err);
+          if (msg.toLowerCase().includes("duplicate") || msg.toLowerCase().includes("already exists")) {
+            setError("This Semester QP already exists.");
+          } else {
+            setError(msg);
+          }
+        },
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(val) => { onOpenChange(val); if (!val) setError(""); }}>
+      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto p-6 rounded-3xl" data-testid="dialog-edit-semester-qp">
+        <DialogHeader className="text-left space-y-1">
+          <DialogTitle className="display-font text-xl font-bold">Edit Semester Question Paper</DialogTitle>
+          <DialogDescription className="text-xs text-[hsl(var(--muted-foreground))]">
+            Update examination year, department stream, resource link, and publication status.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="mt-3 space-y-4">
+          <datalist id="edit-exam-years">
+            {distinctYears.map((y) => (
+              <option key={y} value={y} />
+            ))}
+          </datalist>
+          <datalist id="edit-dept-streams">
+            {distinctDepartments.map((d) => (
+              <option key={d} value={d} />
+            ))}
+          </datalist>
+
+          {/* Row 1: Exam Year & Semester */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+                Exam Year <span className="text-[hsl(var(--destructive))]">*</span>
+              </label>
+              <input
+                type="text"
+                list="edit-exam-years"
+                value={examYear}
+                onChange={(e) => setExamYear(e.target.value)}
+                className="input-style h-9 text-xs"
+                data-testid="input-edit-exam-year"
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+                Semester <span className="text-[hsl(var(--destructive))]">*</span>
+              </label>
+              <select
+                value={semester}
+                onChange={(e) => setSemester(e.target.value)}
+                className="input-style h-9 text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+                data-testid="select-edit-semester"
+              >
+                {POPULAR_SEMESTERS.filter((s) => s !== "All").map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Row 2: Department / Stream */}
+          <div className="space-y-1">
+            <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+              Department / Stream <span className="text-[hsl(var(--destructive))]">*</span>
+            </label>
+            <input
+              type="text"
+              list="edit-dept-streams"
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              className="input-style h-9 text-xs"
+              data-testid="input-edit-department"
+              required
+            />
+          </div>
+
+          {/* Row 3: Display Title */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+                Display Title (Optional)
+              </label>
+              <button
+                type="button"
+                onClick={handleRegenerateTitle}
+                className="text-[10px] font-bold text-[hsl(var(--primary))] hover:underline cursor-pointer"
+              >
+                Regenerate smart title
+              </button>
+            </div>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="input-style h-9 text-xs"
+              data-testid="input-edit-title"
+            />
+          </div>
+
+          {/* Row 4: Resource Type Segmented Selector */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+              Resource Type <span className="text-[hsl(var(--destructive))]">*</span>
+            </label>
+            <div className="grid grid-cols-4 gap-2">
+              <button
+                type="button"
+                onClick={() => setResourceType("zip")}
+                className={`focus-ring inline-flex items-center justify-center gap-1 rounded-xl py-2 text-xs font-bold transition-colors cursor-pointer border ${
+                  resourceType === "zip"
+                    ? "border-[hsl(var(--secondary))] bg-[hsl(var(--secondary)/.15)] text-[hsl(var(--secondary-foreground))]"
+                    : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/.5)]"
+                }`}
+              >
+                <FileArchive size={12} /> ZIP
+              </button>
+              <button
+                type="button"
+                onClick={() => setResourceType("pdf")}
+                className={`focus-ring inline-flex items-center justify-center gap-1 rounded-xl py-2 text-xs font-bold transition-colors cursor-pointer border ${
+                  resourceType === "pdf"
+                    ? "border-[hsl(var(--destructive))] bg-[hsl(var(--destructive)/.12)] text-[hsl(var(--destructive))]"
+                    : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/.5)]"
+                }`}
+              >
+                <FileText size={12} /> PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => setResourceType("drive")}
+                className={`focus-ring inline-flex items-center justify-center gap-1 rounded-xl py-2 text-xs font-bold transition-colors cursor-pointer border ${
+                  resourceType === "drive"
+                    ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary)/.15)] text-[hsl(var(--primary))]"
+                    : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/.5)]"
+                }`}
+              >
+                <FolderOpen size={12} /> Drive Link
+              </button>
+              <button
+                type="button"
+                onClick={() => setResourceType("link")}
+                className={`focus-ring inline-flex items-center justify-center gap-1 rounded-xl py-2 text-xs font-bold transition-colors cursor-pointer border ${
+                  resourceType === "link"
+                    ? "border-[hsl(var(--accent))] bg-[hsl(var(--accent)/.2)] text-[hsl(var(--accent-foreground))]"
+                    : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/.5)]"
+                }`}
+              >
+                <ExternalLink size={12} /> Web Link
+              </button>
+            </div>
+            {resourceType === "drive" && (
+              <p className="text-[11px] text-[hsl(var(--primary))] font-medium">
+                Make sure your Google Drive link is set to "Anyone with the link can view".
+              </p>
+            )}
+          </div>
+
+          {/* Row 5: Download URL */}
+          <div className="space-y-1">
+            <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+              Download URL <span className="text-[hsl(var(--destructive))]">*</span>
+            </label>
+            <input
+              type="url"
+              value={downloadUrl}
+              onChange={(e) => handleUrlChange(e.target.value)}
+              className="input-style h-9 text-xs"
+              data-testid="input-edit-download-url"
+              required
+            />
+          </div>
+
+          {/* Row 6: Published Toggle */}
+          <div className="flex items-center justify-between rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.6)] p-3">
+            <div className="space-y-0.5">
+              <span className="text-xs font-bold text-[hsl(var(--foreground))]">Publication Status</span>
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                {isPublished ? "Visible to all students on the public PYQs page" : "Saved as draft, visible only to admins"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsPublished(!isPublished)}
+              className={`focus-ring inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold cursor-pointer transition-colors ${
+                isPublished
+                  ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                  : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
+              }`}
+              data-testid="button-toggle-edit-published"
+            >
+              {isPublished ? <Check size={13} /> : null}
+              {isPublished ? "Published (ON)" : "Draft (OFF)"}
+            </button>
+          </div>
+
+          {error && (
+            <div className="flex items-start gap-2 rounded-xl bg-[hsl(var(--destructive)/.1)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" data-testid="alert-edit-qp-error">
+              <CircleAlert size={14} className="mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <DialogFooter className="mt-5 flex gap-2 sm:justify-end">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="focus-ring rounded-xl border border-[hsl(var(--border))] px-4 py-2 text-xs font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={updateQp.isPending}
+              className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[hsl(var(--primary))] px-5 py-2 text-xs font-bold text-[hsl(var(--primary-foreground))] disabled:opacity-60 cursor-pointer"
+              data-testid="button-submit-edit-semester-qp"
+            >
+              {updateQp.isPending ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+              {updateQp.isPending ? "Saving Changes..." : "Save Changes"}
+            </button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteSemesterQpDialog({ item, open, onOpenChange }: { item: SemesterQpItem; open: boolean; onOpenChange: (val: boolean) => void }) {
+  const deleteQp = useDeleteSemesterQp();
+
+  const handleConfirm = () => {
+    if (deleteQp.isPending) return;
+    deleteQp.mutate(
+      { id: item.id },
+      {
+        onSuccess: () => {
+          toast({ title: "Question paper deleted" });
+          onOpenChange(false);
+        },
+        onError: (err) => {
+          toast({ title: "Error deleting paper", description: getErrorMessage(err), variant: "destructive" });
+        },
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md p-6 rounded-3xl" data-testid="dialog-delete-semester-qp">
+        <DialogHeader className="text-left space-y-1.5">
+          <div className="flex items-center gap-2 text-[hsl(var(--destructive))]">
+            <Trash2 size={18} />
+            <DialogTitle className="display-font text-xl font-bold">Delete Question Paper</DialogTitle>
+          </div>
+          <DialogDescription className="text-xs text-[hsl(var(--muted-foreground))]">
+            Are you sure you want to delete the question paper for <span className="font-semibold text-[hsl(var(--foreground))]">"{item.department}" ({item.semester} - {item.examYear})</span>? This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogFooter className="mt-5 flex gap-2 sm:justify-end">
+          <button
+            type="button"
+            disabled={deleteQp.isPending}
+            onClick={() => onOpenChange(false)}
+            className="focus-ring rounded-xl border border-[hsl(var(--border))] px-4 py-2 text-xs font-semibold"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={deleteQp.isPending}
+            onClick={handleConfirm}
+            className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[hsl(var(--destructive))] px-5 py-2 text-xs font-bold text-[hsl(var(--destructive-foreground))] hover:opacity-90 disabled:opacity-60 transition-opacity cursor-pointer"
+            data-testid="button-confirm-delete-semester-qp"
+          >
+            {deleteQp.isPending ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+            {deleteQp.isPending ? "Deleting..." : "Delete"}
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CreateIaPaperDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (val: boolean) => void }) {
+  const createIa = useCreateIaPaper();
+  const { data: branches = [] } = useListBranches({ includeInactive: false });
+  const { data: iaPapers = [] } = useListIaPapers({ isPublished: "all" });
+
+  const [academicYear, setAcademicYear] = useState<string>("1st Year");
+  const [semester, setSemester] = useState<string>("1st Semester");
+  const [department, setDepartment] = useState("");
+  const [iaType, setIaType] = useState<string>("IA-1");
+  const [title, setTitle] = useState("");
+  const [googleDriveUrl, setGoogleDriveUrl] = useState("");
+  const [isPublished, setIsPublished] = useState(true);
+  const [hasCustomTitle, setHasCustomTitle] = useState(false);
+  const [error, setError] = useState("");
+
+  const distinctDepartments = useMemo(() => {
+    const set = new Set<string>();
+    for (const b of branches) {
+      if (b.name) set.add(b.name);
+      if (b.shortName) set.add(b.shortName);
+    }
+    for (const p of iaPapers) {
+      if (p.department) set.add(p.department);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [branches, iaPapers]);
+
+  const availableSemesters = useMemo(() => {
+    return IA_YEAR_SEMESTERS[academicYear] ?? [
+      "1st Semester",
+      "2nd Semester",
+      "3rd Semester",
+      "4th Semester",
+      "5th Semester",
+      "6th Semester",
+      "7th Semester",
+      "8th Semester",
+    ];
+  }, [academicYear]);
+
+  const handleYearChange = (newYear: string) => {
+    setAcademicYear(newYear);
+    const sems = IA_YEAR_SEMESTERS[newYear];
+    const newSem = sems ? sems[0] : "1st Semester";
+    setSemester(newSem);
+    if (!hasCustomTitle) {
+      if (department.trim()) {
+        setTitle(`${newYear} • ${newSem} • ${department.trim()} • ${iaType}`);
+      } else {
+        setTitle(`${newYear} • ${newSem} • ${iaType}`);
+      }
+    }
+  };
+
+  const handleSemesterChange = (newSem: string) => {
+    setSemester(newSem);
+    if (!hasCustomTitle) {
+      if (department.trim()) {
+        setTitle(`${academicYear} • ${newSem} • ${department.trim()} • ${iaType}`);
+      } else {
+        setTitle(`${academicYear} • ${newSem} • ${iaType}`);
+      }
+    }
+  };
+
+  const handleDepartmentChange = (val: string) => {
+    setDepartment(val);
+    if (!hasCustomTitle) {
+      if (val.trim()) {
+        setTitle(`${academicYear} • ${semester} • ${val.trim()} • ${iaType}`);
+      } else {
+        setTitle(`${academicYear} • ${semester} • ${iaType}`);
+      }
+    }
+  };
+
+  const handleIaTypeChange = (newType: string) => {
+    setIaType(newType);
+    if (!hasCustomTitle) {
+      if (department.trim()) {
+        setTitle(`${academicYear} • ${semester} • ${department.trim()} • ${newType}`);
+      } else {
+        setTitle(`${academicYear} • ${semester} • ${newType}`);
+      }
+    }
+  };
+
+  const handleRegenerateTitle = () => {
+    if (department.trim()) {
+      setTitle(`${academicYear} • ${semester} • ${department.trim()} • ${iaType}`);
+    } else {
+      setTitle(`${academicYear} • ${semester} • ${iaType}`);
+    }
+    setHasCustomTitle(false);
+  };
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (createIa.isPending) return;
+
+    if (!department.trim()) {
+      setError("Department/stream is required.");
+      return;
+    }
+    if (!googleDriveUrl.trim()) {
+      setError("Google Drive URL is required.");
+      return;
+    }
+    if (!isValidGoogleDriveUrl(googleDriveUrl.trim())) {
+      setError("Please enter a valid https://drive.google.com or https://docs.google.com share link.");
+      return;
+    }
+
+    createIa.mutate(
+      {
+        data: {
+          academicYear,
+          semester,
+          department: department.trim(),
+          iaType,
+          title: title.trim(),
+          googleDriveUrl: googleDriveUrl.trim(),
+          isPublished,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Internal assessment paper added successfully" });
+          onOpenChange(false);
+          setDepartment("");
+          setTitle("");
+          setGoogleDriveUrl("");
+          setHasCustomTitle(false);
+          setError("");
+        },
+        onError: (err) => {
+          const msg = getErrorMessage(err);
+          if (msg.toLowerCase().includes("duplicate") || msg.toLowerCase().includes("already exists")) {
+            setError("This Internal Assessment paper already exists.");
+          } else {
+            setError(msg);
+          }
+        },
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(val) => { onOpenChange(val); if (!val) setError(""); }}>
+      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto p-6 rounded-3xl" data-testid="dialog-create-ia-paper">
+        <DialogHeader className="text-left space-y-1">
+          <DialogTitle className="display-font text-xl font-bold">Add Internal Assessment Paper</DialogTitle>
+          <DialogDescription className="text-xs text-[hsl(var(--muted-foreground))]">
+            Select year cohort, semester, department, test type, and Google Drive access link.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="mt-3 space-y-4">
+          <datalist id="create-ia-dept-streams">
+            {distinctDepartments.map((d) => (
+              <option key={d} value={d} />
+            ))}
+          </datalist>
+
+          {/* Row 1: Academic Year Segmented */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+              Academic Year <span className="text-[hsl(var(--destructive))]">*</span>
+            </label>
+            <div className="grid grid-cols-4 gap-2">
+              {IA_YEARS.map((y) => (
+                <button
+                  key={y}
+                  type="button"
+                  onClick={() => handleYearChange(y)}
+                  className={`focus-ring inline-flex items-center justify-center rounded-xl py-2 text-xs font-bold transition-colors cursor-pointer border ${
+                    academicYear === y
+                      ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary)/.15)] text-[hsl(var(--primary))]"
+                      : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/.5)]"
+                  }`}
+                >
+                  {y}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Row 2: Semester & IA Type */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+                Semester <span className="text-[hsl(var(--destructive))]">*</span>
+              </label>
+              <select
+                value={semester}
+                onChange={(e) => handleSemesterChange(e.target.value)}
+                className="input-style h-9 text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+                data-testid="select-create-ia-semester"
+              >
+                {availableSemesters.map((s) => (
+                  <option key={s} value={s}>
+                    {getIaSemesterLabel(s)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+                IA Type <span className="text-[hsl(var(--destructive))]">*</span>
+              </label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {IA_TYPES.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => handleIaTypeChange(t)}
+                    className={`focus-ring inline-flex items-center justify-center rounded-lg py-1.5 text-xs font-bold transition-colors cursor-pointer border ${
+                      iaType === t
+                        ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                        : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/.5)]"
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Row 3: Department / Stream */}
+          <div className="space-y-1">
+            <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+              Department / Stream <span className="text-[hsl(var(--destructive))]">*</span>
+            </label>
+            <input
+              type="text"
+              list="create-ia-dept-streams"
+              value={department}
+              onChange={(e) => handleDepartmentChange(e.target.value)}
+              placeholder="e.g. Computer Science & Engineering or CSE"
+              className="input-style h-9 text-xs"
+              data-testid="input-create-ia-dept"
+              required
+            />
+          </div>
+
+          {/* Row 4: Smart Title */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+                Display Title (Smart Generated)
+              </label>
+              {hasCustomTitle && (
+                <button
+                  type="button"
+                  onClick={handleRegenerateTitle}
+                  className="text-[10px] font-bold text-[hsl(var(--primary))] hover:underline cursor-pointer"
+                >
+                  Regenerate
+                </button>
+              )}
+            </div>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                setHasCustomTitle(true);
+              }}
+              placeholder="e.g. 2nd Year • 3rd Semester • CSE • IA-1"
+              className="input-style h-9 text-xs"
+              data-testid="input-create-ia-title"
+            />
+          </div>
+
+          {/* Row 5: Google Drive URL */}
+          <div className="space-y-1">
+            <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+              Google Drive URL <span className="text-[hsl(var(--destructive))]">*</span>
+            </label>
+            <input
+              type="url"
+              value={googleDriveUrl}
+              onChange={(e) => setGoogleDriveUrl(e.target.value)}
+              placeholder="https://drive.google.com/file/d/... or /drive/folders/..."
+              className="input-style h-9 text-xs"
+              data-testid="input-create-ia-drive-url"
+              required
+            />
+            <p className="text-[11px] text-[hsl(var(--primary))] font-medium">
+              Make sure the file or folder is shared so students with the link can view it.
+            </p>
+          </div>
+
+          {/* Row 6: Published Toggle */}
+          <div className="flex items-center justify-between rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.6)] p-3">
+            <div className="space-y-0.5">
+              <span className="text-xs font-bold text-[hsl(var(--foreground))]">Publication Status</span>
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                {isPublished ? "Visible to all students on the public IA tab" : "Saved as draft, visible only to admins"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsPublished(!isPublished)}
+              className={`focus-ring inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold cursor-pointer transition-colors ${
+                isPublished
+                  ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                  : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
+              }`}
+              data-testid="button-toggle-create-ia-published"
+            >
+              {isPublished ? <Check size={13} /> : null}
+              {isPublished ? "Published (ON)" : "Draft (OFF)"}
+            </button>
+          </div>
+
+          {error && (
+            <div className="flex items-start gap-2 rounded-xl bg-[hsl(var(--destructive)/.1)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" data-testid="alert-create-ia-error">
+              <CircleAlert size={14} className="mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <DialogFooter className="mt-5 flex gap-2 sm:justify-end">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="focus-ring rounded-xl border border-[hsl(var(--border))] px-4 py-2 text-xs font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={createIa.isPending}
+              className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[hsl(var(--primary))] px-5 py-2 text-xs font-bold text-[hsl(var(--primary-foreground))] disabled:opacity-60 cursor-pointer"
+              data-testid="button-submit-create-ia-paper"
+            >
+              {createIa.isPending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+              {createIa.isPending ? "Adding Paper..." : "Add IA Paper"}
+            </button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditIaPaperDialog({ item, open, onOpenChange }: { item: IaPaperItem; open: boolean; onOpenChange: (val: boolean) => void }) {
+  const updateIa = useUpdateIaPaper();
+  const { data: branches = [] } = useListBranches({ includeInactive: false });
+  const { data: iaPapers = [] } = useListIaPapers({ isPublished: "all" });
+
+  const [academicYear, setAcademicYear] = useState(item.academicYear);
+  const [semester, setSemester] = useState(item.semester);
+  const [department, setDepartment] = useState(item.department);
+  const [iaType, setIaType] = useState(item.iaType || "IA-1");
+  const [title, setTitle] = useState(item.title || "");
+  const [googleDriveUrl, setGoogleDriveUrl] = useState(item.googleDriveUrl);
+  const [isPublished, setIsPublished] = useState(item.isPublished);
+  const [error, setError] = useState("");
+
+  const distinctDepartments = useMemo(() => {
+    const set = new Set<string>();
+    for (const b of branches) {
+      if (b.name) set.add(b.name);
+      if (b.shortName) set.add(b.shortName);
+    }
+    for (const p of iaPapers) {
+      if (p.department) set.add(p.department);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [branches, iaPapers]);
+
+  const availableSemesters = useMemo(() => {
+    return IA_YEAR_SEMESTERS[academicYear] ?? [
+      "1st Semester",
+      "2nd Semester",
+      "3rd Semester",
+      "4th Semester",
+      "5th Semester",
+      "6th Semester",
+      "7th Semester",
+      "8th Semester",
+    ];
+  }, [academicYear]);
+
+  const handleRegenerateTitle = () => {
+    if (department.trim()) {
+      setTitle(`${academicYear} • ${semester} • ${department.trim()} • ${iaType}`);
+    } else {
+      setTitle(`${academicYear} • ${semester} • ${iaType}`);
+    }
+  };
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (updateIa.isPending) return;
+
+    if (!department.trim()) {
+      setError("Department/stream is required.");
+      return;
+    }
+    if (!googleDriveUrl.trim()) {
+      setError("Google Drive URL is required.");
+      return;
+    }
+    if (!isValidGoogleDriveUrl(googleDriveUrl.trim())) {
+      setError("Please enter a valid https://drive.google.com or https://docs.google.com share link.");
+      return;
+    }
+
+    updateIa.mutate(
+      {
+        id: item.id,
+        data: {
+          academicYear,
+          semester,
+          department: department.trim(),
+          iaType,
+          title: title.trim(),
+          googleDriveUrl: googleDriveUrl.trim(),
+          isPublished,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Internal assessment paper updated successfully" });
+          onOpenChange(false);
+        },
+        onError: (err) => {
+          const msg = getErrorMessage(err);
+          if (msg.toLowerCase().includes("duplicate") || msg.toLowerCase().includes("already exists")) {
+            setError("This Internal Assessment paper already exists.");
+          } else {
+            setError(msg);
+          }
+        },
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(val) => { onOpenChange(val); if (!val) setError(""); }}>
+      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto p-6 rounded-3xl" data-testid="dialog-edit-ia-paper">
+        <DialogHeader className="text-left space-y-1">
+          <DialogTitle className="display-font text-xl font-bold">Edit Internal Assessment Paper</DialogTitle>
+          <DialogDescription className="text-xs text-[hsl(var(--muted-foreground))]">
+            Update year, semester, department, test type, and Google Drive access link.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="mt-3 space-y-4">
+          <datalist id="edit-ia-dept-streams">
+            {distinctDepartments.map((d) => (
+              <option key={d} value={d} />
+            ))}
+          </datalist>
+
+          {/* Row 1: Academic Year Segmented */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+              Academic Year <span className="text-[hsl(var(--destructive))]">*</span>
+            </label>
+            <div className="grid grid-cols-4 gap-2">
+              {IA_YEARS.map((y) => (
+                <button
+                  key={y}
+                  type="button"
+                  onClick={() => setAcademicYear(y)}
+                  className={`focus-ring inline-flex items-center justify-center rounded-xl py-2 text-xs font-bold transition-colors cursor-pointer border ${
+                    academicYear === y
+                      ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary)/.15)] text-[hsl(var(--primary))]"
+                      : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/.5)]"
+                  }`}
+                >
+                  {y}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Row 2: Semester & IA Type */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+                Semester <span className="text-[hsl(var(--destructive))]">*</span>
+              </label>
+              <select
+                value={semester}
+                onChange={(e) => setSemester(e.target.value)}
+                className="input-style h-9 text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+                data-testid="select-edit-ia-semester"
+              >
+                {availableSemesters.map((s) => (
+                  <option key={s} value={s}>
+                    {getIaSemesterLabel(s)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+                IA Type <span className="text-[hsl(var(--destructive))]">*</span>
+              </label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {IA_TYPES.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setIaType(t)}
+                    className={`focus-ring inline-flex items-center justify-center rounded-lg py-1.5 text-xs font-bold transition-colors cursor-pointer border ${
+                      iaType === t
+                        ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                        : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/.5)]"
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Row 3: Department / Stream */}
+          <div className="space-y-1">
+            <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+              Department / Stream <span className="text-[hsl(var(--destructive))]">*</span>
+            </label>
+            <input
+              type="text"
+              list="edit-ia-dept-streams"
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              className="input-style h-9 text-xs"
+              data-testid="input-edit-ia-dept"
+              required
+            />
+          </div>
+
+          {/* Row 4: Display Title */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+                Display Title (Optional)
+              </label>
+              <button
+                type="button"
+                onClick={handleRegenerateTitle}
+                className="text-[10px] font-bold text-[hsl(var(--primary))] hover:underline cursor-pointer"
+              >
+                Regenerate smart title
+              </button>
+            </div>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="input-style h-9 text-xs"
+              data-testid="input-edit-ia-title"
+            />
+          </div>
+
+          {/* Row 5: Google Drive URL */}
+          <div className="space-y-1">
+            <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+              Google Drive URL <span className="text-[hsl(var(--destructive))]">*</span>
+            </label>
+            <input
+              type="url"
+              value={googleDriveUrl}
+              onChange={(e) => setGoogleDriveUrl(e.target.value)}
+              className="input-style h-9 text-xs"
+              data-testid="input-edit-ia-drive-url"
+              required
+            />
+            <p className="text-[11px] text-[hsl(var(--primary))] font-medium">
+              Make sure the file or folder is shared so students with the link can view it.
+            </p>
+          </div>
+
+          {/* Row 6: Published Toggle */}
+          <div className="flex items-center justify-between rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.6)] p-3">
+            <div className="space-y-0.5">
+              <span className="text-xs font-bold text-[hsl(var(--foreground))]">Publication Status</span>
+              <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                {isPublished ? "Visible to all students on the public IA tab" : "Saved as draft, visible only to admins"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsPublished(!isPublished)}
+              className={`focus-ring inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold cursor-pointer transition-colors ${
+                isPublished
+                  ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                  : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
+              }`}
+              data-testid="button-toggle-edit-ia-published"
+            >
+              {isPublished ? <Check size={13} /> : null}
+              {isPublished ? "Published (ON)" : "Draft (OFF)"}
+            </button>
+          </div>
+
+          {error && (
+            <div className="flex items-start gap-2 rounded-xl bg-[hsl(var(--destructive)/.1)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" data-testid="alert-edit-ia-error">
+              <CircleAlert size={14} className="mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <DialogFooter className="mt-5 flex gap-2 sm:justify-end">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="focus-ring rounded-xl border border-[hsl(var(--border))] px-4 py-2 text-xs font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={updateIa.isPending}
+              className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[hsl(var(--primary))] px-5 py-2 text-xs font-bold text-[hsl(var(--primary-foreground))] disabled:opacity-60 cursor-pointer"
+              data-testid="button-submit-edit-ia-paper"
+            >
+              {updateIa.isPending ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+              {updateIa.isPending ? "Saving Changes..." : "Save Changes"}
+            </button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteIaPaperDialog({ item, open, onOpenChange }: { item: IaPaperItem; open: boolean; onOpenChange: (val: boolean) => void }) {
+  const deleteIa = useDeleteIaPaper();
+
+  const handleConfirm = () => {
+    if (deleteIa.isPending) return;
+    deleteIa.mutate(
+      { id: item.id },
+      {
+        onSuccess: () => {
+          toast({ title: "IA paper deleted" });
+          onOpenChange(false);
+        },
+        onError: (err) => {
+          toast({ title: "Error deleting paper", description: getErrorMessage(err), variant: "destructive" });
+        },
+      },
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md p-6 rounded-3xl" data-testid="dialog-delete-ia-paper">
+        <DialogHeader className="text-left space-y-1.5">
+          <div className="flex items-center gap-2 text-[hsl(var(--destructive))]">
+            <Trash2 size={18} />
+            <DialogTitle className="display-font text-xl font-bold">Delete IA Paper</DialogTitle>
+          </div>
+          <DialogDescription className="text-xs text-[hsl(var(--muted-foreground))]">
+            Are you sure you want to delete the IA paper for <span className="font-semibold text-[hsl(var(--foreground))]">"{item.department}" ({item.iaType} - {getIaSemesterLabel(item.semester)} - {item.academicYear})</span>? This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogFooter className="mt-5 flex gap-2 sm:justify-end">
+          <button
+            type="button"
+            disabled={deleteIa.isPending}
+            onClick={() => onOpenChange(false)}
+            className="focus-ring rounded-xl border border-[hsl(var(--border))] px-4 py-2 text-xs font-semibold"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={deleteIa.isPending}
+            onClick={handleConfirm}
+            className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[hsl(var(--destructive))] px-5 py-2 text-xs font-bold text-[hsl(var(--destructive-foreground))] hover:opacity-90 disabled:opacity-60 transition-opacity cursor-pointer"
+            data-testid="button-confirm-delete-ia-paper"
+          >
+            {deleteIa.isPending ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+            {deleteIa.isPending ? "Deleting..." : "Delete"}
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function NotFound() { return <div className="mx-auto max-w-xl px-5 py-24 text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[hsl(var(--muted))]"><CircleAlert size={25} /></div><h1 className="display-font mt-5 text-4xl font-bold">That path is empty.</h1><p className="mt-3 text-sm text-[hsl(var(--muted-foreground))]">The page you were looking for has moved or never made it into the library.</p><Link href="/" className="focus-ring mt-6 inline-flex rounded-xl bg-[hsl(var(--primary))] px-5 py-3 text-sm font-bold text-[hsl(var(--primary-foreground))]" data-testid="link-not-found-home">Back to home</Link></div>; }
 
 function RoutedErrorBoundary({ children }: { children: ReactNode }) { const [location] = useLocation(); return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>; }
@@ -4884,6 +8174,7 @@ function AppRouter() {
   return <RoutedErrorBoundary><Switch>
     <Route path="/"><Home /></Route>
     <Route path="/resources"><ResourcesPage /></Route>
+    <Route path="/pyqs"><PyqsPage /></Route>
     <Route path="/branch/:branchId"><BranchPage /></Route>
     <Route path="/subject/:subjectId"><SubjectPage /></Route>
     <Route path="/contribute"><ContributePage /></Route>
@@ -4895,6 +8186,7 @@ function AppRouter() {
     <Route path="/admin/templates"><RequireAdmin><AdminCurriculumTemplates /></RequireAdmin></Route>
     <Route path="/admin/submissions"><RequireAdmin><AdminSubmissions /></RequireAdmin></Route>
     <Route path="/admin/resources"><RequireAdmin><AdminResources /></RequireAdmin></Route>
+    <Route path="/admin/pyqs"><RequireAdmin><AdminLayout><AdminPyqs /></AdminLayout></RequireAdmin></Route>
     <Route path="/admin/reports"><RequireAdmin><AdminReports /></RequireAdmin></Route>
     <Route component={NotFound} />
   </Switch></RoutedErrorBoundary>;
@@ -4905,3 +8197,4 @@ function App() {
 }
 
 export default App;
+

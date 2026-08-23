@@ -8,4 +8,6 @@ export * from "./curriculum-templates";
 export * from "./payments";
 export * from "./settings";
 export * from "./analytics";
+export * from "./semester-qps";
+export * from "./ia-papers";
 

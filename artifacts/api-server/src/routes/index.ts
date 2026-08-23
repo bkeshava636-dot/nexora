@@ -12,6 +12,8 @@ import curriculumTemplatesRouter from "./curriculum-templates";
 import paymentsRouter from "./payments";
 import settingsRouter from "./settings";
 import analyticsRouter from "./analytics";
+import semesterQpsRouter from "./semester-qps";
+import iaPapersRouter from "./ia-papers";
 import { readSession } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -34,5 +36,7 @@ router.use(curriculumTemplatesRouter);
 router.use(paymentsRouter);
 router.use(settingsRouter);
 router.use(analyticsRouter);
+router.use(semesterQpsRouter);
+router.use(iaPapersRouter);
 
 export default router;

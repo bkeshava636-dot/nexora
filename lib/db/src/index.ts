@@ -64,6 +64,47 @@ export async function ensureTables(): Promise<void> {
         "updated_by" text,
         "updated_at" timestamp with time zone NOT NULL DEFAULT now()
       );
+
+      CREATE TABLE IF NOT EXISTS "semester_qps" (
+        "id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        "exam_year" text NOT NULL,
+        "semester" text NOT NULL,
+        "department" text NOT NULL,
+        "title" text NOT NULL DEFAULT '',
+        "download_url" text NOT NULL,
+        "resource_type" text NOT NULL DEFAULT 'zip',
+        "is_published" boolean NOT NULL DEFAULT true,
+        "display_order" integer NOT NULL DEFAULT 0,
+        "created_at" timestamp with time zone NOT NULL DEFAULT now(),
+        "updated_at" timestamp with time zone NOT NULL DEFAULT now()
+      );
+      ALTER TABLE "semester_qps" ADD COLUMN IF NOT EXISTS "resource_type" text NOT NULL DEFAULT 'zip';
+      CREATE INDEX IF NOT EXISTS "semester_qps_exam_year_idx" ON "semester_qps" ("exam_year");
+      CREATE INDEX IF NOT EXISTS "semester_qps_semester_idx" ON "semester_qps" ("semester");
+      CREATE INDEX IF NOT EXISTS "semester_qps_department_idx" ON "semester_qps" ("department");
+      CREATE INDEX IF NOT EXISTS "semester_qps_resource_type_idx" ON "semester_qps" ("resource_type");
+      CREATE INDEX IF NOT EXISTS "semester_qps_is_published_idx" ON "semester_qps" ("is_published");
+      CREATE INDEX IF NOT EXISTS "semester_qps_created_at_idx" ON "semester_qps" ("created_at");
+
+      CREATE TABLE IF NOT EXISTS "ia_papers" (
+        "id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        "academic_year" text NOT NULL,
+        "semester" text NOT NULL,
+        "department" text NOT NULL,
+        "ia_type" text NOT NULL DEFAULT 'IA-1',
+        "title" text NOT NULL DEFAULT '',
+        "google_drive_url" text NOT NULL,
+        "is_published" boolean NOT NULL DEFAULT true,
+        "display_order" integer NOT NULL DEFAULT 0,
+        "created_at" timestamp with time zone NOT NULL DEFAULT now(),
+        "updated_at" timestamp with time zone NOT NULL DEFAULT now()
+      );
+      CREATE INDEX IF NOT EXISTS "ia_papers_academic_year_idx" ON "ia_papers" ("academic_year");
+      CREATE INDEX IF NOT EXISTS "ia_papers_semester_idx" ON "ia_papers" ("semester");
+      CREATE INDEX IF NOT EXISTS "ia_papers_department_idx" ON "ia_papers" ("department");
+      CREATE INDEX IF NOT EXISTS "ia_papers_ia_type_idx" ON "ia_papers" ("ia_type");
+      CREATE INDEX IF NOT EXISTS "ia_papers_is_published_idx" ON "ia_papers" ("is_published");
+      CREATE INDEX IF NOT EXISTS "ia_papers_created_at_idx" ON "ia_papers" ("created_at");
     `);
   } catch (err) {
     console.error("Warning: could not ensure database tables:", err);
