@@ -71,6 +71,7 @@ export async function ensureTables(): Promise<void> {
         "updated_at" timestamp with time zone NOT NULL DEFAULT now()
       );`,
       `ALTER TABLE "semester_qps" ADD COLUMN IF NOT EXISTS "resource_type" text NOT NULL DEFAULT 'zip';`,
+      `ALTER TABLE "semester_qps" ADD COLUMN IF NOT EXISTS "display_order" integer NOT NULL DEFAULT 0;`,
       `CREATE INDEX IF NOT EXISTS "semester_qps_exam_year_idx" ON "semester_qps" ("exam_year");`,
       `CREATE INDEX IF NOT EXISTS "semester_qps_semester_idx" ON "semester_qps" ("semester");`,
       `CREATE INDEX IF NOT EXISTS "semester_qps_department_idx" ON "semester_qps" ("department");`,
@@ -90,6 +91,7 @@ export async function ensureTables(): Promise<void> {
         "created_at" timestamp with time zone NOT NULL DEFAULT now(),
         "updated_at" timestamp with time zone NOT NULL DEFAULT now()
       );`,
+      `ALTER TABLE "ia_papers" ADD COLUMN IF NOT EXISTS "display_order" integer NOT NULL DEFAULT 0;`,
       `CREATE INDEX IF NOT EXISTS "ia_papers_academic_year_idx" ON "ia_papers" ("academic_year");`,
       `CREATE INDEX IF NOT EXISTS "ia_papers_semester_idx" ON "ia_papers" ("semester");`,
       `CREATE INDEX IF NOT EXISTS "ia_papers_department_idx" ON "ia_papers" ("department");`,
