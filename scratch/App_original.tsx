@@ -67,7 +67,19 @@ import {
   useListReports,
   useListResources,
   useListSemesterQps,
-  useListSemesterQpDepartments, useCreateSemesterQpDepartment, useUpdateSemesterQpDepartment, useListIaDepartments, useCreateIaDepartment, useUpdateIaDepartment,
+  useListSemesterQpDepartments,
+  useCreateSemesterQpDepartment,
+  useUpdateSemesterQpDepartment,
+  useListIaDepartments,
+  useCreateIaDepartment,
+  useUpdateIaDepartment,
+
+  useListSemesterQpDepartments,
+  useCreateSemesterQpDepartment,
+  useUpdateSemesterQpDepartment,
+  useListIaDepartments,
+  useCreateIaDepartment,
+  useUpdateIaDepartment,
 
   useListIaPapers,
   useListSemesters,
@@ -6062,110 +6074,6 @@ function AdminPyqs() {
   );
 }
 
-
-function DepartmentManagerDialog({
-  open,
-  onOpenChange,
-  title,
-  departments,
-  createDepartment,
-  updateDepartment,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  title: string;
-  departments: { id: number; name: string; isActive: boolean; }[];
-  createDepartment: ReturnType<any>;
-  updateDepartment: ReturnType<any>;
-}) {
-  const [newDeptName, setNewDeptName] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleCreate = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!newDeptName.trim() || isSubmitting) return;
-    setIsSubmitting(true);
-    createDepartment.mutate(
-      { data: { name: newDeptName.trim(), isActive: true } },
-      {
-        onSuccess: () => {
-          toast({ title: "Department added" });
-          setNewDeptName("");
-        },
-        onError: (err: any) => toast({ title: "Failed to add", description: err.message, variant: "destructive" }),
-        onSettled: () => setIsSubmitting(false),
-      }
-    );
-  };
-
-  const toggleActive = (id: number, current: boolean) => {
-    updateDepartment.mutate(
-      { id, data: { isActive: !current } },
-      {
-        onSuccess: () => toast({ title: "Status updated" }),
-        onError: (err: any) => toast({ title: "Failed to update", description: err.message, variant: "destructive" })
-      }
-    );
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md p-6 rounded-3xl bg-[hsl(var(--background))] border-[hsl(var(--border))]">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-bold">{title}</DialogTitle>
-          <DialogDescription className="text-xs">
-            Manage the list of departments available for assignment.
-          </DialogDescription>
-        </DialogHeader>
-        
-        <div className="space-y-4 py-2">
-          <form onSubmit={handleCreate} className="flex gap-2">
-            <input
-              type="text"
-              placeholder="New department name (e.g. CSE)"
-              value={newDeptName}
-              onChange={(e) => setNewDeptName(e.target.value)}
-              className="input-style flex-1 h-9 text-xs"
-              required
-            />
-            <button
-              type="submit"
-              disabled={isSubmitting || !newDeptName.trim()}
-              className="focus-ring h-9 rounded-xl bg-[hsl(var(--primary))] px-4 text-xs font-bold text-[hsl(var(--primary-foreground))] shadow-xs disabled:opacity-50"
-            >
-              Add
-            </button>
-          </form>
-
-          <div className="border border-[hsl(var(--border))] rounded-xl bg-[hsl(var(--card)/.5)] max-h-[300px] overflow-y-auto">
-            {departments.length === 0 ? (
-              <div className="p-4 text-center text-xs text-[hsl(var(--muted-foreground))]">No departments found.</div>
-            ) : (
-              <ul className="divide-y divide-[hsl(var(--border))]">
-                {departments.map((d) => (
-                  <li key={d.id} className="flex items-center justify-between p-3">
-                    <span className={`text-sm font-bold ${!d.isActive ? 'text-[hsl(var(--muted-foreground))] line-through' : ''}`}>
-                      {d.name}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => toggleActive(d.id, d.isActive)}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold ${d.isActive ? 'bg-[hsl(var(--destructive)/.1)] text-[hsl(var(--destructive))]' : 'bg-[hsl(var(--primary)/.1)] text-[hsl(var(--primary))]'}`}
-                    >
-                      {d.isActive ? 'Deactivate' : 'Activate'}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-
 function AdminSemesterQpsSection() {
   const [deptManagerOpen, setDeptManagerOpen] = useState(false);
   const { data: semQpDepts = [] } = useListSemesterQpDepartments({ includeInactive: true });
@@ -8507,14 +8415,14 @@ function AdminIaContributionsSection() {
   const [rejectReason, setRejectReason] = useState("");
 
   const { data: listResp, isLoading } = useListSubmissions(
-    { status: activeStatus },
+    { status: activeStatus, page, limit: 20 },
     qOpts(true)
   );
 
   const approveSubmission = useApproveSubmission();
   const rejectSubmission = useRejectSubmission();
 
-  const handleApprove = (item: any) => {
+  const handleApprove = (item: Submission) => {
     approveSubmission.mutate(
       { id: item.id, data: { isVerified: true, isFeatured: false } },
       {
@@ -8540,7 +8448,7 @@ function AdminIaContributionsSection() {
   };
 
   // Filter out non-IA submissions client-side if they happen to bleed through
-  const items = (listResp || []).filter(item => item.resourceType === "Internal Assessment");
+  const items = (listResp?.items || []).filter(item => item.resourceType === "Internal Assessment");
 
   return (
     <div className="space-y-6">
@@ -8562,7 +8470,7 @@ function AdminIaContributionsSection() {
         ) : items.length === 0 ? (
           <div className="p-8 text-center text-xs text-[hsl(var(--muted-foreground))]">No {activeStatus} IA contributions found.</div>
         ) : (
-          items.map((item: any) => (
+          items.map(item => (
             <div key={item.id} className="border border-[hsl(var(--border))] bg-[hsl(var(--card))] rounded-xl p-4 flex flex-col gap-4">
               <div className="flex justify-between items-start">
                 <div>

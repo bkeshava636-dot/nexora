@@ -1005,6 +1005,7 @@ components:
         - "Lab manual"
         - "Assignment"
         - "Reference"
+        - "Internal Assessment"
 
     SubmissionStatus:
       type: string

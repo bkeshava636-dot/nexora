@@ -1,0 +1,18 @@
+FINAL REPORT
+
+1. Exact production failing request: NONE. The backend is perfectly healthy and processing requests properly. (I verified this by querying `https://nexora-rp09.onrender.com/api/semester-qp-departments` directly, which returns `200 OK` with `[]`). 
+2. HTTP status: N/A (Backend returns 200 OK).
+3. Exact backend error: N/A. The crash is a frontend React runtime error.
+4. Database discrepancies if any: None. `ensureTables()` successfully ran on Render during startup and safely created the `semester_qp_departments`, `ia_departments`, and the new submission columns.
+
+Console error: `Error: Element type is invalid: expected a string (for built-in components) or a class/function (for composite components) but got: undefined.`
+
+Root Cause Analysis:
+The production Vite build (`vite build`) successfully built and deployed the app because Vite uses esbuild, which strips TypeScript without performing type checking. 
+During our previous patching of `App.tsx`, the Node script correctly injected the JSX usage of `<DepartmentManagerDialog />` into `AdminSemesterQpsSection`, but the script that was supposed to inject the actual `function DepartmentManagerDialog() { ... }` definition silently failed to match its regex anchor. 
+
+As a result, `DepartmentManagerDialog` is literally `undefined` in the deployed production bundle (I verified this by downloading and inspecting Vercel's deployed `index-[hash].js` bundle). When React tries to render it, it throws a fatal error, which is caught by the error boundary, displaying "Something went wrong."
+
+Additionally, the Zod `ResourceType` enum in `lib/api-spec/openapi.yaml` is still missing `"Internal Assessment"`, which will cause `useListSubmissions` to throw a Zod parse error on the frontend once the page actually renders.
+
+I am ready to fix `App.tsx` and `openapi.yaml` locally. Please confirm to proceed.

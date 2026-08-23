@@ -45,6 +45,7 @@ export const ResourceType = {
   Lab_manual: 'Lab manual',
   Assignment: 'Assignment',
   Reference: 'Reference',
+  Internal_Assessment: 'Internal Assessment',
 } as const;
 
 export type SubmissionStatus = typeof SubmissionStatus[keyof typeof SubmissionStatus];

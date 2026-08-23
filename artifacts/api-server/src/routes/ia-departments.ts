@@ -9,12 +9,13 @@ const router = Router();
 router.get("/ia-departments", async (req, res) => {
   const includeInactive = req.query.includeInactive === "true";
 
-  let query = db.select().from(iaDepartments);
+  let results;
   if (!includeInactive) {
-    query = query.where(eq(iaDepartments.isActive, true));
+    results = await db.select().from(iaDepartments).where(eq(iaDepartments.isActive, true)).orderBy(desc(iaDepartments.isActive), iaDepartments.name);
+  } else {
+    results = await db.select().from(iaDepartments).orderBy(desc(iaDepartments.isActive), iaDepartments.name);
   }
 
-  const results = await query.orderBy(desc(iaDepartments.isActive), iaDepartments.name);
   res.json(results);
 });
 
@@ -40,7 +41,7 @@ router.post("/ia-departments", requireAdmin, async (req, res) => {
 });
 
 router.patch("/ia-departments/:id", requireAdmin, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   const parsed = DepartmentUpdate.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "invalid_input", message: parsed.error.message });

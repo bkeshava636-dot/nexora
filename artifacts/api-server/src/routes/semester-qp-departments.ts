@@ -3,19 +3,19 @@ import { db, semesterQpDepartments, semesterQps } from "@workspace/db";
 import { CreateSemesterQpDepartmentBody as DepartmentInput, UpdateSemesterQpDepartmentBody as DepartmentUpdate } from "@workspace/api-zod";
 import { requireAdmin } from "../middlewares/auth";
 import { eq, desc } from "drizzle-orm";
-import { z } from "zod";
 
 const router = Router();
 
 router.get("/semester-qp-departments", async (req, res) => {
   const includeInactive = req.query.includeInactive === "true";
 
-  let query = db.select().from(semesterQpDepartments);
+  let results;
   if (!includeInactive) {
-    query = query.where(eq(semesterQpDepartments.isActive, true));
+    results = await db.select().from(semesterQpDepartments).where(eq(semesterQpDepartments.isActive, true)).orderBy(desc(semesterQpDepartments.isActive), semesterQpDepartments.name);
+  } else {
+    results = await db.select().from(semesterQpDepartments).orderBy(desc(semesterQpDepartments.isActive), semesterQpDepartments.name);
   }
-
-  const results = await query.orderBy(desc(semesterQpDepartments.isActive), semesterQpDepartments.name);
+  
   res.json(results);
 });
 
@@ -41,7 +41,7 @@ router.post("/semester-qp-departments", requireAdmin, async (req, res) => {
 });
 
 router.patch("/semester-qp-departments/:id", requireAdmin, async (req, res) => {
-  const id = parseInt(req.params.id);
+  const id = parseInt(req.params.id as string);
   const parsed = DepartmentUpdate.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "invalid_input", message: parsed.error.message });
