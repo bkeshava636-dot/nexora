@@ -7,6 +7,7 @@ export const resourceTypeValues = [
   "Lab manual",
   "Assignment",
   "Reference",
+  "Internal Assessment",
 ] as const;
 
 export const submissionStatusValues = ["pending", "approved", "rejected"] as const;

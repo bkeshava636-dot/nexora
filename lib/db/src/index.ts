@@ -97,7 +97,24 @@ export async function ensureTables(): Promise<void> {
       `CREATE INDEX IF NOT EXISTS "ia_papers_department_idx" ON "ia_papers" ("department");`,
       `CREATE INDEX IF NOT EXISTS "ia_papers_ia_type_idx" ON "ia_papers" ("ia_type");`,
       `CREATE INDEX IF NOT EXISTS "ia_papers_is_published_idx" ON "ia_papers" ("is_published");`,
-      `CREATE INDEX IF NOT EXISTS "ia_papers_created_at_idx" ON "ia_papers" ("created_at");`
+      `CREATE INDEX IF NOT EXISTS "ia_papers_created_at_idx" ON "ia_papers" ("created_at");`,
+      `CREATE TABLE IF NOT EXISTS "semester_qp_departments" (
+        "id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        "name" text NOT NULL UNIQUE,
+        "is_active" boolean NOT NULL DEFAULT true,
+        "created_at" timestamp with time zone NOT NULL DEFAULT now()
+      );`,
+      `CREATE TABLE IF NOT EXISTS "ia_departments" (
+        "id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        "name" text NOT NULL UNIQUE,
+        "is_active" boolean NOT NULL DEFAULT true,
+        "created_at" timestamp with time zone NOT NULL DEFAULT now()
+      );`,
+      `ALTER TABLE "submissions" ADD COLUMN IF NOT EXISTS "ia_academic_year" text;`,
+      `ALTER TABLE "submissions" ADD COLUMN IF NOT EXISTS "ia_semester" text;`,
+      `ALTER TABLE "submissions" ADD COLUMN IF NOT EXISTS "ia_department" text;`,
+      `ALTER TABLE "submissions" ADD COLUMN IF NOT EXISTS "ia_type" text;`,
+      `ALTER TYPE "resource_type" ADD VALUE IF NOT EXISTS 'Internal Assessment';`
     ];
 
     for (const q of ddlQueries) {

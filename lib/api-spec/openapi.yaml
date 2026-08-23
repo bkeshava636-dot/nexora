@@ -631,6 +631,137 @@ paths:
         "204":
           description: Deleted
 
+
+  /semester-qp-departments:
+    get:
+      operationId: listSemesterQpDepartments
+      tags: [semester-qp-departments]
+      summary: List all semester QP departments
+      parameters:
+        - name: includeInactive
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of departments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Department"
+    post:
+      operationId: createSemesterQpDepartment
+      tags: [semester-qp-departments]
+      summary: Create a new semester QP department
+      security: [{ adminSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DepartmentInput"
+      responses:
+        "201":
+          description: Created department
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+
+  /semester-qp-departments/{id}:
+    patch:
+      operationId: updateSemesterQpDepartment
+      tags: [semester-qp-departments]
+      summary: Update a semester QP department
+      security: [{ adminSession: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DepartmentUpdate"
+      responses:
+        "200":
+          description: Updated department
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+
+  /ia-departments:
+    get:
+      operationId: listIaDepartments
+      tags: [ia-departments]
+      summary: List all IA departments
+      parameters:
+        - name: includeInactive
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of IA departments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Department"
+    post:
+      operationId: createIaDepartment
+      tags: [ia-departments]
+      summary: Create a new IA department
+      security: [{ adminSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DepartmentInput"
+      responses:
+        "201":
+          description: Created IA department
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+
+  /ia-departments/{id}:
+    patch:
+      operationId: updateIaDepartment
+      tags: [ia-departments]
+      summary: Update an IA department
+      security: [{ adminSession: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DepartmentUpdate"
+      responses:
+        "200":
+          description: Updated IA department
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Department"
+
   /submissions:
     get:
       operationId: listSubmissions
@@ -1154,6 +1285,42 @@ components:
         - createdAt
         - updatedAt
 
+    Department:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - isActive
+        - createdAt
+
+    DepartmentInput:
+      type: object
+      properties:
+        name:
+          type: string
+        isActive:
+          type: boolean
+      required:
+        - name
+
+    DepartmentUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        isActive:
+          type: boolean
+
     ResourceInput:
       type: object
       properties:
@@ -1228,6 +1395,18 @@ components:
           type: string
         studentEmail:
           type: string
+        iaAcademicYear:
+          type: string
+          nullable: true
+        iaSemester:
+          type: string
+          nullable: true
+        iaDepartment:
+          type: string
+          nullable: true
+        iaType:
+          type: string
+          nullable: true
         status:
           $ref: "#/components/schemas/SubmissionStatus"
         adminNote:
@@ -1279,6 +1458,14 @@ components:
         studentName:
           type: string
         studentEmail:
+          type: string
+        iaAcademicYear:
+          type: string
+        iaSemester:
+          type: string
+        iaDepartment:
+          type: string
+        iaType:
           type: string
       required:
         - resourceType

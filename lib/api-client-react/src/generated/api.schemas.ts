@@ -172,6 +172,23 @@ export interface Resource {
   branchName?: string;
 }
 
+export interface Department {
+  id: number;
+  name: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface DepartmentInput {
+  name: string;
+  isActive?: boolean;
+}
+
+export interface DepartmentUpdate {
+  name?: string;
+  isActive?: boolean;
+}
+
 export interface ResourceInput {
   subjectId: number;
   title: string;
@@ -206,6 +223,10 @@ export interface Submission {
   googleDriveUrl: string;
   studentName: string;
   studentEmail: string;
+  iaAcademicYear?: string | null;
+  iaSemester?: string | null;
+  iaDepartment?: string | null;
+  iaType?: string | null;
   status: SubmissionStatus;
   adminNote?: string | null;
   rejectionReason?: string | null;
@@ -225,6 +246,10 @@ export interface SubmissionInput {
   googleDriveUrl: string;
   studentName: string;
   studentEmail: string;
+  iaAcademicYear?: string;
+  iaSemester?: string;
+  iaDepartment?: string;
+  iaType?: string;
 }
 
 export interface SubmissionUpdate {
@@ -280,6 +305,14 @@ isFeatured?: boolean;
  * Free-text search across title and description
  */
 query?: string;
+};
+
+export type ListSemesterQpDepartmentsParams = {
+includeInactive?: boolean;
+};
+
+export type ListIaDepartmentsParams = {
+includeInactive?: boolean;
 };
 
 export type ListSubmissionsParams = {

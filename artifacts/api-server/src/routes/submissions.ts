@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { desc, eq } from "drizzle-orm";
-import { db, resources, submissions } from "@workspace/db";
+import { db, resources, submissions, iaPapers } from "@workspace/db";
 import {
   ApproveSubmissionBody,
   CreateSubmissionBody,
@@ -31,7 +31,7 @@ router.post("/submissions", async (req, res) => {
 
   const mode = await getSubmissionApprovalMode();
 
-  if (mode === "auto_publish" && parsed.data.subjectId) {
+  if (mode === "auto_publish" && parsed.data.subjectId && parsed.data.resourceType !== "Internal Assessment") {
     try {
       const result = await db.transaction(async (tx) => {
         const [createdResource] = await tx
@@ -178,7 +178,12 @@ router.post("/submissions/:id/approve", requireAdmin, async (req, res) => {
     res.status(404).json({ error: "not_found", message: "Submission not found." });
     return;
   }
-  if (!submission.subjectId) {
+  if (submission.resourceType === "Internal Assessment") {
+    if (!submission.iaAcademicYear || !submission.iaSemester || !submission.iaDepartment || !submission.iaType) {
+      res.status(400).json({ error: "invalid_submission", message: "Incomplete IA metadata." });
+      return;
+    }
+  } else if (!submission.subjectId) {
     res.status(400).json({
       error: "invalid_submission",
       message: "This submission has no subject on record and cannot be turned into a catalog resource.",
@@ -188,20 +193,33 @@ router.post("/submissions/:id/approve", requireAdmin, async (req, res) => {
 
   try {
     const [updated] = await db.transaction(async (tx) => {
-      // Approving a submission publishes it into the catalog as a real
-      // resource, so the two writes happen together.
-      await tx.insert(resources).values({
-        subjectId: submission.subjectId as number,
-        title: submission.title,
-        description: submission.description,
-        resourceType: submission.resourceType,
-        googleDriveUrl: submission.googleDriveUrl,
-        isNew: true,
-        isFeatured: parsed.data.isFeatured ?? false,
-        isVerified: parsed.data.isVerified ?? true,
-        verifiedAt: (parsed.data.isVerified ?? true) ? new Date() : null,
-        verifiedBy: (parsed.data.isVerified ?? true) ? (req.admin?.username ?? null) : null,
-      });
+      if (submission.resourceType === "Internal Assessment") {
+        await tx.insert(iaPapers).values({
+          academicYear: submission.iaAcademicYear!,
+          semester: submission.iaSemester!,
+          department: submission.iaDepartment!,
+          iaType: submission.iaType!,
+          title: submission.title,
+          googleDriveUrl: submission.googleDriveUrl,
+          isPublished: true,
+          displayOrder: 0,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      } else {
+        await tx.insert(resources).values({
+          subjectId: submission.subjectId as number,
+          title: submission.title,
+          description: submission.description,
+          resourceType: submission.resourceType,
+          googleDriveUrl: submission.googleDriveUrl,
+          isNew: true,
+          isFeatured: parsed.data.isFeatured ?? false,
+          isVerified: parsed.data.isVerified ?? true,
+          verifiedAt: (parsed.data.isVerified ?? true) ? new Date() : null,
+          verifiedBy: (parsed.data.isVerified ?? true) ? (req.admin?.username ?? null) : null,
+        });
+      }
 
       return tx
         .update(submissions)

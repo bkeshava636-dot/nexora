@@ -20,6 +20,10 @@ export interface Submission {
   googleDriveUrl: string;
   studentName: string;
   studentEmail: string;
+  iaAcademicYear?: string | null;
+  iaSemester?: string | null;
+  iaDepartment?: string | null;
+  iaType?: string | null;
   status: SubmissionStatus;
   adminNote?: string | null;
   rejectionReason?: string | null;

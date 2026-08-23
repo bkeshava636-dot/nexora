@@ -639,6 +639,110 @@ export const DeleteResourceResponse = zod.void()
 
 
 /**
+ * @summary List all semester QP departments
+ */
+export const ListSemesterQpDepartmentsQueryParams = zod.object({
+  "includeInactive": zod.coerce.boolean().optional()
+})
+
+export const ListSemesterQpDepartmentsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string().datetime({"offset":true})
+})
+export const ListSemesterQpDepartmentsResponse = zod.array(ListSemesterQpDepartmentsResponseItem)
+
+
+/**
+ * @summary Create a new semester QP department
+ */
+export const CreateSemesterQpDepartmentBody = zod.object({
+  "name": zod.string(),
+  "isActive": zod.boolean().optional()
+})
+
+export const CreateSemesterQpDepartmentResponse = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string().datetime({"offset":true})
+})
+
+
+/**
+ * @summary Update a semester QP department
+ */
+export const UpdateSemesterQpDepartmentParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UpdateSemesterQpDepartmentBody = zod.object({
+  "name": zod.string().optional(),
+  "isActive": zod.boolean().optional()
+})
+
+export const UpdateSemesterQpDepartmentResponse = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string().datetime({"offset":true})
+})
+
+
+/**
+ * @summary List all IA departments
+ */
+export const ListIaDepartmentsQueryParams = zod.object({
+  "includeInactive": zod.coerce.boolean().optional()
+})
+
+export const ListIaDepartmentsResponseItem = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string().datetime({"offset":true})
+})
+export const ListIaDepartmentsResponse = zod.array(ListIaDepartmentsResponseItem)
+
+
+/**
+ * @summary Create a new IA department
+ */
+export const CreateIaDepartmentBody = zod.object({
+  "name": zod.string(),
+  "isActive": zod.boolean().optional()
+})
+
+export const CreateIaDepartmentResponse = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string().datetime({"offset":true})
+})
+
+
+/**
+ * @summary Update an IA department
+ */
+export const UpdateIaDepartmentParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UpdateIaDepartmentBody = zod.object({
+  "name": zod.string().optional(),
+  "isActive": zod.boolean().optional()
+})
+
+export const UpdateIaDepartmentResponse = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "isActive": zod.boolean(),
+  "createdAt": zod.string().datetime({"offset":true})
+})
+
+
+/**
  * @summary List submissions
  */
 export const ListSubmissionsQueryParams = zod.object({
@@ -657,6 +761,10 @@ export const ListSubmissionsResponseItem = zod.object({
   "googleDriveUrl": zod.string(),
   "studentName": zod.string(),
   "studentEmail": zod.string(),
+  "iaAcademicYear": zod.string().nullish(),
+  "iaSemester": zod.string().nullish(),
+  "iaDepartment": zod.string().nullish(),
+  "iaType": zod.string().nullish(),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "adminNote": zod.string().nullish(),
   "rejectionReason": zod.string().nullish(),
@@ -681,7 +789,11 @@ export const CreateSubmissionBody = zod.object({
   "description": zod.string().optional(),
   "googleDriveUrl": zod.string(),
   "studentName": zod.string(),
-  "studentEmail": zod.string()
+  "studentEmail": zod.string(),
+  "iaAcademicYear": zod.string().optional(),
+  "iaSemester": zod.string().optional(),
+  "iaDepartment": zod.string().optional(),
+  "iaType": zod.string().optional()
 })
 
 export const CreateSubmissionResponse = zod.object({
@@ -696,6 +808,10 @@ export const CreateSubmissionResponse = zod.object({
   "googleDriveUrl": zod.string(),
   "studentName": zod.string(),
   "studentEmail": zod.string(),
+  "iaAcademicYear": zod.string().nullish(),
+  "iaSemester": zod.string().nullish(),
+  "iaDepartment": zod.string().nullish(),
+  "iaType": zod.string().nullish(),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "adminNote": zod.string().nullish(),
   "rejectionReason": zod.string().nullish(),
@@ -724,6 +840,10 @@ export const GetSubmissionResponse = zod.object({
   "googleDriveUrl": zod.string(),
   "studentName": zod.string(),
   "studentEmail": zod.string(),
+  "iaAcademicYear": zod.string().nullish(),
+  "iaSemester": zod.string().nullish(),
+  "iaDepartment": zod.string().nullish(),
+  "iaType": zod.string().nullish(),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "adminNote": zod.string().nullish(),
   "rejectionReason": zod.string().nullish(),
@@ -758,6 +878,10 @@ export const UpdateSubmissionResponse = zod.object({
   "googleDriveUrl": zod.string(),
   "studentName": zod.string(),
   "studentEmail": zod.string(),
+  "iaAcademicYear": zod.string().nullish(),
+  "iaSemester": zod.string().nullish(),
+  "iaDepartment": zod.string().nullish(),
+  "iaType": zod.string().nullish(),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "adminNote": zod.string().nullish(),
   "rejectionReason": zod.string().nullish(),
@@ -793,6 +917,10 @@ export const ApproveSubmissionResponse = zod.object({
   "googleDriveUrl": zod.string(),
   "studentName": zod.string(),
   "studentEmail": zod.string(),
+  "iaAcademicYear": zod.string().nullish(),
+  "iaSemester": zod.string().nullish(),
+  "iaDepartment": zod.string().nullish(),
+  "iaType": zod.string().nullish(),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "adminNote": zod.string().nullish(),
   "rejectionReason": zod.string().nullish(),
@@ -825,6 +953,10 @@ export const RejectSubmissionResponse = zod.object({
   "googleDriveUrl": zod.string(),
   "studentName": zod.string(),
   "studentEmail": zod.string(),
+  "iaAcademicYear": zod.string().nullish(),
+  "iaSemester": zod.string().nullish(),
+  "iaDepartment": zod.string().nullish(),
+  "iaType": zod.string().nullish(),
   "status": zod.enum(['pending', 'approved', 'rejected']),
   "adminNote": zod.string().nullish(),
   "rejectionReason": zod.string().nullish(),

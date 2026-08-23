@@ -14,6 +14,8 @@ import settingsRouter from "./settings";
 import analyticsRouter from "./analytics";
 import semesterQpsRouter from "./semester-qps";
 import iaPapersRouter from "./ia-papers";
+import semesterQpDepartmentsRouter from "./semester-qp-departments";
+import iaDepartmentsRouter from "./ia-departments";
 import { readSession } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -38,5 +40,6 @@ router.use(settingsRouter);
 router.use(analyticsRouter);
 router.use(semesterQpsRouter);
 router.use(iaPapersRouter);
-
+router.use(semesterQpDepartmentsRouter);
+router.use(iaDepartmentsRouter);
 export default router;

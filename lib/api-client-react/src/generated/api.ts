@@ -25,10 +25,15 @@ import type {
   Branch,
   BranchInput,
   BranchUpdate,
+  Department,
+  DepartmentInput,
+  DepartmentUpdate,
   ErrorResponse,
   HealthStatus,
   ListBranchesParams,
+  ListIaDepartmentsParams,
   ListResourcesParams,
+  ListSemesterQpDepartmentsParams,
   ListSemestersParams,
   ListSubjectsParams,
   ListSubmissionsParams,
@@ -2467,6 +2472,460 @@ export const useDeleteResource = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteResourceMutationOptions(options));
+    }
+
+export const getListSemesterQpDepartmentsUrl = (params?: ListSemesterQpDepartmentsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/semester-qp-departments?${stringifiedParams}` : `/api/semester-qp-departments`
+}
+
+/**
+ * @summary List all semester QP departments
+ */
+export const listSemesterQpDepartments = async (params?: ListSemesterQpDepartmentsParams, options?: Parameters<typeof customFetch>[1]): Promise<Department[]> => {
+
+  return customFetch<Department[]>(getListSemesterQpDepartmentsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSemesterQpDepartmentsQueryKey = (params?: ListSemesterQpDepartmentsParams,) => {
+    return [
+    `/api/semester-qp-departments`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListSemesterQpDepartmentsQueryOptions = <TData = Awaited<ReturnType<typeof listSemesterQpDepartments>>, TError = ErrorType<unknown>>(params?: ListSemesterQpDepartmentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSemesterQpDepartments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSemesterQpDepartmentsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSemesterQpDepartments>>> = ({ signal }) => listSemesterQpDepartments(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSemesterQpDepartments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSemesterQpDepartmentsQueryResult = NonNullable<Awaited<ReturnType<typeof listSemesterQpDepartments>>>
+export type ListSemesterQpDepartmentsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all semester QP departments
+ */
+
+export function useListSemesterQpDepartments<TData = Awaited<ReturnType<typeof listSemesterQpDepartments>>, TError = ErrorType<unknown>>(
+ params?: ListSemesterQpDepartmentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSemesterQpDepartments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSemesterQpDepartmentsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateSemesterQpDepartmentUrl = () => {
+
+
+
+
+  return `/api/semester-qp-departments`
+}
+
+/**
+ * @summary Create a new semester QP department
+ */
+export const createSemesterQpDepartment = async (departmentInput: DepartmentInput, options?: Parameters<typeof customFetch>[1]): Promise<Department> => {
+
+  return customFetch<Department>(getCreateSemesterQpDepartmentUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(departmentInput)
+  }
+);}
+
+
+
+
+
+export const getCreateSemesterQpDepartmentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSemesterQpDepartment>>, TError,{data: BodyType<DepartmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSemesterQpDepartment>>, TError,{data: BodyType<DepartmentInput>}, TContext> => {
+
+const mutationKey = ['createSemesterQpDepartment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSemesterQpDepartment>>, {data: BodyType<DepartmentInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createSemesterQpDepartment(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSemesterQpDepartmentMutationResult = NonNullable<Awaited<ReturnType<typeof createSemesterQpDepartment>>>
+    export type CreateSemesterQpDepartmentMutationBody = BodyType<DepartmentInput>
+    export type CreateSemesterQpDepartmentMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a new semester QP department
+ */
+export const useCreateSemesterQpDepartment = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSemesterQpDepartment>>, TError,{data: BodyType<DepartmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createSemesterQpDepartment>>,
+        TError,
+        {data: BodyType<DepartmentInput>},
+        TContext
+      > => {
+      return useMutation(getCreateSemesterQpDepartmentMutationOptions(options));
+    }
+
+export const getUpdateSemesterQpDepartmentUrl = (id: number,) => {
+
+
+
+
+  return `/api/semester-qp-departments/${id}`
+}
+
+/**
+ * @summary Update a semester QP department
+ */
+export const updateSemesterQpDepartment = async (id: number,
+    departmentUpdate: DepartmentUpdate, options?: Parameters<typeof customFetch>[1]): Promise<Department> => {
+
+  return customFetch<Department>(getUpdateSemesterQpDepartmentUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(departmentUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateSemesterQpDepartmentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSemesterQpDepartment>>, TError,{id: number;data: BodyType<DepartmentUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateSemesterQpDepartment>>, TError,{id: number;data: BodyType<DepartmentUpdate>}, TContext> => {
+
+const mutationKey = ['updateSemesterQpDepartment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateSemesterQpDepartment>>, {id: number;data: BodyType<DepartmentUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateSemesterQpDepartment(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateSemesterQpDepartmentMutationResult = NonNullable<Awaited<ReturnType<typeof updateSemesterQpDepartment>>>
+    export type UpdateSemesterQpDepartmentMutationBody = BodyType<DepartmentUpdate>
+    export type UpdateSemesterQpDepartmentMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a semester QP department
+ */
+export const useUpdateSemesterQpDepartment = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSemesterQpDepartment>>, TError,{id: number;data: BodyType<DepartmentUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateSemesterQpDepartment>>,
+        TError,
+        {id: number;data: BodyType<DepartmentUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateSemesterQpDepartmentMutationOptions(options));
+    }
+
+export const getListIaDepartmentsUrl = (params?: ListIaDepartmentsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/ia-departments?${stringifiedParams}` : `/api/ia-departments`
+}
+
+/**
+ * @summary List all IA departments
+ */
+export const listIaDepartments = async (params?: ListIaDepartmentsParams, options?: Parameters<typeof customFetch>[1]): Promise<Department[]> => {
+
+  return customFetch<Department[]>(getListIaDepartmentsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListIaDepartmentsQueryKey = (params?: ListIaDepartmentsParams,) => {
+    return [
+    `/api/ia-departments`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListIaDepartmentsQueryOptions = <TData = Awaited<ReturnType<typeof listIaDepartments>>, TError = ErrorType<unknown>>(params?: ListIaDepartmentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listIaDepartments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListIaDepartmentsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listIaDepartments>>> = ({ signal }) => listIaDepartments(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listIaDepartments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListIaDepartmentsQueryResult = NonNullable<Awaited<ReturnType<typeof listIaDepartments>>>
+export type ListIaDepartmentsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all IA departments
+ */
+
+export function useListIaDepartments<TData = Awaited<ReturnType<typeof listIaDepartments>>, TError = ErrorType<unknown>>(
+ params?: ListIaDepartmentsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listIaDepartments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListIaDepartmentsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateIaDepartmentUrl = () => {
+
+
+
+
+  return `/api/ia-departments`
+}
+
+/**
+ * @summary Create a new IA department
+ */
+export const createIaDepartment = async (departmentInput: DepartmentInput, options?: Parameters<typeof customFetch>[1]): Promise<Department> => {
+
+  return customFetch<Department>(getCreateIaDepartmentUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(departmentInput)
+  }
+);}
+
+
+
+
+
+export const getCreateIaDepartmentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createIaDepartment>>, TError,{data: BodyType<DepartmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createIaDepartment>>, TError,{data: BodyType<DepartmentInput>}, TContext> => {
+
+const mutationKey = ['createIaDepartment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createIaDepartment>>, {data: BodyType<DepartmentInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createIaDepartment(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateIaDepartmentMutationResult = NonNullable<Awaited<ReturnType<typeof createIaDepartment>>>
+    export type CreateIaDepartmentMutationBody = BodyType<DepartmentInput>
+    export type CreateIaDepartmentMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a new IA department
+ */
+export const useCreateIaDepartment = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createIaDepartment>>, TError,{data: BodyType<DepartmentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createIaDepartment>>,
+        TError,
+        {data: BodyType<DepartmentInput>},
+        TContext
+      > => {
+      return useMutation(getCreateIaDepartmentMutationOptions(options));
+    }
+
+export const getUpdateIaDepartmentUrl = (id: number,) => {
+
+
+
+
+  return `/api/ia-departments/${id}`
+}
+
+/**
+ * @summary Update an IA department
+ */
+export const updateIaDepartment = async (id: number,
+    departmentUpdate: DepartmentUpdate, options?: Parameters<typeof customFetch>[1]): Promise<Department> => {
+
+  return customFetch<Department>(getUpdateIaDepartmentUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(departmentUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateIaDepartmentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateIaDepartment>>, TError,{id: number;data: BodyType<DepartmentUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateIaDepartment>>, TError,{id: number;data: BodyType<DepartmentUpdate>}, TContext> => {
+
+const mutationKey = ['updateIaDepartment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateIaDepartment>>, {id: number;data: BodyType<DepartmentUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateIaDepartment(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateIaDepartmentMutationResult = NonNullable<Awaited<ReturnType<typeof updateIaDepartment>>>
+    export type UpdateIaDepartmentMutationBody = BodyType<DepartmentUpdate>
+    export type UpdateIaDepartmentMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update an IA department
+ */
+export const useUpdateIaDepartment = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateIaDepartment>>, TError,{id: number;data: BodyType<DepartmentUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateIaDepartment>>,
+        TError,
+        {id: number;data: BodyType<DepartmentUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateIaDepartmentMutationOptions(options));
     }
 
 export const getListSubmissionsUrl = (params?: ListSubmissionsParams,) => {

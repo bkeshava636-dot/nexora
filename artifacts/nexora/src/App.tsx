@@ -67,6 +67,13 @@ import {
   useListReports,
   useListResources,
   useListSemesterQps,
+  useListSemesterQpDepartments,
+  useCreateSemesterQpDepartment,
+  useUpdateSemesterQpDepartment,
+  useListIaDepartments,
+  useCreateIaDepartment,
+  useUpdateIaDepartment,
+
   useListIaPapers,
   useListSemesters,
   useRecordVisit,
@@ -1252,62 +1259,114 @@ function SubjectPage() {
 function ContributePage() {
   const [submitted, setSubmitted] = useState(false);
   const [submittedData, setSubmittedData] = useState<{ status: string; autoPublished?: boolean } | null>(null);
+  
+  const [contributionMode, setContributionMode] = useState<"resource" | "ia">("resource");
+
   const [branchId, setBranchId] = useState<number | undefined>(undefined);
   const [yearId, setYearId] = useState<number | undefined>(undefined);
   const [semesterId, setSemesterId] = useState<number | undefined>(undefined);
   const [subjectId, setSubjectId] = useState<number | undefined>(undefined);
   const [form, setForm] = useState({ resourceType: "Lecture notes" as ResourceType, title: "", description: "", googleDriveUrl: "", studentName: "", studentEmail: "" });
+  
+  const [iaForm, setIaForm] = useState({
+    iaAcademicYear: "1st Year",
+    iaSemester: "1st Semester • Odd",
+    iaDepartment: "",
+    iaType: "IA-1",
+    title: "",
+    googleDriveUrl: "",
+    studentName: "",
+    studentEmail: ""
+  });
+
   const [error, setError] = useState("");
   const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
+  const updateIa = (key: keyof typeof iaForm, value: string) => setIaForm((current) => ({ ...current, [key]: value }));
 
   const { data: branches = [] } = useListBranches();
   const { data: years = [] } = useListYears({ branchId: branchId as number }, qOpts(!!branchId));
   const { data: semesters = [] } = useListSemesters({ yearId: yearId as number }, qOpts(!!yearId));
   const { data: subjects = [] } = useListSubjects({ semesterId: semesterId as number }, qOpts(!!semesterId));
+  const { data: iaDepartments = [] } = useListIaDepartments({ includeInactive: false });
   const createSubmission = useCreateSubmission();
 
   useEffect(() => { if (branches.length && branchId === undefined) setBranchId(branches[0]?.id); }, [branches, branchId]);
   useEffect(() => { if (years.length) setYearId((current) => current && years.some((y) => y.id === current) ? current : years[0]?.id); else setYearId(undefined); }, [years]);
   useEffect(() => { if (semesters.length) setSemesterId((current) => current && semesters.some((s) => s.id === current) ? current : semesters[0]?.id); else setSemesterId(undefined); }, [semesters]);
   useEffect(() => { if (subjects.length) setSubjectId((current) => current && subjects.some((s) => s.id === current) ? current : subjects[0]?.id); else setSubjectId(undefined); }, [subjects]);
+  useEffect(() => { if (iaDepartments.length && !iaForm.iaDepartment) updateIa("iaDepartment", iaDepartments[0]?.name); }, [iaDepartments, iaForm.iaDepartment]);
+  
+  // Auto-generate title for IA
+  useEffect(() => {
+    if (contributionMode === "ia") {
+      updateIa("title", `${iaForm.iaAcademicYear} • ${iaForm.iaSemester} • ${iaForm.iaDepartment} • ${iaForm.iaType}`);
+    }
+  }, [iaForm.iaAcademicYear, iaForm.iaSemester, iaForm.iaDepartment, iaForm.iaType, contributionMode]);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (createSubmission.isPending) return;
-    if (!form.title.trim() || !form.studentName.trim() || !form.studentEmail.trim()) {
-      setError("Please fill in the required fields before sending.");
-      return;
+    
+    if (contributionMode === "resource") {
+      if (!form.title.trim() || !form.studentName.trim() || !form.studentEmail.trim()) {
+        setError("Please fill in the required fields before sending.");
+        return;
+      }
+      if (!form.googleDriveUrl.trim() || !isValidGoogleDriveUrl(form.googleDriveUrl)) {
+        setError("Please enter a valid Google Drive link.");
+        return;
+      }
+      if (!subjectId) {
+        setError("Please choose a branch, year, semester, and subject before sending.");
+        return;
+      }
+      createSubmission.mutate({ data: { ...form, branchId, yearId, semesterId, subjectId } }, {
+        onSuccess: (data: Submission & { autoPublished?: boolean }) => {
+          const isAuto = data.status === "approved" || Boolean(data.autoPublished);
+          setSubmittedData({ status: data.status, autoPublished: isAuto });
+          setSubmitted(true);
+          setError("");
+          if (isAuto) {
+            toast({ title: "Resource published successfully!", description: "You can now find it in the resource library." });
+          } else {
+            toast({ title: "Resource submitted successfully!", description: "Your submission will appear after admin review." });
+          }
+        },
+        onError: (err) => setError(getErrorMessage(err) || "Unable to submit the resource. Please try again."),
+      });
+    } else {
+      // IA submission
+      if (!iaForm.title.trim() || !iaForm.studentName.trim() || !iaForm.studentEmail.trim() || !iaForm.iaDepartment.trim()) {
+        setError("Please fill in the required fields before sending.");
+        return;
+      }
+      if (!iaForm.googleDriveUrl.trim() || !isValidGoogleDriveUrl(iaForm.googleDriveUrl)) {
+        setError("Please enter a valid Google Drive link.");
+        return;
+      }
+      createSubmission.mutate({ 
+        data: { 
+          resourceType: "Internal Assessment" as ResourceType,
+          title: iaForm.title,
+          description: "Internal Assessment submission",
+          googleDriveUrl: iaForm.googleDriveUrl,
+          studentName: iaForm.studentName,
+          studentEmail: iaForm.studentEmail,
+          iaAcademicYear: iaForm.iaAcademicYear,
+          iaSemester: iaForm.iaSemester,
+          iaDepartment: iaForm.iaDepartment,
+          iaType: iaForm.iaType
+        } 
+      }, {
+        onSuccess: (data: Submission) => {
+          setSubmittedData({ status: data.status, autoPublished: false });
+          setSubmitted(true);
+          setError("");
+          toast({ title: "IA paper submitted successfully!", description: "It will appear after admin review." });
+        },
+        onError: (err) => setError(getErrorMessage(err) || "Unable to submit the paper. Please try again."),
+      });
     }
-    if (!form.googleDriveUrl.trim() || !isValidGoogleDriveUrl(form.googleDriveUrl)) {
-      setError("Please enter a valid Google Drive link.");
-      return;
-    }
-    if (!subjectId) {
-      setError("Please choose a branch, year, semester, and subject before sending.");
-      return;
-    }
-    createSubmission.mutate({ data: { ...form, branchId, yearId, semesterId, subjectId } }, {
-      onSuccess: (data: Submission & { autoPublished?: boolean }) => {
-        const isAuto = data.status === "approved" || Boolean(data.autoPublished);
-        setSubmittedData({ status: data.status, autoPublished: isAuto });
-        setSubmitted(true);
-        setError("");
-        if (isAuto) {
-          toast({
-            title: "Resource published successfully!",
-            description: "You can now find it in the resource library.",
-          });
-        } else {
-          toast({
-            title: "Resource submitted successfully!",
-            description: "Your submission will appear after admin review.",
-          });
-        }
-      },
-      onError: (err) => {
-        setError(getErrorMessage(err) || "Unable to submit the resource. Please try again.");
-      },
-    });
   };
 
   if (submitted) {
@@ -1322,7 +1381,7 @@ function ContributePage() {
             {isAuto ? "Published to library" : "In the review queue"}
           </p>
           <h1 className="display-font mt-2 text-3xl font-bold tracking-[-.05em] sm:text-4xl">
-            {isAuto ? "Resource published successfully!" : "Resource submitted successfully!"}
+            {isAuto ? "Published successfully!" : "Submitted successfully!"}
           </h1>
           <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-[hsl(var(--muted-foreground))]">
             {isAuto
@@ -1343,6 +1402,7 @@ function ContributePage() {
                 setSubmitted(false);
                 setSubmittedData(null);
                 setForm({ ...form, title: "", description: "", googleDriveUrl: "" });
+                setIaForm({ ...iaForm, title: "", googleDriveUrl: "" });
                 setError("");
               }}
               className="focus-ring rounded-xl border border-[hsl(var(--border))] px-5 py-3 text-sm font-bold"
@@ -1357,37 +1417,114 @@ function ContributePage() {
   }
 
   return <div className="mx-auto max-w-4xl px-4 py-8 sm:px-7 sm:py-12"><Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Contribute" }]} /><div className="mb-8 max-w-2xl"><p className="micro-label mb-2 text-[hsl(var(--accent-foreground))]">Give back a little</p><h1 className="display-font text-4xl font-bold tracking-[-.05em] sm:text-5xl">Put a useful file<br />in the right hands.</h1><p className="mt-4 text-sm leading-6 text-[hsl(var(--muted-foreground))]">Share material you trust. We review every submission before it becomes part of the library.</p></div>
-    <section className="mb-8 rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.6)] p-5 sm:p-7" aria-labelledby="how-to-contribute-title" data-testid="section-how-to-contribute">
-      <div className="flex items-center gap-2 mb-3.5">
-        <Sparkles size={16} className="text-[hsl(var(--accent-foreground))]" />
-        <h2 id="how-to-contribute-title" className="text-sm font-bold tracking-tight text-[hsl(var(--foreground))]">How to contribute</h2>
-      </div>
-      <ol className="space-y-2.5 text-xs leading-5 text-[hsl(var(--muted-foreground))] list-none p-0 m-0">
-        <li className="flex items-start gap-2.5">
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--muted))] text-[11px] font-bold text-[hsl(var(--foreground))]">1</span>
-          <span>Upload your notes/PYQs/study material to Google Drive.</span>
-        </li>
-        <li className="flex items-start gap-2.5">
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--muted))] text-[11px] font-bold text-[hsl(var(--foreground))]">2</span>
-          <span>Make sure the file can be accessed through the shared link.</span>
-        </li>
-        <li className="flex items-start gap-2.5">
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--muted))] text-[11px] font-bold text-[hsl(var(--foreground))]">3</span>
-          <span>Copy the Google Drive link.</span>
-        </li>
-        <li className="flex items-start gap-2.5">
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--muted))] text-[11px] font-bold text-[hsl(var(--foreground))]">4</span>
-          <span>Paste the link into Nexora and submit.</span>
-        </li>
-        <li className="flex items-start gap-2.5">
-          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--secondary)/.3)] text-[11px] font-bold text-[hsl(var(--secondary-foreground))]">5</span>
-          <span>The admin will review it before it appears on Nexora.</span>
-        </li>
-      </ol>
-    </section>
-    <form onSubmit={submit} className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.78)] p-5 sm:p-8"><FormSection title="Where does it belong?"><div className="grid gap-4 sm:grid-cols-2"><Field label="Branch" required><select value={branchId ?? ""} onChange={(e) => setBranchId(Number(e.target.value))} className="input-style" data-testid="select-contribution-branch">{branches.map((item) => <option key={item.id} value={item.id}>{item.shortName} — {item.name}</option>)}</select></Field><Field label="Subject" required><select value={subjectId ?? ""} onChange={(e) => setSubjectId(Number(e.target.value))} className="input-style" data-testid="select-contribution-subject">{subjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="Year" required><select value={yearId ?? ""} onChange={(e) => setYearId(Number(e.target.value))} className="input-style" data-testid="select-contribution-year">{years.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field><Field label="Semester" required><select value={semesterId ?? ""} onChange={(e) => setSemesterId(Number(e.target.value))} className="input-style" data-testid="select-contribution-semester">{semesters.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field></div></FormSection><FormSection title="Tell us about it"><div className="grid gap-4"><Field label="Resource type" required><select value={form.resourceType} onChange={(e) => update("resourceType", e.target.value)} className="input-style" data-testid="select-contribution-type">{resourceTypes.map((item) => <option key={item}>{item}</option>)}</select></Field><Field label="Title" required><input value={form.title} onChange={(e) => update("title", e.target.value)} className="input-style" placeholder="e.g. Data Structures revision notes" data-testid="input-contribution-title" /></Field><Field label="Short description"><textarea value={form.description} onChange={(e) => update("description", e.target.value)} className="input-style min-h-24 resize-y" placeholder="What will a student find inside?" data-testid="textarea-contribution-description" /></Field><Field label="Google Drive link" required hint={`${googleDriveUrlHint} Also make sure link access is set to "Anyone with the link".`}><div className="relative"><Link2 className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" size={16} /><input value={form.googleDriveUrl} onChange={(e) => update("googleDriveUrl", e.target.value)} className="input-style pl-11" placeholder="https://drive.google.com/..." data-testid="input-contribution-url" /></div></Field></div></FormSection><FormSection title="A little about you"><div className="grid gap-4 sm:grid-cols-2"><Field label="Your name" required><input value={form.studentName} onChange={(e) => update("studentName", e.target.value)} className="input-style" placeholder="How should we credit you?" data-testid="input-contribution-name" /></Field><Field label="College email" required><input type="email" value={form.studentEmail} onChange={(e) => update("studentEmail", e.target.value)} className="input-style" placeholder="you@college.edu" data-testid="input-contribution-email" /></Field></div></FormSection>{error && <div className="mb-4 flex items-start gap-2 rounded-xl bg-[hsl(var(--destructive)/.1)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert" data-testid="status-contribution-error"><CircleAlert size={15} className="mt-0.5 shrink-0" />{error}</div>}<div className="flex flex-col items-start justify-between gap-4 border-t border-[hsl(var(--border))] pt-5 sm:flex-row sm:items-center"><p className="text-xs leading-5 text-[hsl(var(--muted-foreground))]">Submissions are checked by the Nexora student team.</p><button type="submit" disabled={createSubmission.isPending} className="focus-ring inline-flex items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-5 py-3 text-sm font-bold text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-60 w-full sm:w-auto" data-testid="button-submit-contribution">{createSubmission.isPending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} Send for review</button></div></form></div>;
-}
+    
+    <div className="mb-6 flex gap-4">
+      <button 
+        type="button" 
+        onClick={() => setContributionMode("resource")} 
+        className={`focus-ring px-5 py-2.5 rounded-xl text-sm font-bold transition-colors ${contributionMode === "resource" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "bg-[hsl(var(--secondary)/.15)] text-[hsl(var(--secondary-foreground))] hover:bg-[hsl(var(--secondary)/.3)]"}`}
+      >
+        Resource
+      </button>
+      <button 
+        type="button" 
+        onClick={() => setContributionMode("ia")} 
+        className={`focus-ring px-5 py-2.5 rounded-xl text-sm font-bold transition-colors ${contributionMode === "ia" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "bg-[hsl(var(--secondary)/.15)] text-[hsl(var(--secondary-foreground))] hover:bg-[hsl(var(--secondary)/.3)]"}`}
+      >
+        Internal Assessment Paper
+      </button>
+    </div>
 
+    <form onSubmit={submit} className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.78)] p-5 sm:p-8">
+      {contributionMode === "resource" ? (
+        <>
+          <FormSection title="Where does it belong?">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Branch" required><select value={branchId ?? ""} onChange={(e) => setBranchId(Number(e.target.value))} className="input-style">{branches.map((item) => <option key={item.id} value={item.id}>{item.shortName} — {item.name}</option>)}</select></Field>
+              <Field label="Subject" required><select value={subjectId ?? ""} onChange={(e) => setSubjectId(Number(e.target.value))} className="input-style">{subjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+              <Field label="Year" required><select value={yearId ?? ""} onChange={(e) => setYearId(Number(e.target.value))} className="input-style">{years.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+              <Field label="Semester" required><select value={semesterId ?? ""} onChange={(e) => setSemesterId(Number(e.target.value))} className="input-style">{semesters.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+            </div>
+          </FormSection>
+          <FormSection title="Tell us about it">
+            <div className="grid gap-4">
+              <Field label="Resource type" required><select value={form.resourceType} onChange={(e) => update("resourceType", e.target.value)} className="input-style">{resourceTypes.map((item) => <option key={item}>{item}</option>)}</select></Field>
+              <Field label="Title" required><input value={form.title} onChange={(e) => update("title", e.target.value)} className="input-style" placeholder="e.g. Data Structures revision notes" /></Field>
+              <Field label="Short description"><textarea value={form.description} onChange={(e) => update("description", e.target.value)} className="input-style min-h-24 resize-y" placeholder="What will a student find inside?" /></Field>
+              <Field label="Google Drive link" required hint={`${googleDriveUrlHint} Also make sure link access is set to "Anyone with the link".`}><div className="relative"><Link2 className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" size={16} /><input value={form.googleDriveUrl} onChange={(e) => update("googleDriveUrl", e.target.value)} className="input-style pl-11" placeholder="https://drive.google.com/..." /></div></Field>
+            </div>
+          </FormSection>
+          <FormSection title="A little about you">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Your name" required><input value={form.studentName} onChange={(e) => update("studentName", e.target.value)} className="input-style" placeholder="How should we credit you?" /></Field>
+              <Field label="College email" required><input type="email" value={form.studentEmail} onChange={(e) => update("studentEmail", e.target.value)} className="input-style" placeholder="you@college.edu" /></Field>
+            </div>
+          </FormSection>
+        </>
+      ) : (
+        <>
+          <FormSection title="IA Details">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Year" required>
+                <select value={iaForm.iaAcademicYear} onChange={(e) => updateIa("iaAcademicYear", e.target.value)} className="input-style">
+                  <option>1st Year</option>
+                  <option>2nd Year</option>
+                  <option>3rd Year</option>
+                  <option>4th Year</option>
+                </select>
+              </Field>
+              <Field label="Semester" required>
+                <select value={iaForm.iaSemester} onChange={(e) => updateIa("iaSemester", e.target.value)} className="input-style">
+                  <option>1st Semester • Odd</option>
+                  <option>2nd Semester • Even</option>
+                  <option>3rd Semester</option>
+                  <option>4th Semester</option>
+                  <option>5th Semester</option>
+                  <option>6th Semester</option>
+                  <option>7th Semester</option>
+                  <option>8th Semester</option>
+                </select>
+              </Field>
+              <Field label="Department / Stream" required>
+                <select value={iaForm.iaDepartment} onChange={(e) => updateIa("iaDepartment", e.target.value)} className="input-style">
+                  {iaDepartments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
+                </select>
+              </Field>
+              <Field label="IA Type" required>
+                <select value={iaForm.iaType} onChange={(e) => updateIa("iaType", e.target.value)} className="input-style">
+                  <option>IA-1</option>
+                  <option>IA-2</option>
+                  <option>IA-3</option>
+                  <option>Other</option>
+                </select>
+              </Field>
+              <Field label="Title" required>
+                <input value={iaForm.title} onChange={(e) => updateIa("title", e.target.value)} className="input-style" />
+              </Field>
+              <Field label="Google Drive link" required hint="Make sure your Google Drive file or folder is shared so students with the link can view it.">
+                <div className="relative"><Link2 className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" size={16} /><input value={iaForm.googleDriveUrl} onChange={(e) => updateIa("googleDriveUrl", e.target.value)} className="input-style pl-11" placeholder="https://drive.google.com/..." /></div>
+              </Field>
+            </div>
+          </FormSection>
+          <FormSection title="A little about you">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Your name" required><input value={iaForm.studentName} onChange={(e) => updateIa("studentName", e.target.value)} className="input-style" placeholder="How should we credit you?" /></Field>
+              <Field label="College email" required><input type="email" value={iaForm.studentEmail} onChange={(e) => updateIa("studentEmail", e.target.value)} className="input-style" placeholder="you@college.edu" /></Field>
+            </div>
+          </FormSection>
+        </>
+      )}
+
+      {error && <div className="mb-4 mt-6 flex items-start gap-2 rounded-xl bg-[hsl(var(--destructive)/.1)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert"><CircleAlert size={15} className="mt-0.5 shrink-0" />{error}</div>}
+      <div className="mt-6 flex flex-col items-start justify-between gap-4 border-t border-[hsl(var(--border))] pt-5 sm:flex-row sm:items-center">
+        <p className="text-xs leading-5 text-[hsl(var(--muted-foreground))]">Submissions are checked by the Nexora student team.</p>
+        <button type="submit" disabled={createSubmission.isPending} className="focus-ring inline-flex items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-5 py-3 text-sm font-bold text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-60 w-full sm:w-auto">
+          {createSubmission.isPending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} Send for review
+        </button>
+      </div>
+    </form>
+  </div>;
+}
 function FormSection({ title, children }: { title: string; children: ReactNode }) { return <fieldset className="border-b border-[hsl(var(--border))] py-6 first:pt-0 last:border-0"><legend className="mb-4 text-sm font-bold">{title}</legend>{children}</fieldset>; }
 function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: ReactNode }) { return <label className="block"><span className="mb-1.5 block text-xs font-bold">{label}{required && <span className="ml-1 text-[hsl(var(--destructive))]">*</span>}</span>{children}{hint && <span className="mt-1.5 block text-[11px] leading-4 text-[hsl(var(--muted-foreground))]">{hint}</span>}</label>; }
 
@@ -4961,7 +5098,7 @@ function getIaSemesterLabel(sem: string): string {
 }
 
 function PyqsPage() {
-  const [activeTab, setActiveTab] = useState<"semester" | "ia">(() => {
+  const [activeTab, setActiveTab] = useState<"semester" | "ia" | "ia_contributions">(() => {
     if (typeof window !== "undefined") {
       const sp = new URLSearchParams(window.location.search);
       const tabParam = sp.get("tab") || sp.get("type");
@@ -4970,7 +5107,7 @@ function PyqsPage() {
     return "semester";
   });
 
-  const handleTabChange = (tab: "semester" | "ia") => {
+  const handleTabChange = (tab: "semester" | "ia" | "ia_contributions") => {
     setActiveTab(tab);
     if (typeof window !== "undefined") {
       const sp = new URLSearchParams(window.location.search);
@@ -5931,6 +6068,10 @@ function AdminPyqs() {
 }
 
 function AdminSemesterQpsSection() {
+  const [deptManagerOpen, setDeptManagerOpen] = useState(false);
+  const { data: semQpDepts = [] } = useListSemesterQpDepartments({ includeInactive: true });
+  const createSemQpDept = useCreateSemesterQpDepartment();
+  const updateSemQpDept = useUpdateSemesterQpDepartment();
   const [search, setSearch] = useState("");
   const [yearFilter, setYearFilter] = useState("All");
   const [semesterFilter, setSemesterFilter] = useState("All");
@@ -6320,6 +6461,10 @@ function AdminSemesterQpsSection() {
 }
 
 function AdminIaPapersSection() {
+  const [deptManagerOpen, setDeptManagerOpen] = useState(false);
+  const { data: iaDepts = [] } = useListIaDepartments({ includeInactive: true });
+  const createIaDept = useCreateIaDepartment();
+  const updateIaDept = useUpdateIaDepartment();
   const [search, setSearch] = useState("");
   const [yearFilter, setYearFilter] = useState("All");
   const [semesterFilter, setSemesterFilter] = useState("All");
@@ -8216,3 +8361,116 @@ function App() {
 
 export default App;
 
+
+
+function AdminIaContributionsSection() {
+  const [activeStatus, setActiveStatus] = useState<"pending" | "approved" | "rejected">("pending");
+  const [page, setPage] = useState(1);
+  const [rejectingId, setRejectingId] = useState<number | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+
+  const { data: listResp, isLoading } = useListSubmissions(
+    { status: activeStatus, page, limit: 20 },
+    qOpts(true)
+  );
+
+  const approveSubmission = useApproveSubmission();
+  const rejectSubmission = useRejectSubmission();
+
+  const handleApprove = (item: Submission) => {
+    approveSubmission.mutate(
+      { id: item.id, data: { isVerified: true, isFeatured: false } },
+      {
+        onSuccess: () => toast({ title: "Approved successfully", description: "The IA paper is now public." }),
+        onError: (err) => toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" })
+      }
+    );
+  };
+
+  const handleReject = () => {
+    if (rejectingId === null) return;
+    rejectSubmission.mutate(
+      { id: rejectingId, data: { rejectionReason: rejectReason } },
+      {
+        onSuccess: () => {
+          toast({ title: "Rejected successfully" });
+          setRejectingId(null);
+          setRejectReason("");
+        },
+        onError: (err) => toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" })
+      }
+    );
+  };
+
+  // Filter out non-IA submissions client-side if they happen to bleed through
+  const items = (listResp?.items || []).filter(item => item.resourceType === "Internal Assessment");
+
+  return (
+    <div className="space-y-6">
+      <div className="flex border-b border-[hsl(var(--border))]">
+        {(["pending", "approved", "rejected"] as const).map((s) => (
+          <button
+            key={s}
+            onClick={() => { setActiveStatus(s); setPage(1); }}
+            className={`px-4 py-2 text-xs font-bold capitalize border-b-2 ${activeStatus === s ? "border-[hsl(var(--secondary))] text-[hsl(var(--foreground))]" : "border-transparent text-[hsl(var(--muted-foreground))]"}`}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-4">
+        {isLoading ? (
+          <div className="p-8 text-center"><Loader2 className="animate-spin mx-auto text-[hsl(var(--muted-foreground))]" /></div>
+        ) : items.length === 0 ? (
+          <div className="p-8 text-center text-xs text-[hsl(var(--muted-foreground))]">No {activeStatus} IA contributions found.</div>
+        ) : (
+          items.map(item => (
+            <div key={item.id} className="border border-[hsl(var(--border))] bg-[hsl(var(--card))] rounded-xl p-4 flex flex-col gap-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="font-bold text-sm">{item.title}</h3>
+                  <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                    {item.iaAcademicYear} • {item.iaSemester} • {item.iaDepartment} • {item.iaType}
+                  </div>
+                  <div className="text-[10px] text-[hsl(var(--muted-foreground))] mt-2 border border-[hsl(var(--border))] rounded bg-[hsl(var(--background))] px-2 py-1 inline-block">
+                    By {item.studentName} ({item.studentEmail}) on {new Date(item.submittedAt).toLocaleDateString()}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <a href={item.googleDriveUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-[hsl(var(--primary))] hover:underline self-end">
+                    View Drive Link
+                  </a>
+                  {activeStatus === "pending" && (
+                    <div className="flex gap-2">
+                      <button onClick={() => setRejectingId(item.id)} className="px-3 py-1 text-xs font-bold bg-[hsl(var(--destructive)/.1)] text-[hsl(var(--destructive))] rounded-lg">Reject</button>
+                      <button onClick={() => handleApprove(item)} className="px-3 py-1 text-xs font-bold bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-lg">Approve</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {rejectingId && (
+        <Dialog open={true} onOpenChange={() => { setRejectingId(null); setRejectReason(""); }}>
+          <DialogContent className="sm:max-w-md p-6 rounded-3xl">
+            <DialogHeader><DialogTitle>Reject IA Contribution</DialogTitle></DialogHeader>
+            <textarea
+              className="input-style min-h-24 mt-4"
+              placeholder="Reason for rejection (optional)"
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+            />
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setRejectingId(null)} className="px-4 py-2 font-bold text-xs">Cancel</button>
+              <button onClick={handleReject} disabled={rejectSubmission.isPending} className="px-4 py-2 bg-[hsl(var(--destructive))] text-white font-bold rounded-xl text-xs">Reject</button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
+  );
+}
