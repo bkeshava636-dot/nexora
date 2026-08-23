@@ -29,6 +29,8 @@ import {
   getListResourcesQueryKey,
   getListSemesterQpsQueryKey,
   getListSemestersQueryKey,
+  getListIaDepartmentsQueryKey,
+  getListSemesterQpDepartmentsQueryKey,
   getListSubjectsQueryKey,
   getListSubmissionsQueryKey,
   getListYearsQueryKey,
@@ -6167,10 +6169,11 @@ function DepartmentManagerDialog({
 
 
 function AdminSemesterQpsSection() {
+  const queryClient = useQueryClient();
   const [deptManagerOpen, setDeptManagerOpen] = useState(false);
   const { data: semQpDepts = [] } = useListSemesterQpDepartments({ includeInactive: true });
-  const createSemQpDept = useCreateSemesterQpDepartment();
-  const updateSemQpDept = useUpdateSemesterQpDepartment();
+  const createSemQpDept = useCreateSemesterQpDepartment({ mutation: { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListSemesterQpDepartmentsQueryKey() }) } });
+  const updateSemQpDept = useUpdateSemesterQpDepartment({ mutation: { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListSemesterQpDepartmentsQueryKey() }) } });
 
   const [search, setSearch] = useState("");
   const [yearFilter, setYearFilter] = useState("All");
@@ -6579,10 +6582,11 @@ function AdminSemesterQpsSection() {
 }
 
 function AdminIaPapersSection() {
+  const queryClient = useQueryClient();
   const [deptManagerOpen, setDeptManagerOpen] = useState(false);
   const { data: iaDepts = [] } = useListIaDepartments({ includeInactive: true });
-  const createIaDept = useCreateIaDepartment();
-  const updateIaDept = useUpdateIaDepartment();
+  const createIaDept = useCreateIaDepartment({ mutation: { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListIaDepartmentsQueryKey() }) } });
+  const updateIaDept = useUpdateIaDepartment({ mutation: { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListIaDepartmentsQueryKey() }) } });
 
   const [search, setSearch] = useState("");
   const [yearFilter, setYearFilter] = useState("All");
