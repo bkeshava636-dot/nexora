@@ -34,15 +34,15 @@ router.get("/semester-qps", async (req, res) => {
       conditions.push(eq(semesterQps.isPublished, isPublished === "true"));
     }
 
-    if (typeof examYear === "string" && examYear.trim() && examYear !== "all") {
+    if (typeof examYear === "string" && examYear.trim() && examYear.trim().toLowerCase() !== "all") {
       conditions.push(eq(semesterQps.examYear, examYear.trim()));
     }
 
-    if (typeof semester === "string" && semester.trim() && semester !== "all") {
+    if (typeof semester === "string" && semester.trim() && semester.trim().toLowerCase() !== "all") {
       conditions.push(eq(semesterQps.semester, semester.trim()));
     }
 
-    if (typeof department === "string" && department.trim() && department !== "all") {
+    if (typeof department === "string" && department.trim() && department.trim().toLowerCase() !== "all") {
       conditions.push(eq(semesterQps.department, department.trim()));
     }
 

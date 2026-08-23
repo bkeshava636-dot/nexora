@@ -22,19 +22,19 @@ router.get("/ia-papers", async (req, res) => {
       conditions.push(eq(iaPapers.isPublished, isPublished === "true"));
     }
 
-    if (typeof academicYear === "string" && academicYear.trim() && academicYear !== "all") {
+    if (typeof academicYear === "string" && academicYear.trim() && academicYear.trim().toLowerCase() !== "all") {
       conditions.push(eq(iaPapers.academicYear, academicYear.trim()));
     }
 
-    if (typeof semester === "string" && semester.trim() && semester !== "all") {
+    if (typeof semester === "string" && semester.trim() && semester.trim().toLowerCase() !== "all") {
       conditions.push(eq(iaPapers.semester, semester.trim()));
     }
 
-    if (typeof department === "string" && department.trim() && department !== "all") {
+    if (typeof department === "string" && department.trim() && department.trim().toLowerCase() !== "all") {
       conditions.push(eq(iaPapers.department, department.trim()));
     }
 
-    if (typeof iaType === "string" && iaType.trim() && iaType !== "all") {
+    if (typeof iaType === "string" && iaType.trim() && iaType.trim().toLowerCase() !== "all") {
       conditions.push(eq(iaPapers.iaType, iaType.trim()));
     }
 
