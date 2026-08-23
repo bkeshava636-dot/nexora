@@ -74,6 +74,13 @@ import {
   useCreateIaDepartment,
   useUpdateIaDepartment,
 
+  useListSemesterQpDepartments,
+  useCreateSemesterQpDepartment,
+  useUpdateSemesterQpDepartment,
+  useListIaDepartments,
+  useCreateIaDepartment,
+  useUpdateIaDepartment,
+
   useListIaPapers,
   useListSemesters,
   useRecordVisit,
@@ -6013,7 +6020,7 @@ function PyqsIaSection() {
 }
 
 function AdminPyqs() {
-  const [activeTab, setActiveTab] = useState<"semester" | "ia">(() => {
+  const [activeTab, setActiveTab] = useState<"semester" | "ia" | "ia_contributions">(() => {
     if (typeof window !== "undefined") {
       const sp = new URLSearchParams(window.location.search);
       const tabParam = sp.get("tab") || sp.get("type");
@@ -6022,7 +6029,7 @@ function AdminPyqs() {
     return "semester";
   });
 
-  const handleTabChange = (tab: "semester" | "ia") => {
+  const handleTabChange = (tab: "semester" | "ia" | "ia_contributions") => {
     setActiveTab(tab);
     if (typeof window !== "undefined") {
       const sp = new URLSearchParams(window.location.search);
@@ -6072,6 +6079,7 @@ function AdminSemesterQpsSection() {
   const { data: semQpDepts = [] } = useListSemesterQpDepartments({ includeInactive: true });
   const createSemQpDept = useCreateSemesterQpDepartment();
   const updateSemQpDept = useUpdateSemesterQpDepartment();
+
   const [search, setSearch] = useState("");
   const [yearFilter, setYearFilter] = useState("All");
   const [semesterFilter, setSemesterFilter] = useState("All");
@@ -6208,7 +6216,15 @@ function AdminSemesterQpsSection() {
             Manage question paper archives, department links, resource types, and publish states.
           </p>
         </div>
-        <button
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setDeptManagerOpen(true)}
+            className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--secondary)/.15)] px-4 py-2.5 text-xs font-bold text-[hsl(var(--secondary-foreground))] transition-colors cursor-pointer w-fit"
+          >
+            Manage Departments
+          </button>
+          <button
           type="button"
           onClick={() => setCreateOpen(true)}
           className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--primary-foreground))] shadow-xs hover:bg-[hsl(var(--primary)/.9)] transition-colors cursor-pointer w-fit"
@@ -6216,7 +6232,17 @@ function AdminSemesterQpsSection() {
         >
           <Plus size={15} /> Add Semester QP
         </button>
+        </div>
       </div>
+      
+      <DepartmentManagerDialog
+        open={deptManagerOpen}
+        onOpenChange={setDeptManagerOpen}
+        title="Semester QP Departments"
+        departments={semQpDepts}
+        createDepartment={createSemQpDept}
+        updateDepartment={updateSemQpDept}
+      />
 
       {/* Filters Bar */}
       <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 space-y-3">
@@ -6465,6 +6491,7 @@ function AdminIaPapersSection() {
   const { data: iaDepts = [] } = useListIaDepartments({ includeInactive: true });
   const createIaDept = useCreateIaDepartment();
   const updateIaDept = useUpdateIaDepartment();
+
   const [search, setSearch] = useState("");
   const [yearFilter, setYearFilter] = useState("All");
   const [semesterFilter, setSemesterFilter] = useState("All");
@@ -6588,7 +6615,15 @@ function AdminIaPapersSection() {
             Manage continuous internal evaluation papers, Google Drive share links, and publish states.
           </p>
         </div>
-        <button
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setDeptManagerOpen(true)}
+            className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--secondary)/.15)] px-4 py-2.5 text-xs font-bold text-[hsl(var(--secondary-foreground))] transition-colors cursor-pointer w-fit"
+          >
+            Manage Departments
+          </button>
+          <button
           type="button"
           onClick={() => setCreateOpen(true)}
           className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--primary-foreground))] shadow-xs hover:bg-[hsl(var(--primary)/.9)] transition-colors cursor-pointer w-fit"
@@ -6596,7 +6631,17 @@ function AdminIaPapersSection() {
         >
           <Plus size={15} /> Add IA Paper
         </button>
+        </div>
       </div>
+      
+      <DepartmentManagerDialog
+        open={deptManagerOpen}
+        onOpenChange={setDeptManagerOpen}
+        title="IA Departments"
+        departments={iaDepts}
+        createDepartment={createIaDept}
+        updateDepartment={updateIaDept}
+      />
 
       {/* Filters Bar */}
       <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 space-y-3">
@@ -8474,3 +8519,5 @@ function AdminIaContributionsSection() {
     </div>
   );
 }
+
+
