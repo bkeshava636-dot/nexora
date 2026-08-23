@@ -1,4 +1,4 @@
-﻿import { Router, type IRouter } from "express";
+import { Router, type IRouter } from "express";
 import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { db, ensureTables, iaPapers } from "@workspace/db";
 import { requireAdmin } from "../middlewares/auth";
@@ -69,10 +69,26 @@ router.get("/ia-papers", async (req, res) => {
     res.json(rows);
   } catch (err: unknown) {
     const pgErr = (err as { cause?: { code?: string }; code?: string })?.cause || (err as { code?: string });
-    if (pgErr?.code === "42P01") {
-      await ensureTables();
-      res.json([]);
-      return;
+    if (pgErr?.code === "42P01" || pgErr?.code === "42703") {
+      try {
+        await ensureTables();
+        const retryRows = await db
+          .select()
+          .from(iaPapers)
+          .where(eq(iaPapers.isPublished, true))
+          .orderBy(
+            asc(iaPapers.academicYear),
+            asc(iaPapers.semester),
+            asc(iaPapers.department),
+            asc(iaPapers.iaType),
+            asc(iaPapers.displayOrder),
+            desc(iaPapers.createdAt),
+          );
+        res.json(retryRows);
+        return;
+      } catch (retryErr) {
+        logger.error({ retryErr }, "Retry IA fetch after table creation failed");
+      }
     }
     if (!handleDbError(err, res)) {
       logger.error({ err }, "Error fetching IA papers");

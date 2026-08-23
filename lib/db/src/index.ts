@@ -16,8 +16,8 @@ export const db = drizzle(pool, { schema });
 export async function ensureTables(): Promise<void> {
   const client = await pool.connect();
   try {
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS "reports" (
+    const ddlQueries = [
+      `CREATE TABLE IF NOT EXISTS "reports" (
         "id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
         "resource_id" integer NOT NULL REFERENCES "resources"("id") ON DELETE CASCADE,
         "reason" text NOT NULL,
@@ -26,12 +26,11 @@ export async function ensureTables(): Promise<void> {
         "created_at" timestamp with time zone NOT NULL DEFAULT now(),
         "resolved_at" timestamp with time zone,
         "resolved_by" text
-      );
-      CREATE INDEX IF NOT EXISTS "reports_status_idx" ON "reports" ("status");
-      CREATE INDEX IF NOT EXISTS "reports_resource_id_idx" ON "reports" ("resource_id");
-      CREATE INDEX IF NOT EXISTS "reports_created_at_idx" ON "reports" ("created_at");
-
-      CREATE TABLE IF NOT EXISTS "curriculum_templates" (
+      );`,
+      `CREATE INDEX IF NOT EXISTS "reports_status_idx" ON "reports" ("status");`,
+      `CREATE INDEX IF NOT EXISTS "reports_resource_id_idx" ON "reports" ("resource_id");`,
+      `CREATE INDEX IF NOT EXISTS "reports_created_at_idx" ON "reports" ("created_at");`,
+      `CREATE TABLE IF NOT EXISTS "curriculum_templates" (
         "id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
         "branch_id" integer NOT NULL REFERENCES "branches"("id") ON DELETE CASCADE,
         "year_id" integer NOT NULL REFERENCES "years"("id") ON DELETE CASCADE,
@@ -39,13 +38,9 @@ export async function ensureTables(): Promise<void> {
         "name" text NOT NULL DEFAULT '',
         "created_at" timestamp with time zone NOT NULL DEFAULT now(),
         "updated_at" timestamp with time zone NOT NULL DEFAULT now()
-      );
-      CREATE UNIQUE INDEX IF NOT EXISTS "curriculum_templates_branch_year_semester_unique_idx"
-        ON "curriculum_templates" ("branch_id", "year_id", "semester_id");
-      CREATE INDEX IF NOT EXISTS "curriculum_templates_semester_id_idx"
-        ON "curriculum_templates" ("semester_id");
-
-      CREATE TABLE IF NOT EXISTS "curriculum_template_subjects" (
+      );`,
+      `CREATE INDEX IF NOT EXISTS "curriculum_templates_semester_id_idx" ON "curriculum_templates" ("semester_id");`,
+      `CREATE TABLE IF NOT EXISTS "curriculum_template_subjects" (
         "id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
         "template_id" integer NOT NULL REFERENCES "curriculum_templates"("id") ON DELETE CASCADE,
         "name" text NOT NULL,
@@ -54,18 +49,15 @@ export async function ensureTables(): Promise<void> {
         "display_order" integer NOT NULL DEFAULT 0,
         "created_at" timestamp with time zone NOT NULL DEFAULT now(),
         "updated_at" timestamp with time zone NOT NULL DEFAULT now()
-      );
-      CREATE INDEX IF NOT EXISTS "curriculum_template_subjects_template_id_idx"
-        ON "curriculum_template_subjects" ("template_id");
-
-      CREATE TABLE IF NOT EXISTS "app_settings" (
+      );`,
+      `CREATE INDEX IF NOT EXISTS "curriculum_template_subjects_template_id_idx" ON "curriculum_template_subjects" ("template_id");`,
+      `CREATE TABLE IF NOT EXISTS "app_settings" (
         "key" text PRIMARY KEY,
         "value" text NOT NULL,
         "updated_by" text,
         "updated_at" timestamp with time zone NOT NULL DEFAULT now()
-      );
-
-      CREATE TABLE IF NOT EXISTS "semester_qps" (
+      );`,
+      `CREATE TABLE IF NOT EXISTS "semester_qps" (
         "id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
         "exam_year" text NOT NULL,
         "semester" text NOT NULL,
@@ -77,16 +69,15 @@ export async function ensureTables(): Promise<void> {
         "display_order" integer NOT NULL DEFAULT 0,
         "created_at" timestamp with time zone NOT NULL DEFAULT now(),
         "updated_at" timestamp with time zone NOT NULL DEFAULT now()
-      );
-      ALTER TABLE "semester_qps" ADD COLUMN IF NOT EXISTS "resource_type" text NOT NULL DEFAULT 'zip';
-      CREATE INDEX IF NOT EXISTS "semester_qps_exam_year_idx" ON "semester_qps" ("exam_year");
-      CREATE INDEX IF NOT EXISTS "semester_qps_semester_idx" ON "semester_qps" ("semester");
-      CREATE INDEX IF NOT EXISTS "semester_qps_department_idx" ON "semester_qps" ("department");
-      CREATE INDEX IF NOT EXISTS "semester_qps_resource_type_idx" ON "semester_qps" ("resource_type");
-      CREATE INDEX IF NOT EXISTS "semester_qps_is_published_idx" ON "semester_qps" ("is_published");
-      CREATE INDEX IF NOT EXISTS "semester_qps_created_at_idx" ON "semester_qps" ("created_at");
-
-      CREATE TABLE IF NOT EXISTS "ia_papers" (
+      );`,
+      `ALTER TABLE "semester_qps" ADD COLUMN IF NOT EXISTS "resource_type" text NOT NULL DEFAULT 'zip';`,
+      `CREATE INDEX IF NOT EXISTS "semester_qps_exam_year_idx" ON "semester_qps" ("exam_year");`,
+      `CREATE INDEX IF NOT EXISTS "semester_qps_semester_idx" ON "semester_qps" ("semester");`,
+      `CREATE INDEX IF NOT EXISTS "semester_qps_department_idx" ON "semester_qps" ("department");`,
+      `CREATE INDEX IF NOT EXISTS "semester_qps_resource_type_idx" ON "semester_qps" ("resource_type");`,
+      `CREATE INDEX IF NOT EXISTS "semester_qps_is_published_idx" ON "semester_qps" ("is_published");`,
+      `CREATE INDEX IF NOT EXISTS "semester_qps_created_at_idx" ON "semester_qps" ("created_at");`,
+      `CREATE TABLE IF NOT EXISTS "ia_papers" (
         "id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
         "academic_year" text NOT NULL,
         "semester" text NOT NULL,
@@ -98,16 +89,24 @@ export async function ensureTables(): Promise<void> {
         "display_order" integer NOT NULL DEFAULT 0,
         "created_at" timestamp with time zone NOT NULL DEFAULT now(),
         "updated_at" timestamp with time zone NOT NULL DEFAULT now()
-      );
-      CREATE INDEX IF NOT EXISTS "ia_papers_academic_year_idx" ON "ia_papers" ("academic_year");
-      CREATE INDEX IF NOT EXISTS "ia_papers_semester_idx" ON "ia_papers" ("semester");
-      CREATE INDEX IF NOT EXISTS "ia_papers_department_idx" ON "ia_papers" ("department");
-      CREATE INDEX IF NOT EXISTS "ia_papers_ia_type_idx" ON "ia_papers" ("ia_type");
-      CREATE INDEX IF NOT EXISTS "ia_papers_is_published_idx" ON "ia_papers" ("is_published");
-      CREATE INDEX IF NOT EXISTS "ia_papers_created_at_idx" ON "ia_papers" ("created_at");
-    `);
+      );`,
+      `CREATE INDEX IF NOT EXISTS "ia_papers_academic_year_idx" ON "ia_papers" ("academic_year");`,
+      `CREATE INDEX IF NOT EXISTS "ia_papers_semester_idx" ON "ia_papers" ("semester");`,
+      `CREATE INDEX IF NOT EXISTS "ia_papers_department_idx" ON "ia_papers" ("department");`,
+      `CREATE INDEX IF NOT EXISTS "ia_papers_ia_type_idx" ON "ia_papers" ("ia_type");`,
+      `CREATE INDEX IF NOT EXISTS "ia_papers_is_published_idx" ON "ia_papers" ("is_published");`,
+      `CREATE INDEX IF NOT EXISTS "ia_papers_created_at_idx" ON "ia_papers" ("created_at");`
+    ];
+
+    for (const q of ddlQueries) {
+      try {
+        await client.query(q);
+      } catch (err) {
+        console.warn("DB migration statement note:", (err as Error).message);
+      }
+    }
   } catch (err) {
-    console.error("Warning: could not ensure database tables:", err);
+    console.error("Warning: could not connect to ensure database tables:", err);
   } finally {
     client.release();
   }

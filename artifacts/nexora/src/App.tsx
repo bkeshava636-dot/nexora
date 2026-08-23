@@ -5197,13 +5197,13 @@ function PyqsSemesterSection() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {/* Search */}
           <div className="relative flex-1 max-w-md">
-            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
+            <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
             <input
               type="text"
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Search branch, year, or department..."
-              className="input-style h-10 w-full pl-9 pr-8 text-xs sm:text-sm"
+              className="input-style h-10 w-full !pl-11 pr-9 text-xs sm:text-sm"
               data-testid="input-search-qps"
             />
             {search && (
@@ -5231,14 +5231,17 @@ function PyqsSemesterSection() {
         </div>
 
         {/* Filter Selectors */}
-        <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-[hsl(var(--border)/.5)]">
+        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-[hsl(var(--border)/.5)]">
           {/* Exam Year Filter */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Exam Year:</span>
+            <label htmlFor="select-exam-year-filter" className="text-xs font-bold text-[hsl(var(--muted-foreground))] shrink-0">
+              Exam Year:
+            </label>
             <select
+              id="select-exam-year-filter"
               value={selectedYear}
               onChange={(e) => handleYearChange(e.target.value)}
-              className="input-style h-8 px-2.5 text-xs font-semibold rounded-lg bg-[hsl(var(--card))] cursor-pointer"
+              className="input-style h-9 !py-1.5 !px-3 text-xs sm:text-sm font-semibold rounded-xl bg-[hsl(var(--card))] cursor-pointer w-auto min-w-[110px]"
               data-testid="select-exam-year"
             >
               {availableYears.map((y) => (
@@ -5249,11 +5252,14 @@ function PyqsSemesterSection() {
 
           {/* Semester Filter */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Semester:</span>
+            <label htmlFor="select-semester-filter" className="text-xs font-bold text-[hsl(var(--muted-foreground))] shrink-0">
+              Semester:
+            </label>
             <select
+              id="select-semester-filter"
               value={selectedSemester}
               onChange={(e) => handleSemesterChange(e.target.value)}
-              className="input-style h-8 px-2.5 text-xs font-semibold rounded-lg bg-[hsl(var(--card))] cursor-pointer"
+              className="input-style h-9 !py-1.5 !px-3 text-xs sm:text-sm font-semibold rounded-xl bg-[hsl(var(--card))] cursor-pointer w-auto min-w-[130px]"
               data-testid="select-semester"
             >
               {availableSemesters.map((s) => (
@@ -5264,11 +5270,14 @@ function PyqsSemesterSection() {
 
           {/* Department Filter */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Department:</span>
+            <label htmlFor="select-department-filter" className="text-xs font-bold text-[hsl(var(--muted-foreground))] shrink-0">
+              Department:
+            </label>
             <select
+              id="select-department-filter"
               value={selectedDepartment}
               onChange={(e) => handleDepartmentChange(e.target.value)}
-              className="input-style h-8 px-2.5 text-xs font-semibold rounded-lg bg-[hsl(var(--card))] cursor-pointer"
+              className="input-style h-9 !py-1.5 !px-3 text-xs sm:text-sm font-semibold rounded-xl bg-[hsl(var(--card))] cursor-pointer w-auto max-w-[240px] truncate"
               data-testid="select-department"
             >
               {availableDepartments.map((d) => (
@@ -5636,13 +5645,13 @@ function PyqsIaSection() {
       <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.7)] p-4 sm:p-5 shadow-xs space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative flex-1 max-w-md">
-            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
+            <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
             <input
               type="text"
               value={search}
               onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Search by title, department, or IA type..."
-              className="input-style h-10 w-full pl-9 pr-8 text-xs sm:text-sm"
+              className="input-style h-10 w-full !pl-11 pr-9 text-xs sm:text-sm"
               data-testid="input-search-ia-papers"
             />
             {search && (
@@ -5670,14 +5679,17 @@ function PyqsIaSection() {
         </div>
 
         {/* Filter Selectors */}
-        <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-[hsl(var(--border)/.5)]">
+        <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-[hsl(var(--border)/.5)]">
           {/* Semester Selector */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Semester:</span>
+            <label htmlFor="select-ia-semester-filter" className="text-xs font-bold text-[hsl(var(--muted-foreground))] shrink-0">
+              Semester:
+            </label>
             <select
+              id="select-ia-semester-filter"
               value={selectedSemester}
               onChange={(e) => handleSemesterChange(e.target.value)}
-              className="input-style h-8 px-2.5 text-xs font-semibold rounded-lg bg-[hsl(var(--card))] cursor-pointer"
+              className="input-style h-9 !py-1.5 !px-3 text-xs sm:text-sm font-semibold rounded-xl bg-[hsl(var(--card))] cursor-pointer w-auto min-w-[130px]"
               data-testid="select-ia-semester"
             >
               {availableSemesters.map((s) => (
@@ -5690,11 +5702,14 @@ function PyqsIaSection() {
 
           {/* Department Selector */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-[hsl(var(--muted-foreground))]">Department:</span>
+            <label htmlFor="select-ia-department-filter" className="text-xs font-bold text-[hsl(var(--muted-foreground))] shrink-0">
+              Department:
+            </label>
             <select
+              id="select-ia-department-filter"
               value={selectedDepartment}
               onChange={(e) => handleDepartmentChange(e.target.value)}
-              className="input-style h-8 px-2.5 text-xs font-semibold rounded-lg bg-[hsl(var(--card))] cursor-pointer"
+              className="input-style h-9 !py-1.5 !px-3 text-xs sm:text-sm font-semibold rounded-xl bg-[hsl(var(--card))] cursor-pointer w-auto max-w-[240px] truncate"
               data-testid="select-ia-department"
             >
               {availableDepartments.map((d) => (
@@ -5707,11 +5722,14 @@ function PyqsIaSection() {
 
           {/* IA Type Selector */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-[hsl(var(--muted-foreground))]">IA Type:</span>
+            <label htmlFor="select-ia-type-filter" className="text-xs font-bold text-[hsl(var(--muted-foreground))] shrink-0">
+              IA Type:
+            </label>
             <select
+              id="select-ia-type-filter"
               value={selectedIaType}
               onChange={(e) => handleIaTypeChange(e.target.value)}
-              className="input-style h-8 px-2.5 text-xs font-semibold rounded-lg bg-[hsl(var(--card))] cursor-pointer"
+              className="input-style h-9 !py-1.5 !px-3 text-xs sm:text-sm font-semibold rounded-xl bg-[hsl(var(--card))] cursor-pointer w-auto min-w-[110px]"
               data-testid="select-ia-type"
             >
               <option value="All">All Types</option>
@@ -6064,13 +6082,13 @@ function AdminSemesterQpsSection() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div className="lg:col-span-1">
             <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
+              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search papers..."
-                className="input-style h-9 w-full pl-8 pr-7 text-xs"
+                className="input-style h-9 w-full !pl-9 pr-7 text-xs"
                 data-testid="input-admin-search-qps"
               />
               {search && (
@@ -6088,7 +6106,7 @@ function AdminSemesterQpsSection() {
             <select
               value={yearFilter}
               onChange={(e) => setYearFilter(e.target.value)}
-              className="input-style h-9 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+              className="input-style h-9 !py-1.5 !px-3 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
               data-testid="select-admin-year-filter"
             >
               {availableYears.map((y) => (
@@ -6100,7 +6118,7 @@ function AdminSemesterQpsSection() {
             <select
               value={semesterFilter}
               onChange={(e) => setSemesterFilter(e.target.value)}
-              className="input-style h-9 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+              className="input-style h-9 !py-1.5 !px-3 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
               data-testid="select-admin-semester-filter"
             >
               {availableSemesters.map((s) => (
@@ -6112,7 +6130,7 @@ function AdminSemesterQpsSection() {
             <select
               value={departmentFilter}
               onChange={(e) => setDepartmentFilter(e.target.value)}
-              className="input-style h-9 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+              className="input-style h-9 !py-1.5 !px-3 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
               data-testid="select-admin-dept-filter"
             >
               {availableDepartments.map((d) => (
@@ -6124,7 +6142,7 @@ function AdminSemesterQpsSection() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as "all" | "published" | "draft")}
-              className="input-style h-9 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+              className="input-style h-9 !py-1.5 !px-3 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
               data-testid="select-admin-status-filter"
             >
               <option value="all">All Statuses</option>
@@ -6440,13 +6458,13 @@ function AdminIaPapersSection() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <div className="lg:col-span-1">
             <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
+              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search IA papers..."
-                className="input-style h-9 w-full pl-8 pr-7 text-xs"
+                className="input-style h-9 w-full !pl-9 pr-7 text-xs"
                 data-testid="input-admin-search-ia"
               />
               {search && (
@@ -6472,7 +6490,7 @@ function AdminIaPapersSection() {
                   }
                 }
               }}
-              className="input-style h-9 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+              className="input-style h-9 !py-1.5 !px-3 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
               data-testid="select-admin-ia-year-filter"
             >
               <option value="All">All Years</option>
@@ -6485,7 +6503,7 @@ function AdminIaPapersSection() {
             <select
               value={semesterFilter}
               onChange={(e) => setSemesterFilter(e.target.value)}
-              className="input-style h-9 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+              className="input-style h-9 !py-1.5 !px-3 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
               data-testid="select-admin-ia-semester-filter"
             >
               {availableSemesters.map((s) => (
@@ -6499,7 +6517,7 @@ function AdminIaPapersSection() {
             <select
               value={departmentFilter}
               onChange={(e) => setDepartmentFilter(e.target.value)}
-              className="input-style h-9 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+              className="input-style h-9 !py-1.5 !px-3 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
               data-testid="select-admin-ia-dept-filter"
             >
               {availableDepartments.map((d) => (
@@ -6511,7 +6529,7 @@ function AdminIaPapersSection() {
             <select
               value={iaTypeFilter}
               onChange={(e) => setIaTypeFilter(e.target.value)}
-              className="input-style h-9 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+              className="input-style h-9 !py-1.5 !px-3 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
               data-testid="select-admin-ia-type-filter"
             >
               <option value="All">All Types</option>
@@ -6524,7 +6542,7 @@ function AdminIaPapersSection() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as "all" | "published" | "draft")}
-              className="input-style h-9 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+              className="input-style h-9 !py-1.5 !px-3 w-full text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
               data-testid="select-admin-ia-status-filter"
             >
               <option value="all">All Statuses</option>

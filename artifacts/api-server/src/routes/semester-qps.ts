@@ -4,6 +4,7 @@ import { db, ensureTables, semesterQps } from "@workspace/db";
 import { requireAdmin } from "../middlewares/auth";
 import { handleDbError } from "../lib/db-errors";
 import { logger } from "../lib/logger";
+import { seedSemesterQps } from "../lib/seed-qps";
 
 const router: IRouter = Router();
 
@@ -74,10 +75,26 @@ router.get("/semester-qps", async (req, res) => {
     res.json(rows);
   } catch (err: unknown) {
     const pgErr = (err as { cause?: { code?: string }; code?: string })?.cause || (err as { code?: string });
-    if (pgErr?.code === "42P01") {
-      await ensureTables();
-      res.json([]);
-      return;
+    if (pgErr?.code === "42P01" || pgErr?.code === "42703") {
+      try {
+        await ensureTables();
+        await seedSemesterQps();
+        const retryRows = await db
+          .select()
+          .from(semesterQps)
+          .where(eq(semesterQps.isPublished, true))
+          .orderBy(
+            desc(semesterQps.examYear),
+            asc(semesterQps.displayOrder),
+            asc(semesterQps.semester),
+            asc(semesterQps.department),
+            desc(semesterQps.createdAt),
+          );
+        res.json(retryRows);
+        return;
+      } catch (retryErr) {
+        logger.error({ retryErr }, "Retry after table creation failed");
+      }
     }
     if (!handleDbError(err, res)) {
       logger.error({ err }, "Error fetching semester QPs");
