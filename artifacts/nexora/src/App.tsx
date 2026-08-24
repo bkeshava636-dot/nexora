@@ -201,6 +201,7 @@ function Logo({ compact = false }: { compact?: boolean }) {
 function Shell({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const nav = [
     { href: "/", label: "Home", icon: LayoutDashboard },
     { href: "/resources", label: "Resource library", icon: LibraryBig },
@@ -245,6 +246,21 @@ function Shell({ children }: { children: ReactNode }) {
         {!location.startsWith("/admin") && <BuyMePaneerFooter />}
       </main>
     </div>
+
+    {!location.startsWith("/admin") && (
+      <button
+        type="button"
+        onClick={() => setFeedbackOpen(true)}
+        className="focus-ring fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--foreground))] shadow-lg backdrop-blur-md transition-all hover:scale-105 hover:border-[hsl(var(--secondary))] hover:bg-[hsl(var(--secondary))] hover:text-[hsl(var(--secondary-foreground))] cursor-pointer active:scale-95 group"
+        data-testid="button-floating-feedback"
+        aria-label="Feedback and Bug Reports"
+      >
+        <MessageSquarePlus size={16} className="text-[hsl(var(--secondary))] group-hover:text-current transition-colors" />
+        <span>Feedback</span>
+      </button>
+    )}
+
+    <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
   </div>;
 }
 
