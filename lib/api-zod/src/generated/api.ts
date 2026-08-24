@@ -966,3 +966,96 @@ export const RejectSubmissionResponse = zod.object({
 })
 
 
+/**
+ * Allows users to submit improvement suggestions, bug reports, content issues, or general feedback.
+ * @summary Submit user feedback or bug report
+ */
+export const CreateFeedbackBody = zod.object({
+  "category": zod.enum(['improvement', 'bug', 'content', 'other']).optional(),
+  "message": zod.string(),
+  "name": zod.string().optional(),
+  "email": zod.string().optional(),
+  "pageUrl": zod.string().optional()
+})
+
+export const CreateFeedbackResponse = zod.object({
+  "id": zod.number().int(),
+  "category": zod.enum(['improvement', 'bug', 'content', 'other']),
+  "message": zod.string(),
+  "name": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "pageUrl": zod.string().nullish(),
+  "status": zod.enum(['pending', 'reviewed', 'archived']),
+  "adminNotes": zod.string().nullish(),
+  "createdAt": zod.string().datetime({"offset":true})
+})
+
+
+/**
+ * Returns all feedback entries (Admin only).
+ * @summary List user feedback
+ */
+export const ListFeedbackQueryParams = zod.object({
+  "status": zod.coerce.string().optional().describe('Filter by status (pending, reviewed, archived, all)'),
+  "category": zod.coerce.string().optional().describe('Filter by category (improvement, bug, content, other)')
+})
+
+export const ListFeedbackResponseItem = zod.object({
+  "id": zod.number().int(),
+  "category": zod.enum(['improvement', 'bug', 'content', 'other']),
+  "message": zod.string(),
+  "name": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "pageUrl": zod.string().nullish(),
+  "status": zod.enum(['pending', 'reviewed', 'archived']),
+  "adminNotes": zod.string().nullish(),
+  "createdAt": zod.string().datetime({"offset":true})
+})
+export const ListFeedbackResponse = zod.array(ListFeedbackResponseItem)
+
+
+/**
+ * @summary Update feedback status or admin notes
+ */
+export const UpdateFeedbackParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const UpdateFeedbackBody = zod.object({
+  "status": zod.enum(['pending', 'reviewed', 'archived']).optional(),
+  "adminNotes": zod.string().optional()
+})
+
+export const UpdateFeedbackResponse = zod.object({
+  "id": zod.number().int(),
+  "category": zod.enum(['improvement', 'bug', 'content', 'other']),
+  "message": zod.string(),
+  "name": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "pageUrl": zod.string().nullish(),
+  "status": zod.enum(['pending', 'reviewed', 'archived']),
+  "adminNotes": zod.string().nullish(),
+  "createdAt": zod.string().datetime({"offset":true})
+})
+
+
+/**
+ * @summary Delete feedback item
+ */
+export const DeleteFeedbackParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const DeleteFeedbackResponse = zod.object({
+  "id": zod.number().int(),
+  "category": zod.enum(['improvement', 'bug', 'content', 'other']),
+  "message": zod.string(),
+  "name": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "pageUrl": zod.string().nullish(),
+  "status": zod.enum(['pending', 'reviewed', 'archived']),
+  "adminNotes": zod.string().nullish(),
+  "createdAt": zod.string().datetime({"offset":true})
+})
+
+

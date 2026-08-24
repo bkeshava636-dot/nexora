@@ -269,6 +269,50 @@ export interface RejectSubmissionInput {
   rejectionReason?: string;
 }
 
+export type FeedbackCategory = typeof FeedbackCategory[keyof typeof FeedbackCategory];
+
+
+export const FeedbackCategory = {
+  improvement: 'improvement',
+  bug: 'bug',
+  content: 'content',
+  other: 'other',
+} as const;
+
+export type FeedbackStatus = typeof FeedbackStatus[keyof typeof FeedbackStatus];
+
+
+export const FeedbackStatus = {
+  pending: 'pending',
+  reviewed: 'reviewed',
+  archived: 'archived',
+} as const;
+
+export interface Feedback {
+  id: number;
+  category: FeedbackCategory;
+  message: string;
+  name?: string | null;
+  email?: string | null;
+  pageUrl?: string | null;
+  status: FeedbackStatus;
+  adminNotes?: string | null;
+  createdAt: string;
+}
+
+export interface CreateFeedbackInput {
+  category?: FeedbackCategory;
+  message: string;
+  name?: string;
+  email?: string;
+  pageUrl?: string;
+}
+
+export interface UpdateFeedbackInput {
+  status?: FeedbackStatus;
+  adminNotes?: string;
+}
+
 /**
  * Include inactive branches. Only honored for authenticated admin sessions.
  */
@@ -318,5 +362,16 @@ includeInactive?: boolean;
 
 export type ListSubmissionsParams = {
 status?: SubmissionStatus;
+};
+
+export type ListFeedbackParams = {
+/**
+ * Filter by status (pending, reviewed, archived, all)
+ */
+status?: string;
+/**
+ * Filter by category (improvement, bug, content, other)
+ */
+category?: string;
 };
 

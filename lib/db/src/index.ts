@@ -114,7 +114,21 @@ export async function ensureTables(): Promise<void> {
       `ALTER TABLE "submissions" ADD COLUMN IF NOT EXISTS "ia_semester" text;`,
       `ALTER TABLE "submissions" ADD COLUMN IF NOT EXISTS "ia_department" text;`,
       `ALTER TABLE "submissions" ADD COLUMN IF NOT EXISTS "ia_type" text;`,
-      `ALTER TYPE "resource_type" ADD VALUE IF NOT EXISTS 'Internal Assessment';`
+      `ALTER TYPE "resource_type" ADD VALUE IF NOT EXISTS 'Internal Assessment';`,
+      `CREATE TABLE IF NOT EXISTS "feedback" (
+        "id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        "category" text NOT NULL DEFAULT 'improvement',
+        "message" text NOT NULL,
+        "name" text,
+        "email" text,
+        "page_url" text,
+        "status" text NOT NULL DEFAULT 'pending',
+        "admin_notes" text,
+        "created_at" timestamp with time zone NOT NULL DEFAULT now()
+      );`,
+      `CREATE INDEX IF NOT EXISTS "feedback_status_idx" ON "feedback" ("status");`,
+      `CREATE INDEX IF NOT EXISTS "feedback_category_idx" ON "feedback" ("category");`,
+      `CREATE INDEX IF NOT EXISTS "feedback_created_at_idx" ON "feedback" ("created_at");`
     ];
 
     for (const q of ddlQueries) {

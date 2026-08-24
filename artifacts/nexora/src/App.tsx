@@ -1,13 +1,14 @@
 import { type FormEvent, type ReactNode, memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Redirect, Route, Switch, Router as WouterRouter, useLocation, useParams } from "wouter";
 import {
-  ArrowLeft, ArrowRight, BarChart3, BadgeCheck, BookOpen, Calendar, Check, CheckCircle2, ChevronDown, ChevronRight,
+  ArrowLeft, ArrowRight, BarChart3, Bug, MessageSquare, MessageSquarePlus, BadgeCheck, BookOpen, Calendar, Check, CheckCircle2, ChevronDown, ChevronRight,
   CircleAlert, Clock3, Download, ExternalLink, Eye, EyeOff, FileArchive, FileDown, FileText, Filter, Flag, FolderOpen, GitBranch, GraduationCap, KeyRound, Layers3,
   LayoutDashboard, LibraryBig, Link2, Loader2, Lock, LogOut, Menu, MoreHorizontal, Pencil, Plus, RotateCcw, Search, Send, ShieldCheck,
   SlidersHorizontal, Sparkles, Trash2, Upload, Users, X, Zap,
 } from "lucide-react";
 import { ApiWakeOverlay } from "@/components/api-wake-overlay";
 import { BuyMePaneerFooter } from "@/components/buy-me-paneer";
+import { FeedbackDialog } from "@/components/feedback-dialog";
 import { ErrorBoundary } from "@/components/error-boundary";
 import {
   Dialog,
@@ -69,6 +70,14 @@ import {
   useListReports,
   useListResources,
   useListSemesterQps,
+  useCreateFeedback,
+  useListFeedback,
+  useUpdateFeedback,
+  useDeleteFeedback,
+  getListFeedbackQueryKey,
+  type Feedback,
+  type FeedbackCategory,
+  type FeedbackStatus,
   useListSemesterQpDepartments, useCreateSemesterQpDepartment, useUpdateSemesterQpDepartment, useListIaDepartments, useCreateIaDepartment, useUpdateIaDepartment,
 
   useListIaPapers,
@@ -674,6 +683,8 @@ function ResourceTypeGroups({ resources, compact = false }: { resources: Resourc
 }
 
 function Home() {
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackCategory, setFeedbackCategory] = useState<FeedbackCategory>("improvement");
   const { data: resources = [], isLoading } = useListResources();
   const featured = useMemo(
     () => resources.filter((resource) => resource.isFeatured).slice(0, 3),
@@ -697,6 +708,18 @@ function Home() {
                 Nexora
               </div>
               <TotalVisitsCounter />
+              <button
+                type="button"
+                onClick={() => {
+                  setFeedbackCategory("improvement");
+                  setFeedbackOpen(true);
+                }}
+                className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-[hsl(var(--foreground))] shadow-xs transition-all hover:border-[hsl(var(--secondary))] hover:bg-[hsl(var(--secondary)/.1)] cursor-pointer active:scale-95"
+                data-testid="button-home-feedback-pill"
+              >
+                <span>💡</span>
+                <span>Feedback & Bugs</span>
+              </button>
             </div>
             <h1 className="display-font max-w-xl text-4xl font-bold leading-[1.05] tracking-[-.06em] sm:text-6xl">
               Your BITM academic resource hub.
@@ -713,6 +736,18 @@ function Home() {
                 <Link href="/contribute" className="focus-ring inline-flex h-11 items-center justify-center rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-6 text-sm font-bold text-[hsl(var(--foreground))] shadow-sm transition-colors hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]">
                   Contribute
                 </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFeedbackCategory("improvement");
+                    setFeedbackOpen(true);
+                  }}
+                  className="focus-ring inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-5 text-sm font-bold text-[hsl(var(--foreground))] shadow-sm transition-colors hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))] cursor-pointer active:scale-95"
+                  data-testid="button-home-hero-feedback"
+                >
+                  <MessageSquarePlus size={16} />
+                  <span>Give Feedback</span>
+                </button>
               </div>
             </div>
           </div>
@@ -784,6 +819,46 @@ function Home() {
           </section>
         )}
 
+        <section className="mt-14 rounded-[28px] border border-[hsl(var(--border))] bg-gradient-to-br from-[hsl(var(--card))] via-[hsl(var(--card))] to-[hsl(var(--secondary)/.08)] p-6 sm:p-10 shadow-sm fade-up" data-testid="section-feedback-callout">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="max-w-xl text-left">
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-[hsl(var(--secondary)/.2)] px-3 py-1 text-xs font-bold text-[hsl(var(--secondary-foreground))] mb-3">
+                <Sparkles size={13} /> Help Improve Nexora
+              </div>
+              <h2 className="display-font text-2xl sm:text-3xl font-bold tracking-tight text-[hsl(var(--foreground))]">
+                Found a bug or have a suggestion?
+              </h2>
+              <p className="mt-2 text-sm sm:text-base leading-relaxed text-[hsl(var(--muted-foreground))]">
+                Have ideas for new features, noticed an error or broken link, or have suggestions for improvements? We read every submission and build what students need!
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setFeedbackCategory("bug");
+                  setFeedbackOpen(true);
+                }}
+                className="focus-ring inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] px-5 text-sm font-bold text-[hsl(var(--destructive))] shadow-xs transition-all hover:bg-[hsl(var(--destructive)/.18)] cursor-pointer active:scale-95"
+                data-testid="button-home-report-bug"
+              >
+                <Bug size={16} /> Report a Bug
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setFeedbackCategory("improvement");
+                  setFeedbackOpen(true);
+                }}
+                className="focus-ring inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-6 text-sm font-bold text-[hsl(var(--primary-foreground))] shadow-sm transition-all hover:bg-[hsl(var(--primary)/.9)] cursor-pointer active:scale-95"
+                data-testid="button-home-give-feedback"
+              >
+                <MessageSquarePlus size={16} /> Give Feedback
+              </button>
+            </div>
+          </div>
+        </section>
+
         <section className="mt-16 mb-8 rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-6 py-12 text-center shadow-sm sm:px-12 sm:py-16 fade-up fade-up-delay-3">
           <div className="mx-auto max-w-2xl">
             <h2 className="display-font text-3xl font-bold tracking-[-.04em] sm:text-4xl">Contribute to Nexora</h2>
@@ -798,6 +873,12 @@ function Home() {
           </div>
         </section>
       </div>
+
+      <FeedbackDialog
+        open={feedbackOpen}
+        onOpenChange={setFeedbackOpen}
+        initialCategory={feedbackCategory}
+      />
     </div>
   );
 }
@@ -2093,6 +2174,7 @@ function AdminLayout({ children }: { children: ReactNode }) {
     { href: "/admin/resources", label: "Resources", testId: "link-admin-resources" },
     { href: "/admin/pyqs", label: "PYQs", testId: "link-admin-pyqs" },
     { href: "/admin/reports", label: "Reports", testId: "link-admin-reports" },
+    { href: "/admin/feedback", label: "Feedback", testId: "link-admin-feedback" },
   ];
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-7 sm:py-12">
@@ -3251,6 +3333,253 @@ function AdminSubmissions() {
         </div>
       ) : (
         <EmptyState title="The queue is clear" body="No submissions are waiting for a review right now. A rare, satisfying moment." />
+      )}
+    </AdminLayout>
+  );
+}
+
+
+function AdminFeedback() {
+  const [filterStatus, setFilterStatus] = useState<"pending" | "reviewed" | "archived" | "all">("pending");
+  const [filterCategory, setFilterCategory] = useState<"all" | "improvement" | "bug" | "content" | "other">("all");
+  const { data: feedbackList = [], isLoading } = useListFeedback();
+  const queryClient = useQueryClient();
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: getListFeedbackQueryKey() });
+  const updateFeedback = useUpdateFeedback();
+  const deleteFeedback = useDeleteFeedback();
+
+  const handleUpdateStatus = (id: number, status: "pending" | "reviewed" | "archived") => {
+    updateFeedback.mutate({ id, data: { status } }, {
+      onSuccess: () => {
+        invalidate();
+        toast({ title: `Feedback marked as ${status}` });
+      },
+      onError: (err: any) => {
+        toast({ title: "Failed to update status", description: err.message, variant: "destructive" });
+      }
+    });
+  };
+
+  const handleDelete = (id: number) => {
+    if (!window.confirm("Are you sure you want to delete this feedback item?")) return;
+    deleteFeedback.mutate({ id }, {
+      onSuccess: () => {
+        invalidate();
+        toast({ title: "Feedback deleted" });
+      },
+      onError: (err: any) => {
+        toast({ title: "Failed to delete", description: err.message, variant: "destructive" });
+      }
+    });
+  };
+
+  const filtered = (feedbackList as Feedback[]).filter((item) => {
+    const matchStatus = filterStatus === "all" || item.status === filterStatus;
+    const matchCategory = filterCategory === "all" || item.category === filterCategory;
+    return matchStatus && matchCategory;
+  });
+
+  const counts = useMemo(() => {
+    const list = feedbackList as Feedback[];
+    return {
+      all: list.length,
+      pending: list.filter((i) => i.status === "pending").length,
+      reviewed: list.filter((i) => i.status === "reviewed").length,
+      archived: list.filter((i) => i.status === "archived").length,
+      bugs: list.filter((i) => i.category === "bug").length,
+      improvements: list.filter((i) => i.category === "improvement").length,
+    };
+  }, [feedbackList]);
+
+  return (
+    <AdminLayout>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-bold">User Feedback & Bug Reports</h2>
+          <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+            Review feature suggestions, bug reports, and feedback submitted by students.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-1">
+            {(["pending", "reviewed", "archived", "all"] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setFilterStatus(s)}
+                className={`focus-ring rounded-lg px-3 py-1.5 text-xs font-bold capitalize transition-colors ${
+                  filterStatus === s
+                    ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                }`}
+                data-testid={`button-filter-feedback-${s}`}
+              >
+                {s} {s === "pending" && counts.pending > 0 ? `(${counts.pending})` : ""}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold text-[hsl(var(--muted-foreground))] mr-1">Category:</span>
+        {[
+          { id: "all", label: "All Categories" },
+          { id: "improvement", label: "💡 Suggestions" },
+          { id: "bug", label: "🐛 Bugs" },
+          { id: "content", label: "📚 Missing Content" },
+          { id: "other", label: "💬 General" },
+        ].map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => setFilterCategory(c.id as any)}
+            className={`focus-ring rounded-full px-3 py-1 text-xs font-semibold border transition-all ${
+              filterCategory === c.id
+                ? "border-[hsl(var(--secondary))] bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] shadow-xs"
+                : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]"
+            }`}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+
+      {isLoading ? (
+        <Loader2 className="mx-auto my-12 animate-spin text-[hsl(var(--muted-foreground))]" size={28} />
+      ) : filtered.length ? (
+        <div className="space-y-3.5">
+          {filtered.map((item) => {
+            const isBug = item.category === "bug";
+            const isImprovement = item.category === "improvement";
+            const isContent = item.category === "content";
+
+            return (
+              <div
+                key={item.id}
+                className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.7)] p-4 sm:p-5 transition-all shadow-xs"
+                data-testid={`feedback-card-${item.id}`}
+              >
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold border ${
+                          isBug
+                            ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30"
+                            : isImprovement
+                            ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                            : isContent
+                            ? "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30"
+                            : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                        }`}
+                      >
+                        {isBug ? "🐛 Bug Report" : isImprovement ? "💡 Suggestion" : isContent ? "📚 Content Issue" : "💬 General Feedback"}
+                      </span>
+
+                      {item.status === "pending" ? (
+                        <span className="rounded-full bg-[hsl(var(--secondary)/.25)] px-2 py-0.5 text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">
+                          Pending
+                        </span>
+                      ) : item.status === "reviewed" ? (
+                        <span className="rounded-full bg-[hsl(var(--accent))] px-2 py-0.5 text-[10px] font-bold text-[hsl(var(--accent-foreground))]">
+                          Reviewed
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-[hsl(var(--muted))] px-2 py-0.5 text-[10px] font-bold text-[hsl(var(--muted-foreground))]">
+                          Archived
+                        </span>
+                      )}
+
+                      <span className="text-[11px] text-[hsl(var(--muted-foreground))] ml-auto sm:ml-0">
+                        {formatDate(item.createdAt)}
+                      </span>
+                    </div>
+
+                    <p className="text-sm leading-relaxed text-[hsl(var(--foreground))] whitespace-pre-wrap font-medium">
+                      {item.message}
+                    </p>
+
+                    {(item.name || item.email || item.pageUrl) && (
+                      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[hsl(var(--muted-foreground))] pt-2 border-t border-[hsl(var(--border)/.5)]">
+                        {item.name && (
+                          <span className="font-semibold text-[hsl(var(--foreground))]">
+                            By: {item.name}
+                          </span>
+                        )}
+                        {item.email && (
+                          <a
+                            href={`mailto:${item.email}`}
+                            className="font-semibold text-[hsl(var(--primary))] hover:underline flex items-center gap-1"
+                          >
+                            📧 {item.email}
+                          </a>
+                        )}
+                        {item.pageUrl && (
+                          <span className="text-[11px] bg-[hsl(var(--muted))] px-2 py-0.5 rounded-md font-mono">
+                            Page: {item.pageUrl}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex sm:flex-col items-center sm:items-end gap-2 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[hsl(var(--border)/.5)]">
+                    {item.status === "pending" && (
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateStatus(item.id, "reviewed")}
+                        disabled={updateFeedback.isPending}
+                        className="focus-ring inline-flex items-center gap-1 rounded-xl bg-[hsl(var(--primary))] px-3 py-1.5 text-xs font-bold text-[hsl(var(--primary-foreground))] shadow-xs hover:bg-[hsl(var(--primary)/.9)] cursor-pointer"
+                        data-testid={`button-feedback-review-${item.id}`}
+                      >
+                        <Check size={13} /> Mark Reviewed
+                      </button>
+                    )}
+                    {item.status !== "archived" && (
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateStatus(item.id, "archived")}
+                        disabled={updateFeedback.isPending}
+                        className="focus-ring inline-flex items-center gap-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1.5 text-xs font-semibold text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] cursor-pointer"
+                      >
+                        Archive
+                      </button>
+                    )}
+                    {item.status === "archived" && (
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateStatus(item.id, "pending")}
+                        disabled={updateFeedback.isPending}
+                        className="focus-ring inline-flex items-center gap-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1.5 text-xs font-semibold text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] cursor-pointer"
+                      >
+                        Reopen
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(item.id)}
+                      disabled={deleteFeedback.isPending}
+                      className="focus-ring inline-flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive)/.1)] cursor-pointer"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-[hsl(var(--border))] p-12 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[hsl(var(--muted))] text-xl mb-3">
+            💬
+          </div>
+          <h3 className="text-sm font-bold text-[hsl(var(--foreground))]">No feedback found</h3>
+          <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+            {filterStatus === "pending" ? "All user feedback has been reviewed!" : "No feedback items match the selected filter."}
+          </p>
+        </div>
       )}
     </AdminLayout>
   );
@@ -8492,6 +8821,7 @@ function AppRouter() {
     <Route path="/admin/resources"><RequireAdmin><AdminResources /></RequireAdmin></Route>
     <Route path="/admin/pyqs"><RequireAdmin><AdminLayout><AdminPyqs /></AdminLayout></RequireAdmin></Route>
     <Route path="/admin/reports"><RequireAdmin><AdminReports /></RequireAdmin></Route>
+    <Route path="/admin/feedback"><RequireAdmin><AdminFeedback /></RequireAdmin></Route>
     <Route component={NotFound} />
   </Switch></RoutedErrorBoundary>;
 }
