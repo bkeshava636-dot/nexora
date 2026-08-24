@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { CheckCircle2, CircleAlert, Heart, Loader2, X } from "lucide-react";
+import { CheckCircle2, CircleAlert, Heart, Loader2, MessageSquarePlus, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useCreatePaymentOrder, useVerifyPayment } from "@workspace/api-client-react";
+import { FeedbackDialog } from "@/components/feedback-dialog";
 
 interface RazorpayResponse {
   razorpay_payment_id: string;
@@ -108,6 +109,7 @@ function CuteBatmanIcon({ className = "h-4 w-4" }: { className?: string }) {
 
 export function BuyMePaneerFooter() {
   const [open, setOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   return (
     <>
@@ -117,14 +119,23 @@ export function BuyMePaneerFooter() {
             Found Nexora useful?
             <br className="sm:hidden" /> You can buy me some paneer as a little thank you. ❤️
           </p>
-          <div className="mt-3">
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2.5">
             <button
               type="button"
               onClick={() => setOpen(true)}
-              className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-2 text-xs font-bold text-[hsl(var(--foreground))] shadow-xs transition-all hover:border-[hsl(var(--secondary))] hover:bg-[hsl(var(--secondary))] hover:text-[hsl(var(--secondary-foreground))] cursor-pointer active:scale-95"
+              className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3.5 py-1.5 text-xs font-bold text-[hsl(var(--foreground))] shadow-xs transition-all hover:border-[hsl(var(--secondary))] hover:bg-[hsl(var(--secondary))] hover:text-[hsl(var(--secondary-foreground))] cursor-pointer active:scale-95"
               data-testid="button-buy-me-paneer-trigger"
             >
               <span role="img" aria-label="cheese">🧀</span> Buy Me Paneer
+            </button>
+            <button
+              type="button"
+              onClick={() => setFeedbackOpen(true)}
+              className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1.5 text-xs font-medium text-[hsl(var(--muted-foreground))] shadow-xs transition-all hover:border-[hsl(var(--border))] hover:bg-[hsl(var(--muted)/.6)] hover:text-[hsl(var(--foreground))] cursor-pointer active:scale-95"
+              data-testid="button-footer-feedback"
+            >
+              <MessageSquarePlus size={13} className="text-[hsl(var(--secondary))]" />
+              <span>Feedback & Bugs</span>
             </button>
           </div>
 
@@ -148,6 +159,7 @@ export function BuyMePaneerFooter() {
       </footer>
 
       <BuyMePaneerDialog open={open} onOpenChange={setOpen} />
+      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </>
   );
 }

@@ -683,8 +683,6 @@ function ResourceTypeGroups({ resources, compact = false }: { resources: Resourc
 }
 
 function Home() {
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const [feedbackCategory, setFeedbackCategory] = useState<FeedbackCategory>("improvement");
   const { data: resources = [], isLoading } = useListResources();
   const featured = useMemo(
     () => resources.filter((resource) => resource.isFeatured).slice(0, 3),
@@ -708,18 +706,6 @@ function Home() {
                 Made for BITM students
               </div>
               <TotalVisitsCounter />
-              <button
-                type="button"
-                onClick={() => {
-                  setFeedbackCategory("improvement");
-                  setFeedbackOpen(true);
-                }}
-                className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-[hsl(var(--foreground))] shadow-xs transition-all hover:border-[hsl(var(--secondary))] hover:bg-[hsl(var(--secondary)/.1)] cursor-pointer active:scale-95"
-                data-testid="button-home-feedback-pill"
-              >
-                <span>💡</span>
-                <span>Feedback & Bugs</span>
-              </button>
             </div>
             <h1 className="display-font max-w-xl text-4xl font-bold leading-[1.05] tracking-[-.06em] sm:text-6xl">
               Your BITM resources.<br />All in one place.
@@ -736,18 +722,6 @@ function Home() {
                 <Link href="/contribute" className="focus-ring inline-flex h-11 items-center justify-center rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-6 text-sm font-bold text-[hsl(var(--foreground))] shadow-sm transition-colors hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]">
                   Contribute
                 </Link>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFeedbackCategory("improvement");
-                    setFeedbackOpen(true);
-                  }}
-                  className="focus-ring inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-5 text-sm font-bold text-[hsl(var(--foreground))] shadow-sm transition-colors hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))] cursor-pointer active:scale-95"
-                  data-testid="button-home-hero-feedback"
-                >
-                  <MessageSquarePlus size={16} />
-                  <span>Give Feedback</span>
-                </button>
               </div>
             </div>
           </div>
@@ -819,46 +793,6 @@ function Home() {
           </section>
         )}
 
-        <section className="mt-14 rounded-[28px] border border-[hsl(var(--border))] bg-gradient-to-br from-[hsl(var(--card))] via-[hsl(var(--card))] to-[hsl(var(--secondary)/.08)] p-6 sm:p-10 shadow-sm fade-up" data-testid="section-feedback-callout">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="max-w-xl text-left">
-              <div className="inline-flex items-center gap-1.5 rounded-full bg-[hsl(var(--secondary)/.2)] px-3 py-1 text-xs font-bold text-[hsl(var(--secondary-foreground))] mb-3">
-                <Sparkles size={13} /> Help Improve Nexora
-              </div>
-              <h2 className="display-font text-2xl sm:text-3xl font-bold tracking-tight text-[hsl(var(--foreground))]">
-                Found a bug or have a suggestion?
-              </h2>
-              <p className="mt-2 text-sm sm:text-base leading-relaxed text-[hsl(var(--muted-foreground))]">
-                Have ideas for new features, noticed an error or broken link, or have suggestions for improvements? We read every submission and build what students need!
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setFeedbackCategory("bug");
-                  setFeedbackOpen(true);
-                }}
-                className="focus-ring inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] px-5 text-sm font-bold text-[hsl(var(--destructive))] shadow-xs transition-all hover:bg-[hsl(var(--destructive)/.18)] cursor-pointer active:scale-95"
-                data-testid="button-home-report-bug"
-              >
-                <Bug size={16} /> Report a Bug
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setFeedbackCategory("improvement");
-                  setFeedbackOpen(true);
-                }}
-                className="focus-ring inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-6 text-sm font-bold text-[hsl(var(--primary-foreground))] shadow-sm transition-all hover:bg-[hsl(var(--primary)/.9)] cursor-pointer active:scale-95"
-                data-testid="button-home-give-feedback"
-              >
-                <MessageSquarePlus size={16} /> Give Feedback
-              </button>
-            </div>
-          </div>
-        </section>
-
         <section className="mt-16 mb-8 rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-6 py-12 text-center shadow-sm sm:px-12 sm:py-16 fade-up fade-up-delay-3">
           <div className="mx-auto max-w-2xl">
             <h2 className="display-font text-3xl font-bold tracking-[-.04em] sm:text-4xl">Contribute to Nexora</h2>
@@ -873,12 +807,6 @@ function Home() {
           </div>
         </section>
       </div>
-
-      <FeedbackDialog
-        open={feedbackOpen}
-        onOpenChange={setFeedbackOpen}
-        initialCategory={feedbackCategory}
-      />
     </div>
   );
 }
