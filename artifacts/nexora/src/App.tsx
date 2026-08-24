@@ -80,7 +80,7 @@ import {
   type FeedbackStatus,
   useListSemesterQpDepartments, useCreateSemesterQpDepartment, useUpdateSemesterQpDepartment, useListIaDepartments, useCreateIaDepartment, useUpdateIaDepartment,
 
-  useListIaPapers,
+  useListIaPapers, getListIaPapersQueryKey,
   useListSemesters,
   useRecordVisit,
   useListSubjects,
@@ -705,7 +705,7 @@ function Home() {
           <div className="relative max-w-2xl fade-up">
             <div className="mb-5 flex flex-wrap items-center gap-2.5">
               <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3.5 py-1.5 text-xs font-bold text-[hsl(var(--accent-foreground))] shadow-xs">
-                Nexora
+                Made for BITM students
               </div>
               <TotalVisitsCounter />
               <button
@@ -722,10 +722,10 @@ function Home() {
               </button>
             </div>
             <h1 className="display-font max-w-xl text-4xl font-bold leading-[1.05] tracking-[-.06em] sm:text-6xl">
-              Your BITM academic resource hub.
+              Your BITM resources.<br />All in one place.
             </h1>
             <p className="mt-5 max-w-lg text-base leading-7 text-[hsl(var(--muted-foreground))] sm:text-lg">
-              Find notes, PYQs, study materials and other academic resources in one place.
+              Notes, PYQs, and study materials. Curated for BITM students by BITM students.
             </p>
             <div className="mt-8 max-w-xl flex flex-col gap-4">
               <SearchBox />
@@ -1306,7 +1306,18 @@ function BranchPage() {
   const { data: resources = [] } = useListResources({ branchId: id }, qOpts(validId));
 
   if (!validId || branchError) return <NotFound />;
-  if (branchLoading || !branch) return <div className="mx-auto max-w-6xl px-4 py-24"><Loader2 className="mx-auto animate-spin text-[hsl(var(--muted-foreground))]" size={28} /></div>;
+  if (branchLoading || !branch) return (
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-7 sm:py-12">
+      <div className="mb-6 flex gap-1.5"><div className="h-4 w-24 animate-pulse rounded bg-[hsl(var(--muted))]" /></div>
+      <section className="relative overflow-hidden rounded-3xl bg-[hsl(var(--primary)/.2)] p-6 sm:p-10 h-64 animate-pulse" />
+      <div className="mt-10">
+        <div className="h-6 w-48 animate-pulse rounded bg-[hsl(var(--muted))] mb-6" />
+        <div className="space-y-4">
+          {[1, 2].map((i) => <div key={i} className="h-40 animate-pulse rounded-2xl bg-[hsl(var(--muted))]" />)}
+        </div>
+      </div>
+    </div>
+  );
 
   const yearIds = new Set(years.map((y) => y.id));
   const semestersInBranch = allSemesters.filter((s) => yearIds.has(s.yearId));
@@ -1329,9 +1340,27 @@ function SubjectPage() {
   const { data: resources = [] } = useListResources({ subjectId: id }, qOpts(validId));
 
   if (!validId || subjectError) return <NotFound />;
-  if (subjectLoading || !subject) return <div className="mx-auto max-w-5xl px-4 py-24"><Loader2 className="mx-auto animate-spin text-[hsl(var(--muted-foreground))]" size={28} /></div>;
+  if (subjectLoading || !subject) return (
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-7 sm:py-12">
+      <div className="mb-6 flex gap-1.5"><div className="h-4 w-32 animate-pulse rounded bg-[hsl(var(--muted))]" /></div>
+      <section className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.78)] p-6 sm:p-9">
+        <div className="h-4 w-24 animate-pulse rounded bg-[hsl(var(--muted))] mb-3" />
+        <div className="h-10 w-64 animate-pulse rounded bg-[hsl(var(--muted))] mb-4" />
+        <div className="h-16 w-full max-w-xl animate-pulse rounded bg-[hsl(var(--muted))]" />
+      </section>
+      <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {[1, 2, 3].map((i) => <div key={i} className="h-32 animate-pulse rounded-xl bg-[hsl(var(--muted))]" />)}
+      </div>
+    </div>
+  );
 
-  return <div className="mx-auto max-w-5xl px-4 py-8 sm:px-7 sm:py-12"><Breadcrumbs items={[{ label: "Home", href: "/" }, { label: branch?.shortName ?? "Branch", href: year ? `/branch/${year.branchId}` : undefined }, { label: subject.name }]} /><section className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.78)] p-6 sm:p-9"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="micro-label mb-3 text-[hsl(var(--accent-foreground))]">{branch?.shortName ?? "…"} · {year?.name ?? "…"} · {semester?.name ?? "…"}</p><h1 className="display-font text-4xl font-bold tracking-[-.05em] sm:text-5xl">{subject.name}</h1><p className="mt-4 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">{subject.description}</p></div><span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[hsl(var(--muted))] text-[hsl(var(--primary))]"><BookOpen size={25} /></span></div></section><div className="mt-10"><SectionHeading eyebrow={`${resources.length} resources`} title="Your subject shelf" action={<Link href="/contribute" className="focus-ring flex items-center gap-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-xs font-bold" data-testid="link-contribute-subject"><Plus size={14} /> Add one</Link>} />{resources.length ? <ResourceTypeGroups resources={resources} /> : <EmptyState title="This shelf is waiting for its first resource" body="If you have notes or a paper for this subject, you can be the person who starts it." action={<Link href="/contribute" className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--primary-foreground))]" data-testid="link-empty-subject-contribute"><Upload size={14} /> Contribute material</Link>} />}</div></div>;
+  return <div className="mx-auto max-w-5xl px-4 py-8 sm:px-7 sm:py-12"><Breadcrumbs items={[
+    { label: "Home", href: "/" },
+    { label: branch?.shortName ?? "Branch", href: branch ? `/branch/${branch.id}` : undefined },
+    { label: year?.name ?? "Year" },
+    { label: semester?.name ?? "Semester" },
+    { label: subject.name }
+  ]} /><section className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.78)] p-6 sm:p-9"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="micro-label mb-3 text-[hsl(var(--accent-foreground))]">{branch?.shortName ?? "—"} • {year?.name ?? "—"} • {semester?.name ?? "—"}</p><h1 className="display-font text-4xl font-bold tracking-[-.05em] sm:text-5xl">{subject.name}</h1><p className="mt-4 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">{subject.description}</p></div><span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[hsl(var(--muted))] text-[hsl(var(--primary))]"><BookOpen size={25} /></span></div></section><div className="mt-10"><SectionHeading eyebrow={`${resources.length} resources`} title="Your subject shelf" action={<Link href="/contribute" className="focus-ring flex items-center gap-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-xs font-bold" data-testid="link-contribute-subject"><Plus size={14} /> Add one</Link>} />{resources.length ? <ResourceTypeGroups resources={resources} /> : <EmptyState title="This shelf is waiting for its first resource" body="If you have notes or a paper for this subject, you can be the person who starts it." action={<Link href="/contribute" className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--primary-foreground))]" data-testid="link-empty-subject-contribute"><Upload size={14} /> Contribute material</Link>} />}</div></div>;
 }
 
 function ContributePage() {
@@ -1494,7 +1523,21 @@ function ContributePage() {
     );
   }
 
-  return <div className="mx-auto max-w-4xl px-4 py-8 sm:px-7 sm:py-12"><Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Contribute" }]} /><div className="mb-8 max-w-2xl"><p className="micro-label mb-2 text-[hsl(var(--accent-foreground))]">Give back a little</p><h1 className="display-font text-4xl font-bold tracking-[-.05em] sm:text-5xl">Put a useful file<br />in the right hands.</h1><p className="mt-4 text-sm leading-6 text-[hsl(var(--muted-foreground))]">Share material you trust. We review every submission before it becomes part of the library.</p></div>
+  return <div className="mx-auto max-w-4xl px-4 py-8 sm:px-7 sm:py-12"><Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Contribute" }]} />
+    <div className="mb-8 max-w-2xl"><p className="micro-label mb-2 text-[hsl(var(--accent-foreground))]">Give back a little</p><h1 className="display-font text-4xl font-bold tracking-[-.05em] sm:text-5xl">Put a useful file<br />in the right hands.</h1>
+      
+      <div className="mt-8 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.7)] p-6 sm:p-8">
+        <h3 className="font-bold text-[hsl(var(--foreground))] mb-4">How it works</h3>
+        <ol className="space-y-3 text-sm text-[hsl(var(--muted-foreground))]">
+          <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--secondary)/.2)] text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">1</span><span>Upload your notes, PYQs, or manuals to your Google Drive.</span></li>
+          <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--secondary)/.2)] text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">2</span><span>Make sure the link sharing is set to "Anyone with the link".</span></li>
+          <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--secondary)/.2)] text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">3</span><span>Paste the Google Drive link in the form below.</span></li>
+          <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--secondary)/.2)] text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">4</span><span>Select the correct branch, year, semester, and subject.</span></li>
+          <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--secondary)/.2)] text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">5</span><span>Submit your contribution for review.</span></li>
+          <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--primary)/.2)] text-[10px] font-bold text-[hsl(var(--primary))]">6</span><span className="font-semibold text-[hsl(var(--foreground))]">Approved resources appear in Nexora for everyone.</span></li>
+        </ol>
+      </div>
+    </div>
     
     <div className="mb-6 flex gap-4">
       <button 
@@ -8845,8 +8888,8 @@ function AdminIaContributionsSection() {
     qOpts(true)
   );
 
-  const approveSubmission = useApproveSubmission();
-  const rejectSubmission = useRejectSubmission();
+  const approveSubmission = useApproveSubmission({ mutation: { onSuccess: () => { queryClient.invalidateQueries({ queryKey: getListSubmissionsQueryKey() }); queryClient.invalidateQueries({ queryKey: getListIaPapersQueryKey() }); queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() }); } } });
+  const rejectSubmission = useRejectSubmission({ mutation: { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListSubmissionsQueryKey() }) } });
 
   const handleApprove = (item: any) => {
     approveSubmission.mutate(

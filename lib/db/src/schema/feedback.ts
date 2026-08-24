@@ -28,7 +28,6 @@ export const feedback = pgTable(
 );
 
 export const insertFeedbackSchema = createInsertSchema(feedback).omit({
-  id: true,
   status: true,
   adminNotes: true,
   createdAt: true,

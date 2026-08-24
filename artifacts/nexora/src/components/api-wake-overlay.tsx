@@ -66,17 +66,17 @@ export function ApiWakeOverlay() {
 
   const failed = connectivityError;
 
-  let title = "Getting Nexora ready…";
+  let title = "Nexora is waking up...";
   let description: string | null = "Just a moment while we connect to the resource library.";
 
   if (failed) {
     title = "Unable to connect to the server.";
     description = null;
   } else if (stage === 2) {
-    title = "Nexora is taking a little longer…";
+    title = "Nexora is taking a little longer...";
     description = "The server is waking up. This usually takes a few seconds.";
   } else if (stage === 3) {
-    title = "Still connecting…";
+    title = "Still connecting...";
     description = "You can wait a little longer or try again.";
   }
 
