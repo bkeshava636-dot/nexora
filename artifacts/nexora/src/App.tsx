@@ -719,7 +719,7 @@ function Home() {
           <div className="relative max-w-2xl fade-up">
             <div className="mb-5 flex flex-wrap items-center gap-2.5">
               <div className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3.5 py-1.5 text-xs font-bold text-[hsl(var(--accent-foreground))] shadow-xs">
-                Made for BITM students
+                Nexora
               </div>
               <TotalVisitsCounter />
             </div>
