@@ -724,10 +724,10 @@ function Home() {
               <TotalVisitsCounter />
             </div>
             <h1 className="display-font max-w-xl text-4xl font-bold leading-[1.05] tracking-[-.06em] sm:text-6xl">
-              Your BITM resources.<br />All in one place.
+               BITM resources.<br />All in one place.
             </h1>
             <p className="mt-5 max-w-lg text-base leading-7 text-[hsl(var(--muted-foreground))] sm:text-lg">
-              Notes, PYQs, and study materials. Curated for BITM students by BITM students.
+              Notes, PYQs, and study materials.
             </p>
             <div className="mt-8 max-w-xl flex flex-col gap-4">
               <SearchBox />
