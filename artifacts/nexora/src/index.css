@@ -467,9 +467,12 @@ button:active:not(:disabled), a.focus-ring:active { transform: scale(0.97); }
 
 /* Input transitions */
 .focus-ring:focus-visible { outline: 3px solid hsl(var(--secondary)); outline-offset: 3px; transition: outline .1s ease-out, outline-offset .1s ease-out; }
-.input-style { width: 100%; border: 1px solid hsl(var(--input)); border-radius: .75rem; background: hsl(var(--card)); padding: .72rem .8rem; font-size: .82rem; font-weight: 500; color: hsl(var(--foreground)); transition: border-color .2s ease-out, box-shadow .2s ease-out; }
-.input-style::placeholder { color: hsl(var(--muted-foreground)); }
-.input-style:focus { outline: 3px solid hsl(var(--secondary) / .45); outline-offset: 1px; border-color: hsl(var(--secondary)); }
+
+@layer components {
+  .input-style { width: 100%; border: 1px solid hsl(var(--input)); border-radius: .75rem; background: hsl(var(--card)); padding: .72rem .8rem; font-size: .82rem; font-weight: 500; color: hsl(var(--foreground)); transition: border-color .2s ease-out, box-shadow .2s ease-out; }
+  .input-style::placeholder { color: hsl(var(--muted-foreground)); }
+  .input-style:focus { outline: 3px solid hsl(var(--secondary) / .45); outline-offset: 1px; border-color: hsl(var(--secondary)); }
+}
 
 /* Reduced motion fallback */
 @media (prefers-reduced-motion: reduce) {

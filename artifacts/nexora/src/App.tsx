@@ -963,7 +963,7 @@ function SearchBox({ value, onChange }: { value?: string; onChange?: (value: str
   const submit = (event: FormEvent) => { event.preventDefault(); if (!controlled) navigate(`/resources?query=${encodeURIComponent(current ?? "")}`); };
   return <form onSubmit={submit} className="relative">
     <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" size={18} />
-    <input value={current} onChange={(e) => { controlled ? onChange?.(e.target.value) : setLocal(e.target.value); }} className="input-style h-14 !pl-12 pr-11 text-sm shadow-sm" placeholder="Search notes, papers, subjects..." data-testid="input-search" />
+    <input value={current} onChange={(e) => { controlled ? onChange?.(e.target.value) : setLocal(e.target.value); }} className="input-style h-14 !pl-12 !pr-11 text-sm shadow-sm" placeholder="Search notes, papers, subjects..." data-testid="input-search" />
     {current ? (
       <button
         type="button"
@@ -3931,13 +3931,13 @@ function AdminQuickLinks() {
       {/* Filter Bar */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-[200px] flex-1 max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" size={14} />
+          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" size={14} />
           <input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search links..."
-            className="input-style h-9 w-full pl-9 pr-3 text-xs"
+            className="input-style h-9 w-full !pl-9 pr-3 text-xs"
             data-testid="input-admin-links-search"
           />
         </div>
@@ -4592,7 +4592,7 @@ function AdminResources() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="input-style h-10 w-full pl-10 pr-9 text-xs"
+              className="input-style h-10 w-full !pl-10 !pr-9 text-xs"
               placeholder="Search title, subject, path..."
               data-testid="input-admin-resource-search"
             />
@@ -6084,13 +6084,13 @@ function QuickLinksPage() {
         {/* Search & Category Filter Bar */}
         <section className="mt-8 space-y-4 fade-up fade-up-delay-1">
           <div className="relative max-w-md">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" size={16} />
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" size={16} />
             <input
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search links, portals, WhatsApp groups..."
-              className="input-style h-11 w-full pl-10 pr-4 text-xs sm:text-sm"
+              className="input-style h-11 w-full !pl-11 pr-4 text-xs sm:text-sm"
               data-testid="input-quick-links-search"
             />
           </div>
