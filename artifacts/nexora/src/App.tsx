@@ -6075,7 +6075,7 @@ function QuickLinksPage() {
               Quick Links
             </h1>
             <p className="mt-3 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))] sm:text-base">
-              Access WhatsApp groups, VTU result portals, exam schedules, and essential college announcements all in one direct place.
+              Access WhatsApp groups, result portals and academic resources.
             </p>
           </div>
           <div className="absolute -right-8 -top-8 hidden h-56 w-56 rounded-full border-[18px] border-[hsl(var(--secondary)/.2)] sm:block" />
