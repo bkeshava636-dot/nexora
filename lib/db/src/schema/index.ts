@@ -12,3 +12,4 @@ export * from "./payments";
 export * from "./semester-qps";
 export * from "./ia-papers";
 export * from "./feedback";
+export * from "./important-links";

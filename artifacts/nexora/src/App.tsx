@@ -81,6 +81,16 @@ import {
   useListSemesterQpDepartments, useCreateSemesterQpDepartment, useUpdateSemesterQpDepartment, useListIaDepartments, useCreateIaDepartment, useUpdateIaDepartment,
 
   useListIaPapers, getListIaPapersQueryKey,
+  useListQuickLinks,
+  useGetQuickLink,
+  useCreateQuickLink,
+  useUpdateQuickLink,
+  useToggleQuickLinkStatus,
+  useDeleteQuickLink,
+  getListQuickLinksQueryKey,
+  type ImportantLinkItem,
+  type CreateQuickLinkInput,
+  type UpdateQuickLinkInput,
   useListSemesters,
   useRecordVisit,
   useListSubjects,
@@ -206,6 +216,7 @@ function Shell({ children }: { children: ReactNode }) {
     { href: "/", label: "Home", icon: LayoutDashboard },
     { href: "/resources", label: "Resource library", icon: LibraryBig },
     { href: "/pyqs", label: "PYQs", icon: GraduationCap },
+    { href: "/quick-links", label: "Quick Links", icon: Link2 },
     { href: "/contribute", label: "Contribute", icon: Upload },
   ];
   return <div className="noise nexora-shell min-h-[100dvh] text-[hsl(var(--foreground))]">
@@ -2160,6 +2171,7 @@ function AdminLayout({ children }: { children: ReactNode }) {
     { href: "/admin/submissions", label: "Submissions", testId: "link-admin-submissions" },
     { href: "/admin/resources", label: "Resources", testId: "link-admin-resources" },
     { href: "/admin/pyqs", label: "PYQs", testId: "link-admin-pyqs" },
+    { href: "/admin/quick-links", label: "Quick Links", testId: "link-admin-quick-links" },
     { href: "/admin/reports", label: "Reports", testId: "link-admin-reports" },
     { href: "/admin/feedback", label: "Feedback", testId: "link-admin-feedback" },
   ];
@@ -3569,6 +3581,501 @@ function AdminFeedback() {
         </div>
       )}
     </AdminLayout>
+  );
+}
+
+function QuickLinkEditorDialog({
+  open,
+  onOpenChange,
+  initialData,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  initialData?: ImportantLinkItem | null;
+}) {
+  const isEditing = Boolean(initialData);
+  const [title, setTitle] = useState("");
+  const [url, setUrl] = useState("");
+  const [category, setCategory] = useState("WhatsApp Groups");
+  const [customCategory, setCustomCategory] = useState("");
+  const [description, setDescription] = useState("");
+  const [displayOrder, setDisplayOrder] = useState("0");
+  const [isActive, setIsActive] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const createQuickLink = useCreateQuickLink();
+  const updateQuickLink = useUpdateQuickLink();
+
+  useEffect(() => {
+    if (initialData) {
+      setTitle(initialData.title);
+      setUrl(initialData.url);
+      const presetList = ["WhatsApp Groups", "Results", "Exams", "Notices", "Academic", "College", "VTU", "Other"];
+      if (presetList.includes(initialData.category)) {
+        setCategory(initialData.category);
+        setCustomCategory("");
+      } else {
+        setCategory("Other");
+        setCustomCategory(initialData.category);
+      }
+      setDescription(initialData.description || "");
+      setDisplayOrder(String(initialData.displayOrder ?? 0));
+      setIsActive(initialData.isActive);
+    } else {
+      setTitle("");
+      setUrl("");
+      setCategory("WhatsApp Groups");
+      setCustomCategory("");
+      setDescription("");
+      setDisplayOrder("0");
+      setIsActive(true);
+    }
+    setError(null);
+  }, [initialData, open]);
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!title.trim()) {
+      setError("Please enter a title.");
+      return;
+    }
+
+    if (!url.trim()) {
+      setError("Please enter a URL.");
+      return;
+    }
+
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://")) {
+      setError("URL must start with http:// or https://");
+      return;
+    }
+
+    const finalCategory = category === "Other" && customCategory.trim() ? customCategory.trim() : category;
+
+    const payload = {
+      title: title.trim(),
+      url: trimmedUrl,
+      category: finalCategory,
+      description: description.trim() || null,
+      displayOrder: Number(displayOrder) || 0,
+      isActive,
+    };
+
+    if (isEditing && initialData) {
+      updateQuickLink.mutate(
+        { id: initialData.id, data: payload },
+        {
+          onSuccess: () => {
+            toast({ title: "Quick link updated successfully" });
+            onOpenChange(false);
+          },
+          onError: (err: any) => {
+            setError(err?.message || "Failed to update quick link.");
+          },
+        },
+      );
+    } else {
+      createQuickLink.mutate(
+        { data: payload },
+        {
+          onSuccess: () => {
+            toast({ title: "Quick link created successfully" });
+            onOpenChange(false);
+          },
+          onError: (err: any) => {
+            setError(err?.message || "Failed to create quick link.");
+          },
+        },
+      );
+    }
+  };
+
+  const isPending = createQuickLink.isPending || updateQuickLink.isPending;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 sm:p-7">
+        <DialogHeader>
+          <DialogTitle className="display-font text-2xl font-bold tracking-tight">
+            {isEditing ? "Edit Quick Link" : "Add Quick Link"}
+          </DialogTitle>
+          <DialogDescription className="text-xs text-[hsl(var(--muted-foreground))]">
+            {isEditing ? "Update link details and visibility." : "Add a new portal, group, or shortcut for students."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-bold text-[hsl(var(--foreground))]">
+              Title <span className="text-[hsl(var(--destructive))]">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. 2026 Batch WhatsApp Group"
+              className="input-style h-10 w-full text-xs sm:text-sm"
+              data-testid="input-quick-link-title"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-bold text-[hsl(var(--foreground))]">
+                Category <span className="text-[hsl(var(--destructive))]">*</span>
+              </label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="input-style h-10 w-full text-xs"
+                data-testid="select-quick-link-category"
+              >
+                {["WhatsApp Groups", "Results", "Exams", "Notices", "Academic", "College", "VTU", "Other"].map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-bold text-[hsl(var(--foreground))]">
+                Display Order
+              </label>
+              <input
+                type="number"
+                value={displayOrder}
+                onChange={(e) => setDisplayOrder(e.target.value)}
+                placeholder="0"
+                className="input-style h-10 w-full text-xs"
+                data-testid="input-quick-link-order"
+              />
+            </div>
+          </div>
+
+          {category === "Other" && (
+            <div>
+              <label className="mb-1 block text-xs font-bold text-[hsl(var(--foreground))]">
+                Custom Category Name
+              </label>
+              <input
+                type="text"
+                value={customCategory}
+                onChange={(e) => setCustomCategory(e.target.value)}
+                placeholder="e.g. Library Portal"
+                className="input-style h-10 w-full text-xs"
+                data-testid="input-quick-link-custom-category"
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="mb-1 block text-xs font-bold text-[hsl(var(--foreground))]">
+              Destination URL <span className="text-[hsl(var(--destructive))]">*</span>
+            </label>
+            <input
+              type="url"
+              required
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://..."
+              className="input-style h-10 w-full text-xs sm:text-sm"
+              data-testid="input-quick-link-url"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-bold text-[hsl(var(--foreground))]">
+              Short Description <span className="text-[10px] font-normal text-[hsl(var(--muted-foreground))]">(optional)</span>
+            </label>
+            <textarea
+              rows={2}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Connect with classmates, share announcements..."
+              className="input-style w-full text-xs py-2 px-3 resize-none"
+              data-testid="textarea-quick-link-description"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 pt-1">
+            <input
+              type="checkbox"
+              id="quick-link-active"
+              checked={isActive}
+              onChange={(e) => setIsActive(e.target.checked)}
+              className="h-4 w-4 rounded border-[hsl(var(--border))] text-[hsl(var(--primary))] cursor-pointer"
+              data-testid="checkbox-quick-link-active"
+            />
+            <label htmlFor="quick-link-active" className="text-xs font-bold text-[hsl(var(--foreground))] cursor-pointer">
+              Active (visible to students)
+            </label>
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 rounded-xl bg-[hsl(var(--destructive)/.1)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]">
+              <CircleAlert size={15} className="shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <DialogFooter className="pt-2 gap-2">
+            <DialogClose asChild>
+              <button
+                type="button"
+                className="focus-ring inline-flex h-10 items-center justify-center rounded-xl border border-[hsl(var(--border))] px-4 text-xs font-bold text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]"
+              >
+                Cancel
+              </button>
+            </DialogClose>
+            <button
+              type="submit"
+              disabled={isPending}
+              className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-6 text-xs font-bold text-[hsl(var(--primary-foreground))] shadow-sm transition-all hover:bg-[hsl(var(--primary)/.9)] disabled:opacity-50"
+              data-testid="button-save-quick-link"
+            >
+              {isPending && <Loader2 size={14} className="animate-spin" />}
+              <span>{isEditing ? "Save Changes" : "Create Link"}</span>
+            </button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AdminQuickLinks() {
+  const [filterCategory, setFilterCategory] = useState<string>("All");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [search, setSearch] = useState<string>("");
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<ImportantLinkItem | null>(null);
+
+  const { data: links = [], isLoading } = useListQuickLinks({ isActive: "all" });
+  const toggleStatus = useToggleQuickLinkStatus();
+  const deleteQuickLink = useDeleteQuickLink();
+
+  const handleToggle = (link: ImportantLinkItem) => {
+    toggleStatus.mutate(
+      { id: link.id, isActive: !link.isActive },
+      {
+        onSuccess: () => {
+          toast({ title: `Link ${!link.isActive ? "activated" : "disabled"}` });
+        },
+        onError: (err: any) => {
+          toast({ title: "Failed to update status", description: err.message, variant: "destructive" });
+        },
+      },
+    );
+  };
+
+  const handleDelete = (link: ImportantLinkItem) => {
+    if (!window.confirm(`Are you sure you want to delete "${link.title}"?`)) return;
+    deleteQuickLink.mutate(
+      { id: link.id },
+      {
+        onSuccess: () => {
+          toast({ title: "Quick link deleted" });
+        },
+        onError: (err: any) => {
+          toast({ title: "Failed to delete", description: err.message, variant: "destructive" });
+        },
+      },
+    );
+  };
+
+  const filtered = useMemo(() => {
+    return links.filter((item) => {
+      const matchCat = filterCategory === "All" || item.category === filterCategory;
+      const matchStatus =
+        filterStatus === "all" ||
+        (filterStatus === "active" && item.isActive) ||
+        (filterStatus === "inactive" && !item.isActive);
+      const matchSearch =
+        !search.trim() ||
+        item.title.toLowerCase().includes(search.toLowerCase()) ||
+        item.url.toLowerCase().includes(search.toLowerCase()) ||
+        (item.description && item.description.toLowerCase().includes(search.toLowerCase()));
+      return matchCat && matchStatus && matchSearch;
+    });
+  }, [links, filterCategory, filterStatus, search]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-[hsl(var(--foreground))]">
+            Quick Links
+          </h2>
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">
+            Manage external portals, WhatsApp groups, VTU result links, and exam shortcuts.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setEditingItem(null);
+            setEditorOpen(true);
+          }}
+          className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-5 text-xs font-bold text-[hsl(var(--primary-foreground))] shadow-sm transition-all hover:bg-[hsl(var(--primary)/.9)] cursor-pointer"
+          data-testid="button-add-quick-link"
+        >
+          <Plus size={15} /> Add Quick Link
+        </button>
+      </div>
+
+      {/* Filter Bar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative min-w-[200px] flex-1 max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" size={14} />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search links..."
+            className="input-style h-9 w-full pl-9 pr-3 text-xs"
+            data-testid="input-admin-links-search"
+          />
+        </div>
+
+        <select
+          value={filterCategory}
+          onChange={(e) => setFilterCategory(e.target.value)}
+          className="input-style h-9 text-xs"
+          data-testid="select-admin-links-cat"
+        >
+          <option value="All">All Categories</option>
+          {["WhatsApp Groups", "Results", "Exams", "Notices", "Academic", "College", "VTU", "Other"].map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className="input-style h-9 text-xs"
+          data-testid="select-admin-links-status"
+        >
+          <option value="all">All Statuses</option>
+          <option value="active">Active only</option>
+          <option value="inactive">Inactive only</option>
+        </select>
+      </div>
+
+      {/* Table / List */}
+      {isLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-16 animate-pulse rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.5)]" />
+          ))}
+        </div>
+      ) : filtered.length > 0 ? (
+        <div className="overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-xs">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted)/.5)] font-bold text-[hsl(var(--muted-foreground))]">
+                <tr>
+                  <th className="px-4 py-3">Title & Details</th>
+                  <th className="px-4 py-3">Category</th>
+                  <th className="px-4 py-3 text-center">Order</th>
+                  <th className="px-4 py-3 text-center">Status</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[hsl(var(--border)/.5)]">
+                {filtered.map((item) => (
+                  <tr key={item.id} className="hover:bg-[hsl(var(--muted)/.3)] transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="font-bold text-[hsl(var(--foreground))]">{item.title}</div>
+                      {item.description && (
+                        <div className="text-[11px] text-[hsl(var(--muted-foreground))] line-clamp-1 mt-0.5">
+                          {item.description}
+                        </div>
+                      )}
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 font-mono text-[10px] text-[hsl(var(--primary))] hover:underline mt-1 truncate max-w-xs"
+                      >
+                        <span>{item.url}</span>
+                        <ExternalLink size={10} />
+                      </a>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="inline-flex rounded-md bg-[hsl(var(--muted))] px-2 py-0.5 text-[11px] font-bold text-[hsl(var(--foreground))]">
+                        {item.category}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center whitespace-nowrap text-xs font-mono text-[hsl(var(--muted-foreground))]">
+                      {item.displayOrder}
+                    </td>
+                    <td className="px-4 py-3 text-center whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => handleToggle(item)}
+                        disabled={toggleStatus.isPending}
+                        className={`focus-ring inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold cursor-pointer transition-colors ${
+                          item.isActive
+                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25"
+                            : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted)/.8)]"
+                        }`}
+                        data-testid={`button-toggle-status-${item.id}`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${item.isActive ? "bg-emerald-500" : "bg-zinc-400"}`} />
+                        <span>{item.isActive ? "Active" : "Inactive"}</span>
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <div className="inline-flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingItem(item);
+                            setEditorOpen(true);
+                          }}
+                          className="focus-ring inline-flex h-7 w-7 items-center justify-center rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] cursor-pointer"
+                          title="Edit link"
+                          data-testid={`button-edit-link-${item.id}`}
+                        >
+                          <Pencil size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(item)}
+                          disabled={deleteQuickLink.isPending}
+                          className="focus-ring inline-flex h-7 w-7 items-center justify-center rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive)/.1)] cursor-pointer"
+                          title="Delete link"
+                          data-testid={`button-delete-link-${item.id}`}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-[hsl(var(--border))] p-8 text-center">
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">No quick links found.</p>
+        </div>
+      )}
+
+      <QuickLinkEditorDialog
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+        initialData={editingItem}
+      />
+    </div>
   );
 }
 
@@ -5408,6 +5915,267 @@ function getIaSemesterLabel(sem: string): string {
     return "2nd Semester • Even";
   }
   return s;
+}
+
+function getQuickLinkCategoryMeta(category: string) {
+  switch (category) {
+    case "WhatsApp Groups":
+      return {
+        label: "WhatsApp",
+        icon: MessageSquare,
+        badgeClass: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+        btnClass: "hover:border-emerald-500/40",
+      };
+    case "Results":
+      return {
+        label: "Results",
+        icon: BadgeCheck,
+        badgeClass: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20",
+        btnClass: "hover:border-purple-500/40",
+      };
+    case "Exams":
+      return {
+        label: "Exams",
+        icon: Calendar,
+        badgeClass: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+        btnClass: "hover:border-amber-500/40",
+      };
+    case "Notices":
+      return {
+        label: "Notices",
+        icon: Sparkles,
+        badgeClass: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+        btnClass: "hover:border-blue-500/40",
+      };
+    case "Academic":
+      return {
+        label: "Academic",
+        icon: BookOpen,
+        badgeClass: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20",
+        btnClass: "hover:border-indigo-500/40",
+      };
+    case "College":
+      return {
+        label: "College",
+        icon: GraduationCap,
+        badgeClass: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20",
+        btnClass: "hover:border-cyan-500/40",
+      };
+    case "VTU":
+      return {
+        label: "VTU",
+        icon: ShieldCheck,
+        badgeClass: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
+        btnClass: "hover:border-rose-500/40",
+      };
+    default:
+      return {
+        label: category || "Other",
+        icon: Link2,
+        badgeClass: "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] border-[hsl(var(--border))]",
+        btnClass: "hover:border-[hsl(var(--border))]",
+      };
+  }
+}
+
+function QuickLinkCard({ link }: { link: ImportantLinkItem }) {
+  const meta = getQuickLinkCategoryMeta(link.category);
+  const Icon = meta.icon;
+
+  let hostname = "";
+  try {
+    hostname = new URL(link.url).hostname.replace(/^www\./, "");
+  } catch {
+    hostname = link.url;
+  }
+
+  return (
+    <a
+      href={link.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="card-lift focus-ring group relative flex flex-col justify-between rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 text-left transition-all hover:border-[hsl(var(--accent-foreground)/.3)] hover:shadow-md cursor-pointer"
+      data-testid={`card-quick-link-${link.id}`}
+    >
+      <div>
+        <div className="flex items-center justify-between gap-2">
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold tracking-tight ${meta.badgeClass}`}
+          >
+            <Icon size={13} />
+            <span>{link.category}</span>
+          </span>
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] transition-colors group-hover:bg-[hsl(var(--primary))] group-hover:text-[hsl(var(--primary-foreground))]">
+            <ExternalLink size={13} />
+          </span>
+        </div>
+
+        <h3 className="mt-4 text-base font-bold tracking-tight text-[hsl(var(--foreground))] group-hover:text-[hsl(var(--accent-foreground))] transition-colors line-clamp-2">
+          {link.title}
+        </h3>
+
+        {link.description && (
+          <p className="mt-2 text-xs leading-relaxed text-[hsl(var(--muted-foreground))] line-clamp-2">
+            {link.description}
+          </p>
+        )}
+      </div>
+
+      <div className="mt-5 flex items-center justify-between border-t border-[hsl(var(--border)/.5)] pt-3.5 text-xs">
+        <span className="font-mono text-[11px] text-[hsl(var(--muted-foreground))] truncate max-w-[170px]">
+          {hostname}
+        </span>
+        <span className="inline-flex items-center gap-1 font-bold text-[hsl(var(--primary))] group-hover:translate-x-0.5 transition-transform text-xs">
+          <span>Open Link</span>
+          <ArrowRight size={13} />
+        </span>
+      </div>
+    </a>
+  );
+}
+
+function QuickLinksPage() {
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [search, setSearch] = useState<string>("");
+  const { data: links = [], isLoading } = useListQuickLinks();
+
+  const filteredLinks = useMemo(() => {
+    return links.filter((link) => {
+      const matchCat = selectedCategory === "All" || link.category === selectedCategory;
+      const matchSearch =
+        !search.trim() ||
+        link.title.toLowerCase().includes(search.toLowerCase()) ||
+        (link.description && link.description.toLowerCase().includes(search.toLowerCase())) ||
+        link.category.toLowerCase().includes(search.toLowerCase()) ||
+        link.url.toLowerCase().includes(search.toLowerCase());
+      return matchCat && matchSearch;
+    });
+  }, [links, selectedCategory, search]);
+
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { All: links.length };
+    for (const link of links) {
+      counts[link.category] = (counts[link.category] || 0) + 1;
+    }
+    return counts;
+  }, [links]);
+
+  return (
+    <div className="hero-wash min-h-screen">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-7 sm:py-12">
+        <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Quick Links" }]} />
+
+        {/* Header Hero */}
+        <section className="soft-grid relative overflow-hidden rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card)/.7)] px-5 py-8 sm:px-10 sm:py-12 fade-up">
+          <div className="relative max-w-2xl">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3.5 py-1.5 text-xs font-bold text-[hsl(var(--accent-foreground))] shadow-xs">
+              <Link2 size={14} /> Official Portals & Shortcuts
+            </div>
+            <h1 className="display-font text-3xl font-bold tracking-[-.05em] sm:text-5xl">
+              Quick Links
+            </h1>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))] sm:text-base">
+              Access WhatsApp groups, VTU result portals, exam schedules, and essential college announcements all in one direct place.
+            </p>
+          </div>
+          <div className="absolute -right-8 -top-8 hidden h-56 w-56 rounded-full border-[18px] border-[hsl(var(--secondary)/.2)] sm:block" />
+        </section>
+
+        {/* Search & Category Filter Bar */}
+        <section className="mt-8 space-y-4 fade-up fade-up-delay-1">
+          <div className="relative max-w-md">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" size={16} />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search links, portals, WhatsApp groups..."
+              className="input-style h-11 w-full pl-10 pr-4 text-xs sm:text-sm"
+              data-testid="input-quick-links-search"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            {["All", "WhatsApp Groups", "Results", "Exams", "Notices", "Academic", "College", "VTU", "Other"].map((cat) => {
+              const count = categoryCounts[cat] || 0;
+              if (cat !== "All" && count === 0) return null;
+              const isSelected = selectedCategory === cat;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`focus-ring inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-bold transition-all cursor-pointer ${
+                    isSelected
+                      ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-xs"
+                      : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:border-[hsl(var(--accent-foreground)/.4)] hover:text-[hsl(var(--foreground))]"
+                  }`}
+                  data-testid={`button-cat-${cat.toLowerCase().replaceAll(" ", "-")}`}
+                >
+                  <span>{cat}</span>
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] ${
+                      isSelected
+                        ? "bg-[hsl(var(--primary-foreground)/.2)] text-[hsl(var(--primary-foreground))]"
+                        : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Links Grid */}
+        <section className="mt-8 pb-16 fade-up fade-up-delay-2">
+          {isLoading ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-44 animate-pulse rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.5)] p-5"
+                />
+              ))}
+            </div>
+          ) : filteredLinks.length > 0 ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredLinks.map((link) => (
+                <QuickLinkCard key={link.id} link={link} />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-3xl border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--card)/.4)] p-12 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]">
+                <Link2 size={26} />
+              </div>
+              <h3 className="mt-4 text-base font-bold text-[hsl(var(--foreground))]">
+                No quick links available yet.
+              </h3>
+              <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))] max-w-sm mx-auto">
+                {search.trim() || selectedCategory !== "All"
+                  ? "No links match your current filter criteria. Try clearing search or selecting All."
+                  : "Important portals and groups will be added here by administrators soon."}
+              </p>
+              {(search.trim() || selectedCategory !== "All") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCategory("All");
+                    setSearch("");
+                  }}
+                  className="focus-ring mt-4 inline-flex items-center gap-1.5 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-2 text-xs font-bold hover:bg-[hsl(var(--muted))] cursor-pointer"
+                >
+                  <RotateCcw size={13} /> Reset Filters
+                </button>
+              )}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
+  );
 }
 
 function PyqsPage() {
@@ -8795,6 +9563,7 @@ function AppRouter() {
     <Route path="/"><Home /></Route>
     <Route path="/resources"><ResourcesPage /></Route>
     <Route path="/pyqs"><PyqsPage /></Route>
+    <Route path="/quick-links"><QuickLinksPage /></Route>
     <Route path="/branch/:branchId"><BranchPage /></Route>
     <Route path="/subject/:subjectId"><SubjectPage /></Route>
     <Route path="/contribute"><ContributePage /></Route>
@@ -8807,6 +9576,7 @@ function AppRouter() {
     <Route path="/admin/submissions"><RequireAdmin><AdminSubmissions /></RequireAdmin></Route>
     <Route path="/admin/resources"><RequireAdmin><AdminResources /></RequireAdmin></Route>
     <Route path="/admin/pyqs"><RequireAdmin><AdminLayout><AdminPyqs /></AdminLayout></RequireAdmin></Route>
+    <Route path="/admin/quick-links"><RequireAdmin><AdminLayout><AdminQuickLinks /></AdminLayout></RequireAdmin></Route>
     <Route path="/admin/reports"><RequireAdmin><AdminReports /></RequireAdmin></Route>
     <Route path="/admin/feedback"><RequireAdmin><AdminFeedback /></RequireAdmin></Route>
     <Route component={NotFound} />

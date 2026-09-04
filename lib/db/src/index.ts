@@ -128,7 +128,23 @@ export async function ensureTables(): Promise<void> {
       );`,
       `CREATE INDEX IF NOT EXISTS "feedback_status_idx" ON "feedback" ("status");`,
       `CREATE INDEX IF NOT EXISTS "feedback_category_idx" ON "feedback" ("category");`,
-      `CREATE INDEX IF NOT EXISTS "feedback_created_at_idx" ON "feedback" ("created_at");`
+      `CREATE INDEX IF NOT EXISTS "feedback_created_at_idx" ON "feedback" ("created_at");`,
+      `CREATE TABLE IF NOT EXISTS "important_links" (
+        "id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        "title" text NOT NULL,
+        "description" text,
+        "url" text NOT NULL,
+        "category" text NOT NULL DEFAULT 'Other',
+        "icon" text,
+        "display_order" integer NOT NULL DEFAULT 0,
+        "is_active" boolean NOT NULL DEFAULT true,
+        "created_at" timestamp with time zone NOT NULL DEFAULT now(),
+        "updated_at" timestamp with time zone NOT NULL DEFAULT now()
+      );`,
+      `CREATE INDEX IF NOT EXISTS "important_links_category_idx" ON "important_links" ("category");`,
+      `CREATE INDEX IF NOT EXISTS "important_links_is_active_idx" ON "important_links" ("is_active");`,
+      `CREATE INDEX IF NOT EXISTS "important_links_display_order_idx" ON "important_links" ("display_order");`,
+      `CREATE INDEX IF NOT EXISTS "important_links_created_at_idx" ON "important_links" ("created_at");`
     ];
 
     for (const q of ddlQueries) {
