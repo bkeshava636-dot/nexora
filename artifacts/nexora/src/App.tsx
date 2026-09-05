@@ -166,9 +166,16 @@ function getErrorMessage(error: unknown): string {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 30, // 30s cache freshness avoids duplicate refetches on quick route switches
+      staleTime: 1000 * 60 * 3, // 3 minutes default freshness avoids duplicate refetches during navigation
+      gcTime: 1000 * 60 * 30, // 30 minutes in-memory retention keeps previously loaded pages ready for instant return
       refetchOnWindowFocus: false, // Prevents sudden network spikes on tab focus
-      retry: 1,
+      refetchOnReconnect: true,
+      retry: (failureCount, error) => {
+        // Do not retry client errors (400, 401, 403, 404), retry network/5xx once
+        const status = (error as any)?.status;
+        if (typeof status === "number" && status >= 400 && status < 500) return false;
+        return failureCount < 1;
+      },
     },
   },
   mutationCache: new MutationCache({
@@ -183,6 +190,76 @@ const queryClient = new QueryClient({
       toast({ variant: "destructive", title: "That didn't go through", description: message });
     },
   }),
+});
+
+// 1. Stable Academic Catalog (Branches, Years, Semesters, Subjects):
+// 5 minutes stale time for smooth, instant back-and-forth browsing; 30 minutes memory retention.
+queryClient.setQueryDefaults(["/api/branches"], {
+  staleTime: 1000 * 60 * 5,
+  gcTime: 1000 * 60 * 30,
+});
+queryClient.setQueryDefaults(["/api/years"], {
+  staleTime: 1000 * 60 * 5,
+  gcTime: 1000 * 60 * 30,
+});
+queryClient.setQueryDefaults(["/api/semesters"], {
+  staleTime: 1000 * 60 * 5,
+  gcTime: 1000 * 60 * 30,
+});
+queryClient.setQueryDefaults(["/api/subjects"], {
+  staleTime: 1000 * 60 * 5,
+  gcTime: 1000 * 60 * 30,
+});
+
+// 2. Resource Library:
+// 1 minute stale time (refreshes more frequently for student contributions), 15 minutes memory retention.
+queryClient.setQueryDefaults(["/api/resources"], {
+  staleTime: 1000 * 60 * 1,
+  gcTime: 1000 * 60 * 15,
+});
+
+// 3. Quick Links:
+// 3 minutes stale time for public links, 30 minutes memory retention.
+queryClient.setQueryDefaults(["/api/quick-links"], {
+  staleTime: 1000 * 60 * 3,
+  gcTime: 1000 * 60 * 30,
+});
+queryClient.setQueryDefaults(["/api/admin/quick-links"], {
+  staleTime: 1000 * 30,
+  gcTime: 1000 * 60 * 15,
+});
+
+// 4. Semester Question Papers & Internal Assessment:
+// 3 minutes stale time, 30 minutes memory retention.
+queryClient.setQueryDefaults(["/api/semester-qps"], {
+  staleTime: 1000 * 60 * 3,
+  gcTime: 1000 * 60 * 30,
+});
+queryClient.setQueryDefaults(["/api/ia-papers"], {
+  staleTime: 1000 * 60 * 3,
+  gcTime: 1000 * 60 * 30,
+});
+queryClient.setQueryDefaults(["/api/semester-qp-departments"], {
+  staleTime: 1000 * 60 * 5,
+  gcTime: 1000 * 60 * 30,
+});
+queryClient.setQueryDefaults(["/api/ia-departments"], {
+  staleTime: 1000 * 60 * 5,
+  gcTime: 1000 * 60 * 30,
+});
+
+// 5. Admin Queues & Feedback:
+queryClient.setQueryDefaults(["/api/submissions"], {
+  staleTime: 1000 * 30,
+  gcTime: 1000 * 60 * 10,
+});
+queryClient.setQueryDefaults(["/api/feedback"], {
+  staleTime: 1000 * 30,
+  gcTime: 1000 * 60 * 10,
+});
+queryClient.setQueryDefaults(["/api/reports"], {
+  staleTime: 1000 * 30,
+  gcTime: 1000 * 60 * 10,
 });
 const resourceTypes: ResourceType[] = ["Lecture notes", "Previous year paper", "Lab manual", "Assignment", "Reference"];
 const resourceTypeSections: Array<{ type: ResourceType; label: string }> = [
@@ -940,7 +1017,7 @@ function CatalogQuickAccess() {
 
 function BranchGrid() {
   const { data: branches = [], isLoading } = useListBranches();
-  if (isLoading) return <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="h-40 animate-pulse rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)]" />)}</div>;
+  if (isLoading && branches.length === 0) return <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((i) => <div key={i} className="h-40 animate-pulse rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)]" />)}</div>;
   return <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{branches.map((branch) => <BranchCard key={branch.id} branch={branch} />)}</div>;
 }
 
@@ -1256,14 +1333,28 @@ function BranchPage() {
   const { branchId = "" } = useParams<{ branchId: string }>();
   const id = Number(branchId);
   const validId = Number.isFinite(id);
-  const { data: branch, isLoading: branchLoading, isError: branchError } = useGetBranch(id, qOpts(validId));
-  const { data: years = [] } = useListYears({ branchId: id }, qOpts(validId));
+  const qc = useQueryClient();
+  const { data: branches = [] } = useListBranches();
+  const { data: branch, isLoading: branchLoading, isError: branchError } = useGetBranch(id, {
+    query: {
+      enabled: validId,
+      initialData: () => {
+        return (
+          branches.find((b) => b.id === id) ??
+          qc.getQueryData<Branch[]>(["/api/branches"])?.find((b) => b.id === id)
+        );
+      },
+    },
+  } as any);
+  const activeBranch = branch ?? branches.find((b) => b.id === id);
+
+  const { data: years = [], isLoading: yearsLoading } = useListYears({ branchId: id }, qOpts(validId));
   const { data: allSemesters = [] } = useListSemesters();
   const { data: allSubjects = [] } = useListSubjects();
   const { data: resources = [] } = useListResources({ branchId: id }, qOpts(validId));
 
-  if (!validId || branchError) return <NotFound />;
-  if (branchLoading || !branch) return (
+  if (!validId || (branchError && !activeBranch)) return <NotFound />;
+  if ((branchLoading && !activeBranch) || !activeBranch) return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-7 sm:py-12">
       <div className="mb-6 flex gap-1.5"><div className="h-4 w-24 animate-pulse rounded bg-[hsl(var(--muted))]" /></div>
       <section className="relative overflow-hidden rounded-3xl bg-[hsl(var(--primary)/.2)] p-6 sm:p-10 h-64 animate-pulse" />
@@ -1283,21 +1374,82 @@ function BranchPage() {
   const subjectsBySemester = (semesterId: number) => branchSubjects.filter((s) => s.semesterId === semesterId);
   const semestersInYear = (yearId: number) => semestersInBranch.filter((s) => s.yearId === yearId);
 
-  return <div className="mx-auto max-w-6xl px-4 py-8 sm:px-7 sm:py-12"><Breadcrumbs items={[{ label: "Home", href: "/" }, { label: branch.shortName }]} /><section className="relative overflow-hidden rounded-3xl bg-[hsl(var(--primary))] p-6 text-[hsl(var(--primary-foreground))] sm:p-10"><div className="relative z-10 max-w-2xl"><p className="micro-label mb-3 text-[hsl(var(--secondary))]">{branch.shortName} · Academic path</p><h1 className="display-font text-4xl font-bold tracking-[-.05em] sm:text-5xl">{branch.name}</h1><p className="mt-4 max-w-lg text-sm leading-6 text-[hsl(var(--primary-foreground)/.7)]">{branch.description}</p><div className="mt-7 flex flex-wrap gap-2 text-xs font-bold"><span className="rounded-full bg-[hsl(var(--primary-foreground)/.12)] px-3 py-2">{branch.subjectCount} subjects</span><span className="rounded-full bg-[hsl(var(--primary-foreground)/.12)] px-3 py-2">{branch.resourceCount} resources</span></div></div><div className="absolute -right-16 -top-20 h-64 w-64 rounded-full border-[22px] border-[hsl(var(--secondary)/.3)]" /></section><section className="mt-10"><SectionHeading eyebrow="Choose your year" title="A clear path through the semesters" /><div className="space-y-4">{years.map((yearItem) => <div key={yearItem.id} className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.76)] p-5 sm:p-6"><div className="flex items-center justify-between"><div><span className="micro-label text-[hsl(var(--accent-foreground))]">{yearItem.name}</span></div><span className="rounded-full bg-[hsl(var(--muted))] px-2.5 py-1 text-[10px] font-bold text-[hsl(var(--muted-foreground))]">{semestersInYear(yearItem.id).reduce((sum, s) => sum + subjectsBySemester(s.id).length, 0)} subjects</span></div><div className="mt-5 space-y-5">{semestersInYear(yearItem.id).map((semesterItem) => <div key={semesterItem.id}><p className="text-[10px] font-bold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">{semesterItem.name}</p><div className="mt-2 grid gap-3 sm:grid-cols-2">{subjectsBySemester(semesterItem.id).map((subject) => <Link href={`/subject/${subject.id}`} key={subject.id} className="card-lift focus-ring flex items-center justify-between gap-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4" data-testid={`link-subject-${subject.id}`}><h3 className="text-sm font-bold">{subject.name}</h3><ChevronRight size={17} className="text-[hsl(var(--muted-foreground))]" /></Link>)}</div></div>)}</div></div>)}</div></section><section className="mt-10 pb-10"><SectionHeading eyebrow="A quick look" title="Latest from this branch" /><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{resources.slice(0, 3).map((resource) => <ResourceCard compact key={resource.id} resource={resource} />)}</div></section></div>;
+  return <div className="mx-auto max-w-6xl px-4 py-8 sm:px-7 sm:py-12"><Breadcrumbs items={[{ label: "Home", href: "/" }, { label: activeBranch.shortName }]} /><section className="relative overflow-hidden rounded-3xl bg-[hsl(var(--primary))] p-6 text-[hsl(var(--primary-foreground))] sm:p-10"><div className="relative z-10 max-w-2xl"><p className="micro-label mb-3 text-[hsl(var(--secondary))]">{activeBranch.shortName} · Academic path</p><h1 className="display-font text-4xl font-bold tracking-[-.05em] sm:text-5xl">{activeBranch.name}</h1><p className="mt-4 max-w-lg text-sm leading-6 text-[hsl(var(--primary-foreground)/.7)]">{activeBranch.description}</p><div className="mt-7 flex flex-wrap gap-2 text-xs font-bold"><span className="rounded-full bg-[hsl(var(--primary-foreground)/.12)] px-3 py-2">{activeBranch.subjectCount} subjects</span><span className="rounded-full bg-[hsl(var(--primary-foreground)/.12)] px-3 py-2">{activeBranch.resourceCount} resources</span></div></div><div className="absolute -right-16 -top-20 h-64 w-64 rounded-full border-[22px] border-[hsl(var(--secondary)/.3)]" /></section><section className="mt-10"><SectionHeading eyebrow="Choose your year" title="A clear path through the semesters" /><div className="space-y-4">{yearsLoading && years.length === 0 ? [1, 2].map((i) => <div key={i} className="h-32 animate-pulse rounded-2xl bg-[hsl(var(--muted)/.5)]" />) : years.map((yearItem) => <div key={yearItem.id} className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.76)] p-5 sm:p-6"><div className="flex items-center justify-between"><div><span className="micro-label text-[hsl(var(--accent-foreground))]">{yearItem.name}</span></div><span className="rounded-full bg-[hsl(var(--muted))] px-2.5 py-1 text-[10px] font-bold text-[hsl(var(--muted-foreground))]">{semestersInYear(yearItem.id).reduce((sum, s) => sum + subjectsBySemester(s.id).length, 0)} subjects</span></div><div className="mt-5 space-y-5">{semestersInYear(yearItem.id).map((semesterItem) => <div key={semesterItem.id}><p className="text-[10px] font-bold uppercase tracking-[.1em] text-[hsl(var(--muted-foreground))]">{semesterItem.name}</p><div className="mt-2 grid gap-3 sm:grid-cols-2">{subjectsBySemester(semesterItem.id).map((subject) => <Link href={`/subject/${subject.id}`} key={subject.id} className="card-lift focus-ring flex items-center justify-between gap-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4" data-testid={`link-subject-${subject.id}`}><h3 className="text-sm font-bold">{subject.name}</h3><ChevronRight size={17} className="text-[hsl(var(--muted-foreground))]" /></Link>)}</div></div>)}</div></div>)}</div></section><section className="mt-10 pb-10"><SectionHeading eyebrow="A quick look" title="Latest from this branch" /><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{resources.slice(0, 3).map((resource) => <ResourceCard compact key={resource.id} resource={resource} />)}</div></section></div>;
 }
 
 function SubjectPage() {
   const { subjectId = "" } = useParams<{ subjectId: string }>();
   const id = Number(subjectId);
   const validId = Number.isFinite(id);
-  const { data: subject, isLoading: subjectLoading, isError: subjectError } = useGetSubject(id, qOpts(validId));
-  const { data: semester } = useGetSemester(subject?.semesterId as number, qOpts(!!subject));
-  const { data: year } = useGetYear(semester?.yearId as number, qOpts(!!semester));
-  const { data: branch } = useGetBranch(year?.branchId as number, qOpts(!!year));
+  const qc = useQueryClient();
+
+  const { data: allSubjects = [] } = useListSubjects();
+  const { data: allSemesters = [] } = useListSemesters();
+  const { data: allYears = [] } = useListYears();
+  const { data: branches = [] } = useListBranches();
+
+  const { data: subject, isLoading: subjectLoading, isError: subjectError } = useGetSubject(id, {
+    query: {
+      enabled: validId,
+      initialData: () => {
+        return (
+          allSubjects.find((s) => s.id === id) ??
+          qc.getQueryData<Subject[]>(["/api/subjects"])?.find((s) => s.id === id)
+        );
+      },
+    },
+  } as any);
+
+  const activeSubject = subject ?? allSubjects.find((s) => s.id === id);
+  const semesterId = activeSubject?.semesterId;
+
+  const { data: semester } = useGetSemester(semesterId as number, {
+    query: {
+      enabled: Boolean(semesterId),
+      initialData: () => {
+        return (
+          allSemesters.find((s) => s.id === semesterId) ??
+          qc.getQueryData<Semester[]>(["/api/semesters"])?.find((s) => s.id === semesterId)
+        );
+      },
+    },
+  } as any);
+
+  const activeSemester = semester ?? allSemesters.find((s) => s.id === semesterId);
+  const yearId = activeSemester?.yearId;
+
+  const { data: year } = useGetYear(yearId as number, {
+    query: {
+      enabled: Boolean(yearId),
+      initialData: () => {
+        return (
+          allYears.find((y) => y.id === yearId) ??
+          qc.getQueryData<Year[]>(["/api/years"])?.find((y) => y.id === yearId)
+        );
+      },
+    },
+  } as any);
+
+  const activeYear = year ?? allYears.find((y) => y.id === yearId);
+  const branchId = activeYear?.branchId;
+
+  const { data: branch } = useGetBranch(branchId as number, {
+    query: {
+      enabled: Boolean(branchId),
+      initialData: () => {
+        return (
+          branches.find((b) => b.id === branchId) ??
+          qc.getQueryData<Branch[]>(["/api/branches"])?.find((b) => b.id === branchId)
+        );
+      },
+    },
+  } as any);
+
+  const activeBranch = branch ?? branches.find((b) => b.id === branchId);
   const { data: resources = [] } = useListResources({ subjectId: id }, qOpts(validId));
 
-  if (!validId || subjectError) return <NotFound />;
-  if (subjectLoading || !subject) return (
+  if (!validId || (subjectError && !activeSubject)) return <NotFound />;
+  if ((subjectLoading && !activeSubject) || !activeSubject) return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-7 sm:py-12">
       <div className="mb-6 flex gap-1.5"><div className="h-4 w-32 animate-pulse rounded bg-[hsl(var(--muted))]" /></div>
       <section className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.78)] p-6 sm:p-9">
@@ -1313,11 +1465,11 @@ function SubjectPage() {
 
   return <div className="mx-auto max-w-5xl px-4 py-8 sm:px-7 sm:py-12"><Breadcrumbs items={[
     { label: "Home", href: "/" },
-    { label: branch?.shortName ?? "Branch", href: branch ? `/branch/${branch.id}` : undefined },
-    { label: year?.name ?? "Year" },
-    { label: semester?.name ?? "Semester" },
-    { label: subject.name }
-  ]} /><section className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.78)] p-6 sm:p-9"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="micro-label mb-3 text-[hsl(var(--accent-foreground))]">{branch?.shortName ?? "—"} • {year?.name ?? "—"} • {semester?.name ?? "—"}</p><h1 className="display-font text-4xl font-bold tracking-[-.05em] sm:text-5xl">{subject.name}</h1><p className="mt-4 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">{subject.description}</p></div><span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[hsl(var(--muted))] text-[hsl(var(--primary))]"><BookOpen size={25} /></span></div></section><div className="mt-10"><SectionHeading eyebrow={`${resources.length} resources`} title="Your subject shelf" action={<Link href="/contribute" className="focus-ring flex items-center gap-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-xs font-bold" data-testid="link-contribute-subject"><Plus size={14} /> Add one</Link>} />{resources.length ? <ResourceTypeGroups resources={resources} /> : <EmptyState title="This shelf is waiting for its first resource" body="If you have notes or a paper for this subject, you can be the person who starts it." action={<Link href="/contribute" className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--primary-foreground))]" data-testid="link-empty-subject-contribute"><Upload size={14} /> Contribute material</Link>} />}</div></div>;
+    { label: activeBranch?.shortName ?? "Branch", href: activeBranch ? `/branch/${activeBranch.id}` : undefined },
+    { label: activeYear?.name ?? "Year" },
+    { label: activeSemester?.name ?? "Semester" },
+    { label: activeSubject.name }
+  ]} /><section className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.78)] p-6 sm:p-9"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="micro-label mb-3 text-[hsl(var(--accent-foreground))]">{activeBranch?.shortName ?? "—"} • {activeYear?.name ?? "—"} • {activeSemester?.name ?? "—"}</p><h1 className="display-font text-4xl font-bold tracking-[-.05em] sm:text-5xl">{activeSubject.name}</h1><p className="mt-4 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">{activeSubject.description}</p></div><span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[hsl(var(--muted))] text-[hsl(var(--primary))]"><BookOpen size={25} /></span></div></section><div className="mt-10"><SectionHeading eyebrow={`${resources.length} resources`} title="Your subject shelf" action={<Link href="/contribute" className="focus-ring flex items-center gap-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-xs font-bold" data-testid="link-contribute-subject"><Plus size={14} /> Add one</Link>} />{resources.length ? <ResourceTypeGroups resources={resources} /> : <EmptyState title="This shelf is waiting for its first resource" body="If you have notes or a paper for this subject, you can be the person who starts it." action={<Link href="/contribute" className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--primary-foreground))]" data-testid="link-empty-subject-contribute"><Upload size={14} /> Contribute material</Link>} />}</div></div>;
 }
 
 function ContributePage() {
@@ -2299,7 +2451,10 @@ function CatalogRow({ label, sublabel, active, onSelect, onMoveUp, onMoveDown, o
 
 function BranchManager({ branches, selectedId, onSelect }: { branches: Branch[]; selectedId?: number; onSelect: (id: number) => void }) {
   const qc = useQueryClient();
-  const invalidate = () => qc.invalidateQueries({ queryKey: getListBranchesQueryKey() });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["/api/branches"] });
+    qc.invalidateQueries({ queryKey: ["/api/years"] });
+  };
   const create = useCreateBranch({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Branch added" }); } } });
   const update = useUpdateBranch({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Branch updated" }); } } });
   const remove = useDeleteBranch({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Branch deleted" }); } } });
@@ -2366,7 +2521,10 @@ function BranchManager({ branches, selectedId, onSelect }: { branches: Branch[];
 
 function YearManager({ branchId, years, selectedId, onSelect }: { branchId: number; years: Year[]; selectedId?: number; onSelect: (id: number) => void }) {
   const qc = useQueryClient();
-  const invalidate = () => qc.invalidateQueries({ queryKey: getListYearsQueryKey() });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["/api/years"] });
+    qc.invalidateQueries({ queryKey: ["/api/branches"] });
+  };
   const create = useCreateYear({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Year added" }); } } });
   const update = useUpdateYear({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Year updated" }); } } });
   const remove = useDeleteYear({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Year deleted" }); } } });
@@ -2420,7 +2578,10 @@ function YearManager({ branchId, years, selectedId, onSelect }: { branchId: numb
 
 function SemesterManager({ yearId, semesters, selectedId, onSelect }: { yearId: number; semesters: Semester[]; selectedId?: number; onSelect: (id: number) => void }) {
   const qc = useQueryClient();
-  const invalidate = () => qc.invalidateQueries({ queryKey: getListSemestersQueryKey() });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["/api/semesters"] });
+    qc.invalidateQueries({ queryKey: ["/api/branches"] });
+  };
   const create = useCreateSemester({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Semester added" }); } } });
   const update = useUpdateSemester({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Semester updated" }); } } });
   const remove = useDeleteSemester({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Semester deleted" }); } } });
@@ -2481,7 +2642,10 @@ function SubjectManager({ branch, year, semesters, semesterId, onSelectSemester 
 }) {
   const { data: subjects = [] } = useListSubjects({ semesterId });
   const qc = useQueryClient();
-  const invalidate = () => qc.invalidateQueries({ queryKey: getListSubjectsQueryKey() });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["/api/subjects"] });
+    qc.invalidateQueries({ queryKey: ["/api/branches"] });
+  };
   const create = useCreateSubject({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Subject added" }); } } });
   const update = useUpdateSubject({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Subject updated" }); } } });
   const remove = useDeleteSubject({ mutation: { onSuccess: () => { invalidate(); toast({ title: "Subject deleted" }); } } });
@@ -4436,7 +4600,10 @@ function AdminResources() {
 
   const { data: resources = [], isLoading } = useListResources();
   const queryClient = useQueryClient();
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
+    queryClient.invalidateQueries({ queryKey: ["/api/branches"] });
+  };
   const updateResource = useUpdateResource({
     mutation: {
       onSuccess: () => {
@@ -6280,7 +6447,7 @@ function PyqsSemesterSection() {
     return "";
   });
 
-  const { data: branches = [] } = useListBranches({ includeInactive: false });
+  const { data: branches = [] } = useListBranches();
 
   const { data: qps = [], isLoading, isError, refetch } = useListSemesterQps({
     examYear: selectedYear !== "All" ? selectedYear : undefined,
@@ -6690,7 +6857,7 @@ function PyqsIaSection() {
     search: search.trim() || undefined,
   });
 
-  const { data: branches = [] } = useListBranches({ includeInactive: false });
+  const { data: branches = [] } = useListBranches();
 
   const syncUrlParams = (year: string, sem: string, dept: string, type: string, qText: string) => {
     if (typeof window !== "undefined") {
@@ -7275,7 +7442,7 @@ function AdminSemesterQpsSection() {
   const { data: qps = [], isLoading, isError, refetch } = useListSemesterQps({
     isPublished: "all",
   });
-  const { data: branches = [] } = useListBranches({ includeInactive: false });
+  const { data: branches = [] } = useListBranches();
 
   const updateQp = useUpdateSemesterQp();
 
@@ -7689,7 +7856,7 @@ function AdminIaPapersSection() {
   const { data: iaPapers = [], isLoading, isError, refetch } = useListIaPapers({
     isPublished: "all",
   });
-  const { data: branches = [] } = useListBranches({ includeInactive: false });
+  const { data: branches = [] } = useListBranches();
 
   const updateIaPaper = useUpdateIaPaper();
 
@@ -8093,7 +8260,7 @@ function AdminIaPapersSection() {
 
 function CreateSemesterQpDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (val: boolean) => void }) {
   const createQp = useCreateSemesterQp();
-  const { data: branches = [] } = useListBranches({ includeInactive: false });
+  const { data: branches = [] } = useListBranches();
   const { data: qps = [] } = useListSemesterQps({ isPublished: "all" });
 
   const [examYear, setExamYear] = useState("2026");
@@ -8466,7 +8633,7 @@ function CreateSemesterQpDialog({ open, onOpenChange }: { open: boolean; onOpenC
 
 function EditSemesterQpDialog({ item, open, onOpenChange }: { item: SemesterQpItem; open: boolean; onOpenChange: (val: boolean) => void }) {
   const updateQp = useUpdateSemesterQp();
-  const { data: branches = [] } = useListBranches({ includeInactive: false });
+  const { data: branches = [] } = useListBranches();
   const { data: qps = [] } = useListSemesterQps({ isPublished: "all" });
 
   const [examYear, setExamYear] = useState(item.examYear);
@@ -8864,7 +9031,7 @@ function DeleteSemesterQpDialog({ item, open, onOpenChange }: { item: SemesterQp
 
 function CreateIaPaperDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (val: boolean) => void }) {
   const createIa = useCreateIaPaper();
-  const { data: branches = [] } = useListBranches({ includeInactive: false });
+  const { data: branches = [] } = useListBranches();
   const { data: iaPapers = [] } = useListIaPapers({ isPublished: "all" });
 
   const [academicYear, setAcademicYear] = useState<string>("1st Year");
@@ -9213,7 +9380,7 @@ function CreateIaPaperDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 
 function EditIaPaperDialog({ item, open, onOpenChange }: { item: IaPaperItem; open: boolean; onOpenChange: (val: boolean) => void }) {
   const updateIa = useUpdateIaPaper();
-  const { data: branches = [] } = useListBranches({ includeInactive: false });
+  const { data: branches = [] } = useListBranches();
   const { data: iaPapers = [] } = useListIaPapers({ isPublished: "all" });
 
   const [academicYear, setAcademicYear] = useState(item.academicYear);
