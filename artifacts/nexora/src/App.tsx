@@ -82,12 +82,14 @@ import {
 
   useListIaPapers, getListIaPapersQueryKey,
   useListQuickLinks,
+  useListAdminQuickLinks,
   useGetQuickLink,
   useCreateQuickLink,
   useUpdateQuickLink,
   useToggleQuickLinkStatus,
   useDeleteQuickLink,
   getListQuickLinksQueryKey,
+  getListAdminQuickLinksQueryKey,
   type ImportantLinkItem,
   type CreateQuickLinkInput,
   type UpdateQuickLinkInput,
@@ -3855,7 +3857,7 @@ function AdminQuickLinks() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ImportantLinkItem | null>(null);
 
-  const { data: links = [], isLoading } = useListQuickLinks({ isActive: "all" });
+  const { data: links = [], isLoading } = useListAdminQuickLinks({ isActive: "all" });
   const toggleStatus = useToggleQuickLinkStatus();
   const deleteQuickLink = useDeleteQuickLink();
 

@@ -1,4 +1,4 @@
-﻿import { Router, type IRouter } from "express";
+import { Router, type IRouter } from "express";
 import { and, asc, desc, eq, ilike, or } from "drizzle-orm";
 import { db, ensureTables, importantLinks } from "@workspace/db";
 import { requireAdmin } from "../middlewares/auth";
@@ -16,19 +16,12 @@ function isValidHttpUrl(string: string): boolean {
   }
 }
 
-// 1. GET /api/quick-links and /api/admin/quick-links
-const handleListQuickLinks = async (req: any, res: any) => {
-  const { category, search, isActive } = req.query;
+// 1. GET /api/quick-links (Public / Student - strictly isActive = true)
+const handleListPublicQuickLinks = async (req: any, res: any) => {
+  const { category, search } = req.query;
 
   try {
-    const conditions = [];
-
-    // Public users can only see active links. Admins can see all or filter.
-    if (!req.admin) {
-      conditions.push(eq(importantLinks.isActive, true));
-    } else if (typeof isActive === "string" && isActive !== "all") {
-      conditions.push(eq(importantLinks.isActive, isActive === "true"));
-    }
+    const conditions = [eq(importantLinks.isActive, true)];
 
     if (typeof category === "string" && category.trim() && category.trim().toLowerCase() !== "all") {
       conditions.push(eq(importantLinks.category, category.trim()));
@@ -36,14 +29,15 @@ const handleListQuickLinks = async (req: any, res: any) => {
 
     if (typeof search === "string" && search.trim()) {
       const q = `%${search.trim()}%`;
-      conditions.push(
-        or(
-          ilike(importantLinks.title, q),
-          ilike(importantLinks.description, q),
-          ilike(importantLinks.category, q),
-          ilike(importantLinks.url, q),
-        ),
+      const searchOr = or(
+        ilike(importantLinks.title, q),
+        ilike(importantLinks.description, q),
+        ilike(importantLinks.category, q),
+        ilike(importantLinks.url, q),
       );
+      if (searchOr) {
+        conditions.push(searchOr);
+      }
     }
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -67,17 +61,98 @@ const handleListQuickLinks = async (req: any, res: any) => {
       return;
     }
     if (!handleDbError(err, res)) {
-      logger.error({ err }, "Error fetching quick links");
+      logger.error({ err }, "Error fetching public quick links");
       res.status(500).json({ error: "internal_error", message: "Failed to fetch quick links." });
     }
   }
 };
 
-router.get("/quick-links", handleListQuickLinks);
-router.get("/admin/quick-links", handleListQuickLinks);
+// 2. GET /api/admin/quick-links (Admin - returns all links, or filters by isActive query)
+const handleListAdminQuickLinks = async (req: any, res: any) => {
+  const { category, search, isActive } = req.query;
 
-// 2. GET /api/quick-links/:id and /api/admin/quick-links/:id
-const handleGetQuickLink = async (req: any, res: any) => {
+  try {
+    const conditions = [];
+
+    if (typeof isActive === "string" && isActive !== "all") {
+      conditions.push(eq(importantLinks.isActive, isActive === "true"));
+    }
+
+    if (typeof category === "string" && category.trim() && category.trim().toLowerCase() !== "all") {
+      conditions.push(eq(importantLinks.category, category.trim()));
+    }
+
+    if (typeof search === "string" && search.trim()) {
+      const q = `%${search.trim()}%`;
+      const searchOr = or(
+        ilike(importantLinks.title, q),
+        ilike(importantLinks.description, q),
+        ilike(importantLinks.category, q),
+        ilike(importantLinks.url, q),
+      );
+      if (searchOr) {
+        conditions.push(searchOr);
+      }
+    }
+
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const rows = await db
+      .select()
+      .from(importantLinks)
+      .where(where)
+      .orderBy(
+        asc(importantLinks.displayOrder),
+        desc(importantLinks.createdAt),
+      );
+
+    res.json(rows);
+  } catch (err: unknown) {
+    const pgError = (err as { cause?: { code?: string }; code?: string })?.cause || (err as { code?: string });
+    if (pgError?.code === "42P01") {
+      await ensureTables();
+      res.json([]);
+      return;
+    }
+    if (!handleDbError(err, res)) {
+      logger.error({ err }, "Error fetching admin quick links");
+      res.status(500).json({ error: "internal_error", message: "Failed to fetch admin quick links." });
+    }
+  }
+};
+
+router.get("/quick-links", handleListPublicQuickLinks);
+router.get("/admin/quick-links", requireAdmin, handleListAdminQuickLinks);
+
+// 3. GET /api/quick-links/:id and /api/admin/quick-links/:id
+const handleGetPublicQuickLink = async (req: any, res: any) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "invalid_request", message: "id must be an integer." });
+    return;
+  }
+
+  try {
+    const [item] = await db
+      .select()
+      .from(importantLinks)
+      .where(and(eq(importantLinks.id, id), eq(importantLinks.isActive, true)));
+
+    if (!item) {
+      res.status(404).json({ error: "not_found", message: "Quick link not found." });
+      return;
+    }
+
+    res.json(item);
+  } catch (err) {
+    if (!handleDbError(err, res)) {
+      logger.error({ err }, "Error fetching quick link");
+      res.status(500).json({ error: "internal_error", message: "Failed to fetch quick link." });
+    }
+  }
+};
+
+const handleGetAdminQuickLink = async (req: any, res: any) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) {
     res.status(400).json({ error: "invalid_request", message: "id must be an integer." });
@@ -95,22 +170,17 @@ const handleGetQuickLink = async (req: any, res: any) => {
       return;
     }
 
-    if (!req.admin && !item.isActive) {
-      res.status(404).json({ error: "not_found", message: "Quick link not found." });
-      return;
-    }
-
     res.json(item);
   } catch (err) {
     if (!handleDbError(err, res)) {
-      logger.error({ err }, "Error fetching quick link");
+      logger.error({ err }, "Error fetching admin quick link");
       res.status(500).json({ error: "internal_error", message: "Failed to fetch quick link." });
     }
   }
 };
 
-router.get("/quick-links/:id", handleGetQuickLink);
-router.get("/admin/quick-links/:id", handleGetQuickLink);
+router.get("/quick-links/:id", handleGetPublicQuickLink);
+router.get("/admin/quick-links/:id", requireAdmin, handleGetAdminQuickLink);
 
 // 3. POST /api/quick-links and /api/admin/quick-links (Admin only)
 const handleCreateQuickLink = async (req: any, res: any) => {
