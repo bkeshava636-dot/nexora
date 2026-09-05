@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { useIsFetching, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { Layers3 } from "lucide-react";
 
-const STAGE_1_MS = 2500;
-const STAGE_2_MS = 9000;
+const STAGE_1_MS = 5000;
+const STAGE_2_MS = 10000;
 const STAGE_3_MS = 15000;
 
 function isConnectivityError(error: unknown): boolean {
