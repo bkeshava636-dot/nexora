@@ -455,11 +455,11 @@
 .card-lift:hover { transform: translateY(-2px); box-shadow: 0 12px 28px hsl(215 33% 22% / .08); border-color: hsl(39 45% 66%); }
 
 /* Fade-up animations */
-.fade-up { animation: fade-up .35s cubic-bezier(.2,.8,.2,1) both; }
-.fade-up-delay-1 { animation-delay: .08s; }
-.fade-up-delay-2 { animation-delay: .16s; }
-.fade-up-delay-3 { animation-delay: .24s; }
-@keyframes fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.fade-up { animation: fade-up .15s cubic-bezier(.2,.8,.2,1) both; }
+.fade-up-delay-1 { animation-delay: .03s; }
+.fade-up-delay-2 { animation-delay: .05s; }
+.fade-up-delay-3 { animation-delay: .07s; }
+@keyframes fade-up { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
 /* Button & Link transitions */
 button, a.focus-ring { transition: transform .15s ease-out, background-color .15s ease-out, box-shadow .15s ease-out, color .15s ease-out, opacity .15s ease-out; }
