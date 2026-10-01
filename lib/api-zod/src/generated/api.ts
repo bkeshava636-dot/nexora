@@ -639,6 +639,72 @@ export const DeleteResourceResponse = zod.void()
 
 
 /**
+ * @summary Get linked subjects for a resource
+ */
+export const GetResourceLinksParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const GetResourceLinksResponseItem = zod.object({
+  "id": zod.number().int(),
+  "resourceId": zod.number().int(),
+  "subjectId": zod.number().int(),
+  "subjectName": zod.string(),
+  "semesterId": zod.number().int(),
+  "semesterName": zod.string(),
+  "yearId": zod.number().int(),
+  "yearName": zod.string(),
+  "branchId": zod.number().int(),
+  "branchName": zod.string(),
+  "branchShortName": zod.string().nullish(),
+  "isPrimary": zod.boolean(),
+  "createdAt": zod.string().datetime({"offset":true}).optional()
+})
+export const GetResourceLinksResponse = zod.array(GetResourceLinksResponseItem)
+
+
+/**
+ * @summary Link resource to one or more subjects
+ */
+export const AddResourceLinksParams = zod.object({
+  "id": zod.coerce.number().int()
+})
+
+export const AddResourceLinksBody = zod.object({
+  "subjectId": zod.number().int().optional(),
+  "subjectIds": zod.array(zod.number().int()).optional()
+})
+
+export const AddResourceLinksResponseItem = zod.object({
+  "id": zod.number().int(),
+  "resourceId": zod.number().int(),
+  "subjectId": zod.number().int(),
+  "subjectName": zod.string(),
+  "semesterId": zod.number().int(),
+  "semesterName": zod.string(),
+  "yearId": zod.number().int(),
+  "yearName": zod.string(),
+  "branchId": zod.number().int(),
+  "branchName": zod.string(),
+  "branchShortName": zod.string().nullish(),
+  "isPrimary": zod.boolean(),
+  "createdAt": zod.string().datetime({"offset":true}).optional()
+})
+export const AddResourceLinksResponse = zod.array(AddResourceLinksResponseItem)
+
+
+/**
+ * @summary Remove a link between a resource and a subject
+ */
+export const RemoveResourceLinkParams = zod.object({
+  "id": zod.coerce.number().int(),
+  "subjectId": zod.coerce.number().int()
+})
+
+export const RemoveResourceLinkResponse = zod.void()
+
+
+/**
  * @summary List all semester QP departments
  */
 export const ListSemesterQpDepartmentsQueryParams = zod.object({

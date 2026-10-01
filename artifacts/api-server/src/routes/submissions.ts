@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { desc, eq } from "drizzle-orm";
-import { db, resources, submissions, iaPapers } from "@workspace/db";
+import { db, resources, submissions, iaPapers, resourceSubjects } from "@workspace/db";
 import {
   ApproveSubmissionBody,
   CreateSubmissionBody,
@@ -49,6 +49,14 @@ router.post("/submissions", async (req, res) => {
             verifiedBy: "auto_publish",
           })
           .returning();
+
+        await tx
+          .insert(resourceSubjects)
+          .values({
+            resourceId: createdResource.id,
+            subjectId: createdResource.subjectId,
+          })
+          .onConflictDoNothing();
 
         const [createdSubmission] = await tx
           .insert(submissions)
@@ -207,7 +215,7 @@ router.post("/submissions/:id/approve", requireAdmin, async (req, res) => {
           updatedAt: new Date(),
         });
       } else {
-        await tx.insert(resources).values({
+        const [createdResource] = await tx.insert(resources).values({
           subjectId: submission.subjectId as number,
           title: submission.title,
           description: submission.description,
@@ -218,7 +226,12 @@ router.post("/submissions/:id/approve", requireAdmin, async (req, res) => {
           isVerified: parsed.data.isVerified ?? true,
           verifiedAt: (parsed.data.isVerified ?? true) ? new Date() : null,
           verifiedBy: (parsed.data.isVerified ?? true) ? (req.admin?.username ?? null) : null,
-        });
+        }).returning();
+
+        await tx.insert(resourceSubjects).values({
+          resourceId: createdResource.id,
+          subjectId: createdResource.subjectId,
+        }).onConflictDoNothing();
       }
 
       return tx

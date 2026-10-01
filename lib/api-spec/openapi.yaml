@@ -633,6 +633,81 @@ paths:
         "204":
           description: Deleted
 
+  /resources/{id}/links:
+    get:
+      operationId: getResourceLinks
+      tags: [resources]
+      summary: Get linked subjects for a resource
+      security: [{ adminSession: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      responses:
+        "200":
+          description: List of linked subject locations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ResourceLinkLocation"
+        "404":
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: addResourceLinks
+      tags: [resources]
+      summary: Link resource to one or more subjects
+      security: [{ adminSession: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddResourceLinksRequest"
+      responses:
+        "200":
+          description: Updated list of linked locations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ResourceLinkLocation"
+        "404":
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /resources/{id}/links/{subjectId}:
+    delete:
+      operationId: removeResourceLink
+      tags: [resources]
+      summary: Remove a link between a resource and a subject
+      security: [{ adminSession: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+        - name: subjectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Link removed successfully
+        "404":
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 
   /semester-qp-departments:
     get:
@@ -1466,6 +1541,60 @@ components:
           type: boolean
         isVerified:
           type: boolean
+
+    ResourceLinkLocation:
+      type: object
+      properties:
+        id:
+          type: integer
+        resourceId:
+          type: integer
+        subjectId:
+          type: integer
+        subjectName:
+          type: string
+        semesterId:
+          type: integer
+        semesterName:
+          type: string
+        yearId:
+          type: integer
+        yearName:
+          type: string
+        branchId:
+          type: integer
+        branchName:
+          type: string
+        branchShortName:
+          type: string
+          nullable: true
+        isPrimary:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - resourceId
+        - subjectId
+        - subjectName
+        - semesterId
+        - semesterName
+        - yearId
+        - yearName
+        - branchId
+        - branchName
+        - isPrimary
+
+    AddResourceLinksRequest:
+      type: object
+      properties:
+        subjectId:
+          type: integer
+        subjectIds:
+          type: array
+          items:
+            type: integer
 
     Submission:
       type: object

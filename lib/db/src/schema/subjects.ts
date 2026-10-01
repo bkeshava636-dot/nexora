@@ -22,9 +22,12 @@ export const subjects = pgTable(
   ],
 );
 
+import { resourceSubjects } from "./resource-subjects";
+
 export const subjectsRelations = relations(subjects, ({ one, many }) => ({
   semester: one(semesters, { fields: [subjects.semesterId], references: [semesters.id] }),
   resources: many(resources),
+  resourceSubjects: many(resourceSubjects),
 }));
 
 export const insertSubjectSchema = createInsertSchema(subjects).omit({

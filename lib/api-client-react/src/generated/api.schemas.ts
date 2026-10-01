@@ -212,6 +212,27 @@ export interface ResourceUpdate {
   isVerified?: boolean;
 }
 
+export interface ResourceLinkLocation {
+  id: number;
+  resourceId: number;
+  subjectId: number;
+  subjectName: string;
+  semesterId: number;
+  semesterName: string;
+  yearId: number;
+  yearName: string;
+  branchId: number;
+  branchName: string;
+  branchShortName?: string | null;
+  isPrimary: boolean;
+  createdAt?: string;
+}
+
+export interface AddResourceLinksRequest {
+  subjectId?: number;
+  subjectIds?: number[];
+}
+
 export interface Submission {
   id: number;
   branchId?: number | null;

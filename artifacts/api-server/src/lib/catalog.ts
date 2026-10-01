@@ -1,5 +1,5 @@
 import { and, asc, count, eq, ilike, or, sql, type SQL } from "drizzle-orm";
-import { db, branches, years, semesters, subjects, resources, type Branch } from "@workspace/db";
+import { db, branches, years, semesters, subjects, resources, resourceSubjects, type Branch } from "@workspace/db";
 
 export interface BranchWithCounts extends Branch {
   subjectCount: number;
@@ -18,13 +18,13 @@ async function subjectCountsByBranch(): Promise<Map<number, number>> {
 
 async function resourceCountsByBranch(): Promise<Map<number, number>> {
   const rows = await db
-    .select({ branchId: years.branchId, total: count(resources.id) })
-    .from(resources)
-    .innerJoin(subjects, eq(resources.subjectId, subjects.id))
+    .select({ branchId: years.branchId, total: sql<number>`count(distinct ${resourceSubjects.resourceId})` })
+    .from(resourceSubjects)
+    .innerJoin(subjects, eq(resourceSubjects.subjectId, subjects.id))
     .innerJoin(semesters, eq(subjects.semesterId, semesters.id))
     .innerJoin(years, eq(semesters.yearId, years.id))
     .groupBy(years.branchId);
-  return new Map(rows.map((row) => [row.branchId, row.total]));
+  return new Map(rows.map((row) => [row.branchId, Number(row.total)]));
 }
 
 /** Attaches derived subjectCount/resourceCount to every row in `branchRows`. */
@@ -61,7 +61,7 @@ export function resourceCatalogSelect() {
   return db
     .select({
       id: resources.id,
-      subjectId: resources.subjectId,
+      subjectId: subjects.id,
       title: resources.title,
       description: resources.description,
       resourceType: resources.resourceType,
@@ -80,7 +80,8 @@ export function resourceCatalogSelect() {
       branchName: branches.name,
     })
     .from(resources)
-    .innerJoin(subjects, eq(resources.subjectId, subjects.id))
+    .innerJoin(resourceSubjects, eq(resources.id, resourceSubjects.resourceId))
+    .innerJoin(subjects, eq(resourceSubjects.subjectId, subjects.id))
     .innerJoin(semesters, eq(subjects.semesterId, semesters.id))
     .innerJoin(years, eq(semesters.yearId, years.id))
     .innerJoin(branches, eq(years.branchId, branches.id));

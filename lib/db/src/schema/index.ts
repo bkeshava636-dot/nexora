@@ -13,3 +13,4 @@ export * from "./semester-qps";
 export * from "./ia-papers";
 export * from "./feedback";
 export * from "./important-links";
+export * from "./resource-subjects";

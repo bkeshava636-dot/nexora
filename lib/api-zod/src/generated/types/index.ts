@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './addResourceLinksRequest';
 export * from './approveSubmissionInput';
 export * from './authStatus';
 export * from './branch';
@@ -36,6 +37,7 @@ export * from './reorderInput';
 export * from './reorderInputOrderItem';
 export * from './resource';
 export * from './resourceInput';
+export * from './resourceLinkLocation';
 export * from './resourceType';
 export * from './resourceUpdate';
 export * from './semester';

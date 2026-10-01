@@ -33,8 +33,11 @@ export const resources = pgTable(
   ],
 );
 
-export const resourcesRelations = relations(resources, ({ one }) => ({
+import { resourceSubjects } from "./resource-subjects";
+
+export const resourcesRelations = relations(resources, ({ one, many }) => ({
   subject: one(subjects, { fields: [resources.subjectId], references: [subjects.id] }),
+  resourceSubjects: many(resourceSubjects),
 }));
 
 export const insertResourceSchema = createInsertSchema(resources).omit({

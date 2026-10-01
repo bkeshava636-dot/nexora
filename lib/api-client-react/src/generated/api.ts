@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AddResourceLinksRequest,
   ApproveSubmissionInput,
   AuthStatus,
   Branch,
@@ -46,6 +47,7 @@ import type {
   ReorderInput,
   Resource,
   ResourceInput,
+  ResourceLinkLocation,
   ResourceUpdate,
   Semester,
   SemesterInput,
@@ -2476,6 +2478,228 @@ export const useDeleteResource = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteResourceMutationOptions(options));
+    }
+
+export const getGetResourceLinksUrl = (id: number,) => {
+
+
+
+
+  return `/api/resources/${id}/links`
+}
+
+/**
+ * @summary Get linked subjects for a resource
+ */
+export const getResourceLinks = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ResourceLinkLocation[]> => {
+
+  return customFetch<ResourceLinkLocation[]>(getGetResourceLinksUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetResourceLinksQueryKey = (id: number,) => {
+    return [
+    `/api/resources/${id}/links`
+    ] as const;
+    }
+
+
+export const getGetResourceLinksQueryOptions = <TData = Awaited<ReturnType<typeof getResourceLinks>>, TError = ErrorType<ErrorResponse>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getResourceLinks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetResourceLinksQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getResourceLinks>>> = ({ signal }) => getResourceLinks(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getResourceLinks>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetResourceLinksQueryResult = NonNullable<Awaited<ReturnType<typeof getResourceLinks>>>
+export type GetResourceLinksQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Get linked subjects for a resource
+ */
+
+export function useGetResourceLinks<TData = Awaited<ReturnType<typeof getResourceLinks>>, TError = ErrorType<ErrorResponse>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getResourceLinks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetResourceLinksQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAddResourceLinksUrl = (id: number,) => {
+
+
+
+
+  return `/api/resources/${id}/links`
+}
+
+/**
+ * @summary Link resource to one or more subjects
+ */
+export const addResourceLinks = async (id: number,
+    addResourceLinksRequest: AddResourceLinksRequest, options?: Parameters<typeof customFetch>[1]): Promise<ResourceLinkLocation[]> => {
+
+  return customFetch<ResourceLinkLocation[]>(getAddResourceLinksUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(addResourceLinksRequest)
+  }
+);}
+
+
+
+
+
+export const getAddResourceLinksMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addResourceLinks>>, TError,{id: number;data: BodyType<AddResourceLinksRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addResourceLinks>>, TError,{id: number;data: BodyType<AddResourceLinksRequest>}, TContext> => {
+
+const mutationKey = ['addResourceLinks'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addResourceLinks>>, {id: number;data: BodyType<AddResourceLinksRequest>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  addResourceLinks(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddResourceLinksMutationResult = NonNullable<Awaited<ReturnType<typeof addResourceLinks>>>
+    export type AddResourceLinksMutationBody = BodyType<AddResourceLinksRequest>
+    export type AddResourceLinksMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Link resource to one or more subjects
+ */
+export const useAddResourceLinks = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addResourceLinks>>, TError,{id: number;data: BodyType<AddResourceLinksRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addResourceLinks>>,
+        TError,
+        {id: number;data: BodyType<AddResourceLinksRequest>},
+        TContext
+      > => {
+      return useMutation(getAddResourceLinksMutationOptions(options));
+    }
+
+export const getRemoveResourceLinkUrl = (id: number,
+    subjectId: number,) => {
+
+
+
+
+  return `/api/resources/${id}/links/${subjectId}`
+}
+
+/**
+ * @summary Remove a link between a resource and a subject
+ */
+export const removeResourceLink = async (id: number,
+    subjectId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getRemoveResourceLinkUrl(id,subjectId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemoveResourceLinkMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeResourceLink>>, TError,{id: number;subjectId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeResourceLink>>, TError,{id: number;subjectId: number}, TContext> => {
+
+const mutationKey = ['removeResourceLink'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeResourceLink>>, {id: number;subjectId: number}> = (props) => {
+          const {id,subjectId} = props ?? {};
+
+          return  removeResourceLink(id,subjectId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveResourceLinkMutationResult = NonNullable<Awaited<ReturnType<typeof removeResourceLink>>>
+
+    export type RemoveResourceLinkMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Remove a link between a resource and a subject
+ */
+export const useRemoveResourceLink = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeResourceLink>>, TError,{id: number;subjectId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeResourceLink>>,
+        TError,
+        {id: number;subjectId: number},
+        TContext
+      > => {
+      return useMutation(getRemoveResourceLinkMutationOptions(options));
     }
 
 export const getListSemesterQpDepartmentsUrl = (params?: ListSemesterQpDepartmentsParams,) => {

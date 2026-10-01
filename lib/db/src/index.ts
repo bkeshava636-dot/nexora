@@ -144,7 +144,20 @@ export async function ensureTables(): Promise<void> {
       `CREATE INDEX IF NOT EXISTS "important_links_category_idx" ON "important_links" ("category");`,
       `CREATE INDEX IF NOT EXISTS "important_links_is_active_idx" ON "important_links" ("is_active");`,
       `CREATE INDEX IF NOT EXISTS "important_links_display_order_idx" ON "important_links" ("display_order");`,
-      `CREATE INDEX IF NOT EXISTS "important_links_created_at_idx" ON "important_links" ("created_at");`
+      `CREATE INDEX IF NOT EXISTS "important_links_created_at_idx" ON "important_links" ("created_at");`,
+      `CREATE TABLE IF NOT EXISTS "resource_subjects" (
+        "id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        "resource_id" integer NOT NULL REFERENCES "resources"("id") ON DELETE CASCADE,
+        "subject_id" integer NOT NULL REFERENCES "subjects"("id") ON DELETE CASCADE,
+        "created_at" timestamp with time zone NOT NULL DEFAULT now()
+      );`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS "resource_subjects_resource_subject_unique_idx" ON "resource_subjects" ("resource_id", "subject_id");`,
+      `CREATE INDEX IF NOT EXISTS "resource_subjects_resource_id_idx" ON "resource_subjects" ("resource_id");`,
+      `CREATE INDEX IF NOT EXISTS "resource_subjects_subject_id_idx" ON "resource_subjects" ("subject_id");`,
+      `INSERT INTO "resource_subjects" ("resource_id", "subject_id", "created_at")
+       SELECT "id", "subject_id", "created_at" FROM "resources"
+       WHERE "subject_id" IS NOT NULL
+       ON CONFLICT ("resource_id", "subject_id") DO NOTHING;`
     ];
 
     for (const q of ddlQueries) {
