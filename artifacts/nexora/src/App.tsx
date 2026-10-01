@@ -134,6 +134,7 @@ import {
   useGetResourceLinks,
   useAddResourceLinks,
   useRemoveResourceLink,
+  useBulkLinkResources,
   getGetResourceLinksQueryKey,
   type ResourceLinkLocation,
 } from "@workspace/api-client-react";
@@ -4828,6 +4829,327 @@ function AdminLinkResourceDialog({
   );
 }
 
+function AdminBulkLinkDialog({
+  resourceIds,
+  resources,
+  open,
+  onOpenChange,
+  onSuccess,
+}: {
+  resourceIds: number[];
+  resources: Resource[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const selectedResources = useMemo(
+    () => resources.filter((r) => resourceIds.includes(r.id)),
+    [resources, resourceIds]
+  );
+
+  // Cascading selectors
+  const { data: branches = [] } = useListBranches();
+  const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
+  const [selectedYearId, setSelectedYearId] = useState<number | null>(null);
+  const [selectedSemesterId, setSelectedSemesterId] = useState<number | null>(null);
+  const [selectedSubjectIds, setSelectedSubjectIds] = useState<number[]>([]);
+  const [error, setError] = useState<string>("");
+
+  const { data: years = [] } = useListYears(
+    selectedBranchId ? { branchId: selectedBranchId } : undefined,
+    qOpts(Boolean(selectedBranchId)) as any
+  );
+
+  const { data: semesters = [] } = useListSemesters(
+    selectedYearId ? { yearId: selectedYearId } : undefined,
+    qOpts(Boolean(selectedYearId)) as any
+  );
+
+  const { data: subjects = [] } = useListSubjects(
+    selectedSemesterId ? { semesterId: selectedSemesterId } : undefined,
+    qOpts(Boolean(selectedSemesterId)) as any
+  );
+
+  // Reset cascading selectors when dialog opens
+  useEffect(() => {
+    if (open) {
+      setSelectedBranchId(null);
+      setSelectedYearId(null);
+      setSelectedSemesterId(null);
+      setSelectedSubjectIds([]);
+      setError("");
+    }
+  }, [open, resourceIds]);
+
+  const handleBranchChange = (branchIdStr: string) => {
+    const bId = branchIdStr ? Number(branchIdStr) : null;
+    setSelectedBranchId(bId);
+    setSelectedYearId(null);
+    setSelectedSemesterId(null);
+    setSelectedSubjectIds([]);
+  };
+
+  const handleYearChange = (yearIdStr: string) => {
+    const yId = yearIdStr ? Number(yearIdStr) : null;
+    setSelectedYearId(yId);
+    setSelectedSemesterId(null);
+    setSelectedSubjectIds([]);
+  };
+
+  const handleSemesterChange = (semIdStr: string) => {
+    const sId = semIdStr ? Number(semIdStr) : null;
+    setSelectedSemesterId(sId);
+    setSelectedSubjectIds([]);
+  };
+
+  const toggleSubjectSelect = (subjId: number) => {
+    setSelectedSubjectIds((prev) =>
+      prev.includes(subjId) ? prev.filter((id) => id !== subjId) : [...prev, subjId]
+    );
+  };
+
+  const bulkLinkMutation = useBulkLinkResources({
+    mutation: {
+      onSuccess: (data) => {
+        queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
+        queryClient.invalidateQueries({ queryKey: ["/api/branches"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/resources"] });
+
+        const countText =
+          data.alreadyLinked > 0
+            ? `${data.processed} materials processed: ${data.created} new link${data.created === 1 ? "" : "s"} created, ${data.alreadyLinked} already linked.`
+            : `${data.processed} material${data.processed === 1 ? "" : "s"} linked successfully.`;
+
+        toast({
+          title: "Bulk linking complete",
+          description: countText,
+        });
+
+        onSuccess();
+        onOpenChange(false);
+      },
+      onError: (err: unknown) => {
+        setError(getErrorMessage(err) || "Failed to link selected materials.");
+        toast({
+          title: "Bulk linking failed",
+          description: getErrorMessage(err) || "Could not link selected materials.",
+          variant: "destructive",
+        });
+      },
+    },
+  });
+
+  const handleBulkLink = () => {
+    if (resourceIds.length === 0 || selectedSubjectIds.length === 0) return;
+    setError("");
+    bulkLinkMutation.mutate({
+      data: {
+        resourceIds,
+        subjectIds: selectedSubjectIds,
+      },
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base font-bold">
+            <Link2 size={18} className="text-[hsl(var(--primary))]" />
+            Bulk Link Materials
+          </DialogTitle>
+          <DialogDescription className="text-xs text-[hsl(var(--muted-foreground))]">
+            Link {resourceIds.length} selected material{resourceIds.length === 1 ? "" : "s"} to other branch and subject locations simultaneously.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 pt-2">
+          {error && (
+            <div className="rounded-xl border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.1)] p-3 text-xs text-[hsl(var(--destructive))]">
+              {error}
+            </div>
+          )}
+
+          {/* Selected Materials List */}
+          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.2)] p-3">
+            <p className="text-xs font-bold text-[hsl(var(--foreground))]">
+              Selected Materials ({resourceIds.length})
+            </p>
+            <div className="mt-2 max-h-36 space-y-1.5 overflow-y-auto pr-1">
+              {selectedResources.map((res) => (
+                <div
+                  key={res.id}
+                  className="flex items-center justify-between rounded-lg border border-[hsl(var(--border)/.6)] bg-[hsl(var(--background))] px-2.5 py-1.5 text-xs"
+                >
+                  <span className="truncate font-semibold text-[hsl(var(--foreground))] max-w-[280px]">
+                    {res.title}
+                  </span>
+                  <span className="shrink-0 text-[10px] text-[hsl(var(--muted-foreground))]">
+                    {res.branchName} · {res.subjectName}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Cascading Destination Selectors */}
+          <div className="space-y-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.15)] p-3">
+            <p className="text-xs font-bold text-[hsl(var(--foreground))]">
+              Select Destination Location
+            </p>
+
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+              <div>
+                <label className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                  1. Branch
+                </label>
+                <select
+                  value={selectedBranchId ?? ""}
+                  onChange={(e) => handleBranchChange(e.target.value)}
+                  className="input-style mt-1 h-8 w-full text-xs"
+                  data-testid="select-bulk-link-branch"
+                >
+                  <option value="">Select branch</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.shortName || b.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                  2. Year
+                </label>
+                <select
+                  value={selectedYearId ?? ""}
+                  onChange={(e) => handleYearChange(e.target.value)}
+                  disabled={!selectedBranchId}
+                  className="input-style mt-1 h-8 w-full text-xs disabled:opacity-50"
+                  data-testid="select-bulk-link-year"
+                >
+                  <option value="">Select year</option>
+                  {years.map((y) => (
+                    <option key={y.id} value={y.id}>
+                      {y.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                  3. Semester
+                </label>
+                <select
+                  value={selectedSemesterId ?? ""}
+                  onChange={(e) => handleSemesterChange(e.target.value)}
+                  disabled={!selectedYearId}
+                  className="input-style mt-1 h-8 w-full text-xs disabled:opacity-50"
+                  data-testid="select-bulk-link-semester"
+                >
+                  <option value="">Select semester</option>
+                  {semesters.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Destination Subjects Multi-Select */}
+            {selectedSemesterId && (
+              <div className="pt-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                    4. Destination Subjects ({selectedSubjectIds.length} selected)
+                  </label>
+                  {subjects.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (selectedSubjectIds.length === subjects.length) {
+                          setSelectedSubjectIds([]);
+                        } else {
+                          setSelectedSubjectIds(subjects.map((s) => s.id));
+                        }
+                      }}
+                      className="text-[11px] font-semibold text-[hsl(var(--primary))] hover:underline"
+                    >
+                      {selectedSubjectIds.length === subjects.length ? "Deselect all" : "Select all"}
+                    </button>
+                  )}
+                </div>
+
+                {subjects.length === 0 ? (
+                  <p className="mt-2 text-xs italic text-[hsl(var(--muted-foreground))]">
+                    No subjects found in this semester.
+                  </p>
+                ) : (
+                  <div className="mt-2 flex max-h-48 flex-wrap gap-1.5 overflow-y-auto">
+                    {subjects.map((sub) => {
+                      const isSelected = selectedSubjectIds.includes(sub.id);
+                      return (
+                        <button
+                          key={sub.id}
+                          type="button"
+                          onClick={() => toggleSubjectSelect(sub.id)}
+                          className={`focus-ring inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
+                            isSelected
+                              ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                              : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))] hover:border-[hsl(var(--primary)/.5)]"
+                          }`}
+                          data-testid={`button-bulk-link-subject-${sub.id}`}
+                        >
+                          {isSelected && <Check size={12} />}
+                          <span>{sub.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter className="mt-4 gap-2">
+          <DialogClose asChild>
+            <button
+              type="button"
+              className="focus-ring rounded-xl border border-[hsl(var(--border))] px-4 py-2 text-xs font-semibold text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]"
+            >
+              Cancel
+            </button>
+          </DialogClose>
+          <button
+            type="button"
+            disabled={bulkLinkMutation.isPending || selectedSubjectIds.length === 0 || resourceIds.length === 0}
+            onClick={handleBulkLink}
+            className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[hsl(var(--primary))] px-4 py-2 text-xs font-bold text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--primary)/.9)] disabled:opacity-50"
+            data-testid="button-submit-bulk-link"
+          >
+            {bulkLinkMutation.isPending ? (
+              <>
+                <Loader2 size={14} className="animate-spin" />
+                Linking...
+              </>
+            ) : (
+              <>
+                <Link2 size={14} />
+                Link {resourceIds.length} Material{resourceIds.length === 1 ? "" : "s"}
+              </>
+            )}
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function AdminEditResourceDialog({
   resource,
   open,
@@ -5117,6 +5439,8 @@ function AdminResources() {
   const [onlyNew, setOnlyNew] = useState(false);
   const [editingResource, setEditingResource] = useState<Resource | null>(null);
   const [linkingResource, setLinkingResource] = useState<Resource | null>(null);
+  const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
+  const [bulkLinkDialogOpen, setBulkLinkDialogOpen] = useState(false);
 
   const { data: resources = [], isLoading } = useListResources();
   const queryClient = useQueryClient();
@@ -5156,29 +5480,80 @@ function AdminResources() {
   });
 
   const availableBranches = useMemo(() => {
-    return ["All branches", ...new Set(resources.map((r) => r.branchName).filter((v): v is string => Boolean(v)))];
+    const list: string[] = [];
+    for (const r of resources) {
+      if (r.branchName) list.push(r.branchName);
+      if (r.linkedLocations) {
+        for (const loc of r.linkedLocations) {
+          if (loc.branchName) list.push(loc.branchName);
+        }
+      }
+    }
+    return ["All branches", ...new Set(list)];
   }, [resources]);
 
   const availableYears = useMemo(() => {
-    const subset = branch === "All branches" ? resources : resources.filter((r) => r.branchName === branch);
-    return ["All years", ...new Set(subset.map((r) => r.yearName).filter((v): v is string => Boolean(v)))];
+    const list: string[] = [];
+    for (const r of resources) {
+      const matchPrimary = branch === "All branches" || r.branchName === branch;
+      const matchLinked = r.linkedLocations?.some((l) => l.branchName === branch);
+      if (matchPrimary && r.yearName) list.push(r.yearName);
+      if (branch === "All branches") {
+        r.linkedLocations?.forEach((l) => { if (l.yearName) list.push(l.yearName); });
+      } else if (matchLinked) {
+        r.linkedLocations?.filter((l) => l.branchName === branch).forEach((l) => { if (l.yearName) list.push(l.yearName); });
+      }
+    }
+    return ["All years", ...new Set(list)];
   }, [resources, branch]);
 
   const availableSemesters = useMemo(() => {
-    const subset = resources.filter((r) =>
-      (branch === "All branches" || r.branchName === branch) &&
-      (year === "All years" || r.yearName === year)
-    );
-    return ["All semesters", ...new Set(subset.map((r) => r.semesterName).filter((v): v is string => Boolean(v)))];
+    const list: string[] = [];
+    for (const r of resources) {
+      const matchPrimary = (branch === "All branches" || r.branchName === branch) && (year === "All years" || r.yearName === year);
+      const matchLinked = r.linkedLocations?.some(
+        (l) => (branch === "All branches" || l.branchName === branch) && (year === "All years" || l.yearName === year)
+      );
+      if (matchPrimary && r.semesterName) list.push(r.semesterName);
+      if (branch === "All branches" && year === "All years") {
+        r.linkedLocations?.forEach((l) => { if (l.semesterName) list.push(l.semesterName); });
+      } else if (matchLinked) {
+        r.linkedLocations
+          ?.filter((l) => (branch === "All branches" || l.branchName === branch) && (year === "All years" || l.yearName === year))
+          .forEach((l) => { if (l.semesterName) list.push(l.semesterName); });
+      }
+    }
+    return ["All semesters", ...new Set(list)];
   }, [resources, branch, year]);
 
   const availableSubjects = useMemo(() => {
-    const subset = resources.filter((r) =>
-      (branch === "All branches" || r.branchName === branch) &&
-      (year === "All years" || r.yearName === year) &&
-      (semester === "All semesters" || r.semesterName === semester)
-    );
-    return ["All subjects", ...new Set(subset.map((r) => r.subjectName).filter((v): v is string => Boolean(v)))];
+    const list: string[] = [];
+    for (const r of resources) {
+      const matchPrimary =
+        (branch === "All branches" || r.branchName === branch) &&
+        (year === "All years" || r.yearName === year) &&
+        (semester === "All semesters" || r.semesterName === semester);
+      const matchLinked = r.linkedLocations?.some(
+        (l) =>
+          (branch === "All branches" || l.branchName === branch) &&
+          (year === "All years" || l.yearName === year) &&
+          (semester === "All semesters" || l.semesterName === semester)
+      );
+      if (matchPrimary && r.subjectName) list.push(r.subjectName);
+      if (branch === "All branches" && year === "All years" && semester === "All semesters") {
+        r.linkedLocations?.forEach((l) => { if (l.subjectName) list.push(l.subjectName); });
+      } else if (matchLinked) {
+        r.linkedLocations
+          ?.filter(
+            (l) =>
+              (branch === "All branches" || l.branchName === branch) &&
+              (year === "All years" || l.yearName === year) &&
+              (semester === "All semesters" || l.semesterName === semester)
+          )
+          .forEach((l) => { if (l.subjectName) list.push(l.subjectName); });
+      }
+    }
+    return ["All subjects", ...new Set(list)];
   }, [resources, branch, year, semester]);
 
   const handleBranchChange = (newBranch: string) => {
@@ -5226,12 +5601,30 @@ function AdminResources() {
   const filtered = useMemo(() => {
     const queryWords = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
     return resources.filter((resource) => {
-      const haystack = `${resource.title} ${resource.subjectName ?? ""} ${resource.branchName ?? ""} ${resource.yearName ?? ""} ${resource.semesterName ?? ""} ${resource.resourceType} ${resource.description ?? ""}`.toLowerCase();
+      const linkedText = resource.linkedLocations?.map((l) => `${l.branchName} ${l.yearName} ${l.semesterName} ${l.subjectName}`).join(" ") ?? "";
+      const haystack = `${resource.title} ${resource.subjectName ?? ""} ${resource.branchName ?? ""} ${resource.yearName ?? ""} ${resource.semesterName ?? ""} ${resource.resourceType} ${resource.description ?? ""} ${linkedText}`.toLowerCase();
       const matchesQuery = queryWords.length === 0 || queryWords.every((word) => haystack.includes(word));
-      const matchesBranch = branch === "All branches" || resource.branchName === branch;
-      const matchesYear = year === "All years" || resource.yearName === year;
-      const matchesSemester = semester === "All semesters" || resource.semesterName === semester;
-      const matchesSubject = subject === "All subjects" || resource.subjectName === subject;
+      
+      const matchesBranch =
+        branch === "All branches" ||
+        resource.branchName === branch ||
+        Boolean(resource.linkedLocations?.some((l) => l.branchName === branch));
+
+      const matchesYear =
+        year === "All years" ||
+        resource.yearName === year ||
+        Boolean(resource.linkedLocations?.some((l) => l.yearName === year && (branch === "All branches" || l.branchName === branch)));
+
+      const matchesSemester =
+        semester === "All semesters" ||
+        resource.semesterName === semester ||
+        Boolean(resource.linkedLocations?.some((l) => l.semesterName === semester && (branch === "All branches" || l.branchName === branch) && (year === "All years" || l.yearName === year)));
+
+      const matchesSubject =
+        subject === "All subjects" ||
+        resource.subjectName === subject ||
+        Boolean(resource.linkedLocations?.some((l) => l.subjectName === subject && (branch === "All branches" || l.branchName === branch) && (year === "All years" || l.yearName === year) && (semester === "All semesters" || l.semesterName === semester)));
+
       const matchesType = type === "All types" || resource.resourceType === type;
       const matchesVerification =
         verification === "all" ||
@@ -5253,6 +5646,25 @@ function AdminResources() {
       );
     });
   }, [resources, query, branch, year, semester, subject, type, verification, onlyFeatured, onlyNew]);
+
+  const allVisibleSelected = filtered.length > 0 && filtered.every((r) => selectedResourceIds.includes(r.id));
+  const someVisibleSelected = filtered.some((r) => selectedResourceIds.includes(r.id)) && !allVisibleSelected;
+
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) {
+      const visibleIds = new Set(filtered.map((r) => r.id));
+      setSelectedResourceIds((prev) => prev.filter((id) => !visibleIds.has(id)));
+    } else {
+      const newSelected = new Set([...selectedResourceIds, ...filtered.map((r) => r.id)]);
+      setSelectedResourceIds(Array.from(newSelected));
+    }
+  };
+
+  const toggleSelectResource = (id: number) => {
+    setSelectedResourceIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
 
   const toggle = (resource: Resource, key: "isNew" | "isFeatured" | "isVerified") => {
     if (updateResource.isPending || deleteResource.isPending) return;
@@ -5410,6 +5822,39 @@ function AdminResources() {
           </div>
         </div>
 
+        {/* Bulk Action Bar */}
+        {selectedResourceIds.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[hsl(var(--primary)/.3)] bg-[hsl(var(--primary)/.08)] p-3" data-testid="bar-bulk-actions">
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-xs font-bold text-[hsl(var(--primary-foreground))]">
+                {selectedResourceIds.length}
+              </span>
+              <span className="text-xs font-bold text-[hsl(var(--foreground))]">
+                {selectedResourceIds.length === 1 ? "1 material selected" : `${selectedResourceIds.length} materials selected`}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedResourceIds([])}
+                className="focus-ring rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-1.5 text-xs font-semibold text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                data-testid="button-clear-selection"
+              >
+                Deselect all
+              </button>
+              <button
+                type="button"
+                onClick={() => setBulkLinkDialogOpen(true)}
+                className="focus-ring flex items-center gap-1.5 rounded-lg bg-[hsl(var(--primary))] px-3.5 py-1.5 text-xs font-bold text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--primary)/.9)]"
+                data-testid="button-bulk-link-materials"
+              >
+                <Link2 size={13} />
+                Link Materials
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Resources Content */}
         {isLoading ? (
           <Loader2 className="mx-auto my-10 animate-spin text-[hsl(var(--muted-foreground))]" size={24} />
@@ -5418,6 +5863,20 @@ function AdminResources() {
             <table className="w-full min-w-[760px] text-left">
               <thead>
                 <tr className="border-b border-[hsl(var(--border))] text-[10px] uppercase tracking-[.12em] text-[hsl(var(--muted-foreground))]">
+                  <th className="w-10 px-3 py-3">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = someVisibleSelected;
+                      }}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 rounded border-[hsl(var(--border))] text-[hsl(var(--primary))] focus:ring-[hsl(var(--primary))]"
+                      title={allVisibleSelected ? "Deselect all visible" : "Select all visible"}
+                      aria-label="Select all visible materials"
+                      data-testid="checkbox-select-all-resources"
+                    />
+                  </th>
                   <th className="px-3 py-3 font-bold">Resource</th>
                   <th className="px-3 py-3 font-bold">Path</th>
                   <th className="px-3 py-3 font-bold">Status</th>
@@ -5434,6 +5893,16 @@ function AdminResources() {
 
                   return (
                     <tr key={resource.id} className="border-b border-[hsl(var(--border)/.7)] last:border-0 hover:bg-[hsl(var(--muted)/.2)]" data-testid={`row-admin-resource-${resource.id}`}>
+                      <td className="w-10 px-3 py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedResourceIds.includes(resource.id)}
+                          onChange={() => toggleSelectResource(resource.id)}
+                          className="h-4 w-4 rounded border-[hsl(var(--border))] text-[hsl(var(--primary))] focus:ring-[hsl(var(--primary))]"
+                          aria-label={`Select ${resource.title}`}
+                          data-testid={`checkbox-resource-${resource.id}`}
+                        />
+                      </td>
                       <td className="px-3 py-4">
                         <div className="flex items-center gap-3">
                           <ResourceIcon type={resource.resourceType} />
@@ -5463,6 +5932,16 @@ function AdminResources() {
                           <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">
                             {[resource.branchName, resource.yearName, resource.semesterName].filter(Boolean).join(" · ")}
                           </p>
+                          {resource.linkedLocations && resource.linkedLocations.filter((l) => !l.isPrimary).length > 0 && (
+                            <div className="mt-1 flex flex-wrap items-center gap-1">
+                              <span
+                                className="inline-flex items-center gap-1 rounded bg-[hsl(var(--primary)/.1)] px-1.5 py-0.5 text-[10px] font-semibold text-[hsl(var(--primary))]"
+                                title={resource.linkedLocations.filter((l) => !l.isPrimary).map((l) => `${l.branchName} > ${l.subjectName}`).join(", ")}
+                              >
+                                <Link2 size={10} /> +{resource.linkedLocations.filter((l) => !l.isPrimary).length} linked ({resource.linkedLocations.filter((l) => !l.isPrimary).map((l) => l.branchShortName || l.branchName).join(", ")})
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="px-3 py-4">
@@ -5593,6 +6072,14 @@ function AdminResources() {
         onOpenChange={(open) => {
           if (!open) setLinkingResource(null);
         }}
+      />
+
+      <AdminBulkLinkDialog
+        resourceIds={selectedResourceIds}
+        resources={resources}
+        open={bulkLinkDialogOpen}
+        onOpenChange={setBulkLinkDialogOpen}
+        onSuccess={() => setSelectedResourceIds([])}
       />
     </AdminLayout>
   );

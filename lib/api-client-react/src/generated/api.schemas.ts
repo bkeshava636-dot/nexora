@@ -151,6 +151,22 @@ export interface SubjectUpdate {
   description?: string;
 }
 
+export interface ResourceLinkLocation {
+  id: number;
+  resourceId: number;
+  subjectId: number;
+  subjectName: string;
+  semesterId: number;
+  semesterName: string;
+  yearId: number;
+  yearName: string;
+  branchId: number;
+  branchName: string;
+  branchShortName?: string | null;
+  isPrimary: boolean;
+  createdAt?: string;
+}
+
 export interface Resource {
   id: number;
   subjectId: number;
@@ -171,6 +187,7 @@ export interface Resource {
   yearName?: string;
   branchId?: number;
   branchName?: string;
+  linkedLocations?: ResourceLinkLocation[];
 }
 
 export interface Department {
@@ -210,22 +227,6 @@ export interface ResourceUpdate {
   isNew?: boolean;
   isFeatured?: boolean;
   isVerified?: boolean;
-}
-
-export interface ResourceLinkLocation {
-  id: number;
-  resourceId: number;
-  subjectId: number;
-  subjectName: string;
-  semesterId: number;
-  semesterName: string;
-  yearId: number;
-  yearName: string;
-  branchId: number;
-  branchName: string;
-  branchShortName?: string | null;
-  isPrimary: boolean;
-  createdAt?: string;
 }
 
 export interface AddResourceLinksRequest {
@@ -332,6 +333,17 @@ export interface CreateFeedbackInput {
 export interface UpdateFeedbackInput {
   status?: FeedbackStatus;
   adminNotes?: string;
+}
+
+export interface BulkLinkResourcesRequest {
+  resourceIds: number[];
+  subjectIds: number[];
+}
+
+export interface BulkLinkResult {
+  processed: number;
+  created: number;
+  alreadyLinked: number;
 }
 
 /**

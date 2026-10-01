@@ -12,6 +12,8 @@ export * from './authStatus';
 export * from './branch';
 export * from './branchInput';
 export * from './branchUpdate';
+export * from './bulkLinkResourcesRequest';
+export * from './bulkLinkResult';
 export * from './createFeedbackInput';
 export * from './department';
 export * from './departmentInput';

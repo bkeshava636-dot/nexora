@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { branches, db, resources, resourceSubjects, subjects, semesters, years } from "@workspace/db";
-import { CreateResourceBody, ListResourcesQueryParams, UpdateResourceBody } from "@workspace/api-zod";
+import { BulkLinkResourcesBody, CreateResourceBody, ListResourcesQueryParams, UpdateResourceBody } from "@workspace/api-zod";
 import { requireAdmin } from "../middlewares/auth";
 import { handleDbError } from "../lib/db-errors";
 import { buildResourceFilters, resourceCatalogSelect } from "../lib/catalog";
@@ -36,6 +36,42 @@ async function getResourceLinkLocations(resourceId: number) {
     .orderBy(asc(branches.displayOrder), asc(years.displayOrder), asc(semesters.displayOrder), asc(subjects.name));
 }
 
+async function getResourceLinkLocationsForResources(resourceIds: number[]) {
+  if (resourceIds.length === 0) return new Map<number, Awaited<ReturnType<typeof getResourceLinkLocations>>>();
+  const rows = await db
+    .select({
+      id: resourceSubjects.id,
+      resourceId: resourceSubjects.resourceId,
+      subjectId: subjects.id,
+      subjectName: subjects.name,
+      semesterId: semesters.id,
+      semesterName: semesters.name,
+      yearId: years.id,
+      yearName: years.name,
+      branchId: branches.id,
+      branchName: branches.name,
+      branchShortName: branches.shortName,
+      isPrimary: eq(resources.subjectId, subjects.id),
+      createdAt: resourceSubjects.createdAt,
+    })
+    .from(resourceSubjects)
+    .innerJoin(resources, eq(resourceSubjects.resourceId, resources.id))
+    .innerJoin(subjects, eq(resourceSubjects.subjectId, subjects.id))
+    .innerJoin(semesters, eq(subjects.semesterId, semesters.id))
+    .innerJoin(years, eq(semesters.yearId, years.id))
+    .innerJoin(branches, eq(years.branchId, branches.id))
+    .where(inArray(resourceSubjects.resourceId, resourceIds))
+    .orderBy(asc(branches.displayOrder), asc(years.displayOrder), asc(semesters.displayOrder), asc(subjects.name));
+
+  const map = new Map<number, typeof rows>();
+  for (const row of rows) {
+    const arr = map.get(row.resourceId) || [];
+    arr.push(row);
+    map.set(row.resourceId, arr);
+  }
+  return map;
+}
+
 router.get("/resources", async (req, res) => {
   const parsed = ListResourcesQueryParams.safeParse(req.query);
   if (!parsed.success) {
@@ -50,23 +86,14 @@ router.get("/resources", async (req, res) => {
     : and(buildResourceFilters(parsed.data), eq(branches.isActive, true));
   const rows = await resourceCatalogSelect().where(where).orderBy(desc(resources.createdAt));
 
-  // If subjectId is queried, each resource in that subject is already distinct.
-  // If no subjectId is queried (admin overview, branch listing, search), deduplicate by resource id
-  // so the same resource is never shown multiple times in a single list.
-  if (parsed.data.subjectId === undefined) {
-    const seen = new Set<number>();
-    const deduped: typeof rows = [];
-    for (const row of rows) {
-      if (!seen.has(row.id)) {
-        seen.add(row.id);
-        deduped.push(row);
-      }
-    }
-    res.json(deduped);
-    return;
-  }
+  // Attach all linked locations (including primary) for each resource
+  const locationMap = await getResourceLinkLocationsForResources(rows.map((r) => r.id));
+  const result = rows.map((r) => ({
+    ...r,
+    linkedLocations: locationMap.get(r.id) || [],
+  }));
 
-  res.json(rows);
+  res.json(result);
 });
 
 router.post("/resources", requireAdmin, async (req, res) => {
@@ -111,7 +138,11 @@ router.get("/resources/:id", async (req, res) => {
     res.status(404).json({ error: "not_found", message: "Resource not found." });
     return;
   }
-  res.json(rows[0]);
+  const locationMap = await getResourceLinkLocationsForResources([rows[0].id]);
+  res.json({
+    ...rows[0],
+    linkedLocations: locationMap.get(rows[0].id) || [],
+  });
 });
 
 router.patch("/resources/:id", requireAdmin, async (req, res) => {
@@ -275,6 +306,81 @@ router.delete(["/resources/:id/links/:subjectId", "/admin/resources/:id/links/:s
   }
 
   res.status(204).end();
+});
+
+// Admin-only: Bulk link multiple resources to multiple subjects
+router.post(["/resources/bulk-links", "/admin/resources/bulk-links"], requireAdmin, async (req, res) => {
+  const parsed = BulkLinkResourcesBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "invalid_request", message: parsed.error.message });
+    return;
+  }
+
+  const { resourceIds, subjectIds } = parsed.data;
+  const cleanResourceIds = [...new Set(resourceIds.filter((id) => Number.isInteger(id) && id > 0))];
+  const cleanSubjectIds = [...new Set(subjectIds.filter((id) => Number.isInteger(id) && id > 0))];
+
+  if (cleanResourceIds.length === 0 || cleanSubjectIds.length === 0) {
+    res.status(400).json({ error: "invalid_request", message: "resourceIds and subjectIds must not be empty." });
+    return;
+  }
+
+  // Verify resources exist
+  const existingResources = await db
+    .select({ id: resources.id })
+    .from(resources)
+    .where(inArray(resources.id, cleanResourceIds));
+  const validResourceIds = existingResources.map((r) => r.id);
+
+  if (validResourceIds.length === 0) {
+    res.status(400).json({ error: "not_found", message: "No matching resources found." });
+    return;
+  }
+
+  // Verify subjects exist
+  const existingSubjects = await db
+    .select({ id: subjects.id })
+    .from(subjects)
+    .where(inArray(subjects.id, cleanSubjectIds));
+  const validSubjectIds = existingSubjects.map((s) => s.id);
+
+  if (validSubjectIds.length === 0) {
+    res.status(400).json({ error: "not_found", message: "No matching subjects found." });
+    return;
+  }
+
+  // Query existing links to compute created vs alreadyLinked accurately
+  const existingLinks = await db
+    .select({ resourceId: resourceSubjects.resourceId, subjectId: resourceSubjects.subjectId })
+    .from(resourceSubjects)
+    .where(
+      and(
+        inArray(resourceSubjects.resourceId, validResourceIds),
+        inArray(resourceSubjects.subjectId, validSubjectIds)
+      )
+    );
+
+  const existingSet = new Set(existingLinks.map((l) => `${l.resourceId}:${l.subjectId}`));
+  const toInsert: { resourceId: number; subjectId: number }[] = [];
+
+  for (const rId of validResourceIds) {
+    for (const sId of validSubjectIds) {
+      if (!existingSet.has(`${rId}:${sId}`)) {
+        toInsert.push({ resourceId: rId, subjectId: sId });
+      }
+    }
+  }
+
+  if (toInsert.length > 0) {
+    await db.insert(resourceSubjects).values(toInsert).onConflictDoNothing();
+  }
+
+  const totalRequestedPairs = validResourceIds.length * validSubjectIds.length;
+  res.status(200).json({
+    processed: validResourceIds.length,
+    created: toInsert.length,
+    alreadyLinked: totalRequestedPairs - toInsert.length,
+  });
 });
 
 export default router;

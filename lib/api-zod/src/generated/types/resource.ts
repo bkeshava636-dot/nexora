@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ResourceLinkLocation } from './resourceLinkLocation';
 import type { ResourceType } from './resourceType';
 
 export interface Resource {
@@ -27,4 +28,5 @@ export interface Resource {
   yearName?: string;
   branchId?: number;
   branchName?: string;
+  linkedLocations?: ResourceLinkLocation[];
 }

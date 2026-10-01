@@ -518,7 +518,22 @@ export const ListResourcesResponseItem = zod.object({
   "semesterName": zod.string().optional(),
   "yearName": zod.string().optional(),
   "branchId": zod.number().int().optional(),
-  "branchName": zod.string().optional()
+  "branchName": zod.string().optional(),
+  "linkedLocations": zod.array(zod.object({
+  "id": zod.number().int(),
+  "resourceId": zod.number().int(),
+  "subjectId": zod.number().int(),
+  "subjectName": zod.string(),
+  "semesterId": zod.number().int(),
+  "semesterName": zod.string(),
+  "yearId": zod.number().int(),
+  "yearName": zod.string(),
+  "branchId": zod.number().int(),
+  "branchName": zod.string(),
+  "branchShortName": zod.string().nullish(),
+  "isPrimary": zod.boolean(),
+  "createdAt": zod.string().datetime({"offset":true}).optional()
+})).optional()
 })
 export const ListResourcesResponse = zod.array(ListResourcesResponseItem)
 
@@ -555,7 +570,22 @@ export const CreateResourceResponse = zod.object({
   "semesterName": zod.string().optional(),
   "yearName": zod.string().optional(),
   "branchId": zod.number().int().optional(),
-  "branchName": zod.string().optional()
+  "branchName": zod.string().optional(),
+  "linkedLocations": zod.array(zod.object({
+  "id": zod.number().int(),
+  "resourceId": zod.number().int(),
+  "subjectId": zod.number().int(),
+  "subjectName": zod.string(),
+  "semesterId": zod.number().int(),
+  "semesterName": zod.string(),
+  "yearId": zod.number().int(),
+  "yearName": zod.string(),
+  "branchId": zod.number().int(),
+  "branchName": zod.string(),
+  "branchShortName": zod.string().nullish(),
+  "isPrimary": zod.boolean(),
+  "createdAt": zod.string().datetime({"offset":true}).optional()
+})).optional()
 })
 
 
@@ -584,7 +614,22 @@ export const GetResourceResponse = zod.object({
   "semesterName": zod.string().optional(),
   "yearName": zod.string().optional(),
   "branchId": zod.number().int().optional(),
-  "branchName": zod.string().optional()
+  "branchName": zod.string().optional(),
+  "linkedLocations": zod.array(zod.object({
+  "id": zod.number().int(),
+  "resourceId": zod.number().int(),
+  "subjectId": zod.number().int(),
+  "subjectName": zod.string(),
+  "semesterId": zod.number().int(),
+  "semesterName": zod.string(),
+  "yearId": zod.number().int(),
+  "yearName": zod.string(),
+  "branchId": zod.number().int(),
+  "branchName": zod.string(),
+  "branchShortName": zod.string().nullish(),
+  "isPrimary": zod.boolean(),
+  "createdAt": zod.string().datetime({"offset":true}).optional()
+})).optional()
 })
 
 
@@ -624,7 +669,22 @@ export const UpdateResourceResponse = zod.object({
   "semesterName": zod.string().optional(),
   "yearName": zod.string().optional(),
   "branchId": zod.number().int().optional(),
-  "branchName": zod.string().optional()
+  "branchName": zod.string().optional(),
+  "linkedLocations": zod.array(zod.object({
+  "id": zod.number().int(),
+  "resourceId": zod.number().int(),
+  "subjectId": zod.number().int(),
+  "subjectName": zod.string(),
+  "semesterId": zod.number().int(),
+  "semesterName": zod.string(),
+  "yearId": zod.number().int(),
+  "yearName": zod.string(),
+  "branchId": zod.number().int(),
+  "branchName": zod.string(),
+  "branchShortName": zod.string().nullish(),
+  "isPrimary": zod.boolean(),
+  "createdAt": zod.string().datetime({"offset":true}).optional()
+})).optional()
 })
 
 
@@ -702,6 +762,21 @@ export const RemoveResourceLinkParams = zod.object({
 })
 
 export const RemoveResourceLinkResponse = zod.void()
+
+
+/**
+ * @summary Bulk link multiple resources to multiple subjects
+ */
+export const BulkLinkResourcesBody = zod.object({
+  "resourceIds": zod.array(zod.number().int()),
+  "subjectIds": zod.array(zod.number().int())
+})
+
+export const BulkLinkResourcesResponse = zod.object({
+  "processed": zod.number().int(),
+  "created": zod.number().int(),
+  "alreadyLinked": zod.number().int()
+})
 
 
 /**

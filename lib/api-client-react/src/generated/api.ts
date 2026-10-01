@@ -26,6 +26,8 @@ import type {
   Branch,
   BranchInput,
   BranchUpdate,
+  BulkLinkResourcesRequest,
+  BulkLinkResult,
   CreateFeedbackInput,
   Department,
   DepartmentInput,
@@ -2700,6 +2702,77 @@ export const useRemoveResourceLink = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getRemoveResourceLinkMutationOptions(options));
+    }
+
+export const getBulkLinkResourcesUrl = () => {
+
+
+
+
+  return `/api/resources/bulk-links`
+}
+
+/**
+ * @summary Bulk link multiple resources to multiple subjects
+ */
+export const bulkLinkResources = async (bulkLinkResourcesRequest: BulkLinkResourcesRequest, options?: Parameters<typeof customFetch>[1]): Promise<BulkLinkResult> => {
+
+  return customFetch<BulkLinkResult>(getBulkLinkResourcesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(bulkLinkResourcesRequest)
+  }
+);}
+
+
+
+
+
+export const getBulkLinkResourcesMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkLinkResources>>, TError,{data: BodyType<BulkLinkResourcesRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof bulkLinkResources>>, TError,{data: BodyType<BulkLinkResourcesRequest>}, TContext> => {
+
+const mutationKey = ['bulkLinkResources'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkLinkResources>>, {data: BodyType<BulkLinkResourcesRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  bulkLinkResources(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BulkLinkResourcesMutationResult = NonNullable<Awaited<ReturnType<typeof bulkLinkResources>>>
+    export type BulkLinkResourcesMutationBody = BodyType<BulkLinkResourcesRequest>
+    export type BulkLinkResourcesMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Bulk link multiple resources to multiple subjects
+ */
+export const useBulkLinkResources = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkLinkResources>>, TError,{data: BodyType<BulkLinkResourcesRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof bulkLinkResources>>,
+        TError,
+        {data: BodyType<BulkLinkResourcesRequest>},
+        TContext
+      > => {
+      return useMutation(getBulkLinkResourcesMutationOptions(options));
     }
 
 export const getListSemesterQpDepartmentsUrl = (params?: ListSemesterQpDepartmentsParams,) => {

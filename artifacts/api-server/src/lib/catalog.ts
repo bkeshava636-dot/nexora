@@ -56,7 +56,9 @@ export async function getBranchWithCounts(id: number): Promise<BranchWithCounts 
   return withCounts;
 }
 
-/** Full catalog join used for both listing and single-resource lookups. */
+/** Full catalog join used for both listing and single-resource lookups.
+ * Always joins to the primary subject/semester/year/branch from resources.subjectId.
+ */
 export function resourceCatalogSelect() {
   return db
     .select({
@@ -80,8 +82,7 @@ export function resourceCatalogSelect() {
       branchName: branches.name,
     })
     .from(resources)
-    .innerJoin(resourceSubjects, eq(resources.id, resourceSubjects.resourceId))
-    .innerJoin(subjects, eq(resourceSubjects.subjectId, subjects.id))
+    .innerJoin(subjects, eq(resources.subjectId, subjects.id))
     .innerJoin(semesters, eq(subjects.semesterId, semesters.id))
     .innerJoin(years, eq(semesters.yearId, years.id))
     .innerJoin(branches, eq(years.branchId, branches.id));
@@ -101,10 +102,55 @@ export interface ResourceFilters {
 
 export function buildResourceFilters(filters: ResourceFilters): SQL | undefined {
   const clauses: SQL[] = [];
-  if (filters.branchId !== undefined) clauses.push(eq(branches.id, filters.branchId));
-  if (filters.yearId !== undefined) clauses.push(eq(years.id, filters.yearId));
-  if (filters.semesterId !== undefined) clauses.push(eq(semesters.id, filters.semesterId));
-  if (filters.subjectId !== undefined) clauses.push(eq(subjects.id, filters.subjectId));
+  if (filters.branchId !== undefined) {
+    clauses.push(
+      or(
+        eq(branches.id, filters.branchId),
+        sql`${resources.id} IN (
+          SELECT rs.resource_id FROM resource_subjects rs
+          JOIN subjects s ON rs.subject_id = s.id
+          JOIN semesters sem ON s.semester_id = sem.id
+          JOIN years y ON sem.year_id = y.id
+          WHERE y.branch_id = ${filters.branchId}
+        )`
+      )!
+    );
+  }
+  if (filters.yearId !== undefined) {
+    clauses.push(
+      or(
+        eq(years.id, filters.yearId),
+        sql`${resources.id} IN (
+          SELECT rs.resource_id FROM resource_subjects rs
+          JOIN subjects s ON rs.subject_id = s.id
+          JOIN semesters sem ON s.semester_id = sem.id
+          WHERE sem.year_id = ${filters.yearId}
+        )`
+      )!
+    );
+  }
+  if (filters.semesterId !== undefined) {
+    clauses.push(
+      or(
+        eq(semesters.id, filters.semesterId),
+        sql`${resources.id} IN (
+          SELECT rs.resource_id FROM resource_subjects rs
+          JOIN subjects s ON rs.subject_id = s.id
+          WHERE s.semester_id = ${filters.semesterId}
+        )`
+      )!
+    );
+  }
+  if (filters.subjectId !== undefined) {
+    clauses.push(
+      or(
+        eq(subjects.id, filters.subjectId),
+        sql`${resources.id} IN (
+          SELECT resource_id FROM resource_subjects WHERE subject_id = ${filters.subjectId}
+        )`
+      )!
+    );
+  }
   if (filters.resourceType !== undefined)
     clauses.push(eq(resources.resourceType, filters.resourceType as (typeof resources.resourceType)["_"]["data"]));
   if (filters.isVerified !== undefined) clauses.push(eq(resources.isVerified, filters.isVerified));
