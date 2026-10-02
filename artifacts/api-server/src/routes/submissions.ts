@@ -29,6 +29,26 @@ router.post("/submissions", async (req, res) => {
     return;
   }
 
+  const rawEmail = typeof parsed.data.studentEmail === "string" ? parsed.data.studentEmail.trim() : null;
+  const studentEmail = rawEmail && rawEmail.length > 0 ? rawEmail : null;
+
+  const rawName = typeof parsed.data.studentName === "string" ? parsed.data.studentName.trim() : null;
+  const studentName = rawName && rawName.length > 0 ? rawName : null;
+
+  if (studentEmail) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(studentEmail)) {
+      res.status(400).json({ error: "invalid_email", message: "Please provide a valid email address." });
+      return;
+    }
+  }
+
+  const submissionPayload = {
+    ...parsed.data,
+    studentName,
+    studentEmail,
+  };
+
   const mode = await getSubmissionApprovalMode();
 
   if (mode === "auto_publish" && parsed.data.subjectId && parsed.data.resourceType !== "Internal Assessment") {
@@ -61,7 +81,7 @@ router.post("/submissions", async (req, res) => {
         const [createdSubmission] = await tx
           .insert(submissions)
           .values({
-            ...parsed.data,
+            ...submissionPayload,
             status: "approved",
             reviewedAt: new Date(),
             reviewedBy: "auto_publish",
@@ -89,7 +109,7 @@ router.post("/submissions", async (req, res) => {
         const [fallbackSubmission] = await db
           .insert(submissions)
           .values({
-            ...parsed.data,
+            ...submissionPayload,
             status: "pending",
             adminNote: "Auto-publish failed; queued for manual review.",
           })
@@ -105,7 +125,7 @@ router.post("/submissions", async (req, res) => {
   }
 
   try {
-    const [created] = await db.insert(submissions).values(parsed.data).returning();
+    const [created] = await db.insert(submissions).values(submissionPayload).returning();
     res.status(201).json(created);
   } catch (err) {
     if (!handleDbError(err, res)) throw err;

@@ -1658,8 +1658,10 @@ components:
           type: string
         studentName:
           type: string
+          nullable: true
         studentEmail:
           type: string
+          nullable: true
         iaAcademicYear:
           type: string
           nullable: true
@@ -1696,8 +1698,6 @@ components:
         - title
         - description
         - googleDriveUrl
-        - studentName
-        - studentEmail
         - status
         - submittedAt
 
@@ -1722,8 +1722,10 @@ components:
           type: string
         studentName:
           type: string
+          nullable: true
         studentEmail:
           type: string
+          nullable: true
         iaAcademicYear:
           type: string
         iaSemester:
@@ -1736,8 +1738,6 @@ components:
         - resourceType
         - title
         - googleDriveUrl
-        - studentName
-        - studentEmail
 
     SubmissionUpdate:
       type: object

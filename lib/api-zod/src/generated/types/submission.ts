@@ -18,8 +18,8 @@ export interface Submission {
   title: string;
   description: string;
   googleDriveUrl: string;
-  studentName: string;
-  studentEmail: string;
+  studentName?: string | null;
+  studentEmail?: string | null;
   iaAcademicYear?: string | null;
   iaSemester?: string | null;
   iaDepartment?: string | null;

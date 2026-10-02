@@ -1529,9 +1529,11 @@ function ContributePage() {
     event.preventDefault();
     if (createSubmission.isPending) return;
     
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
     if (contributionMode === "resource") {
-      if (!form.title.trim() || !form.studentName.trim() || !form.studentEmail.trim()) {
-        setError("Please fill in the required fields before sending.");
+      if (!form.title.trim()) {
+        setError("Please enter a title for the resource.");
         return;
       }
       if (!form.googleDriveUrl.trim() || !isValidGoogleDriveUrl(form.googleDriveUrl)) {
@@ -1542,7 +1544,22 @@ function ContributePage() {
         setError("Please choose a branch, year, semester, and subject before sending.");
         return;
       }
-      createSubmission.mutate({ data: { ...form, branchId, yearId, semesterId, subjectId } }, {
+      if (form.studentEmail.trim() && !emailRegex.test(form.studentEmail.trim())) {
+        setError("Please enter a valid email address, or leave it blank.");
+        return;
+      }
+      createSubmission.mutate({
+        data: {
+          ...form,
+          title: form.title.trim(),
+          studentName: form.studentName.trim() || undefined,
+          studentEmail: form.studentEmail.trim() || undefined,
+          branchId,
+          yearId,
+          semesterId,
+          subjectId,
+        }
+      }, {
         onSuccess: (data: Submission & { autoPublished?: boolean }) => {
           const isAuto = data.status === "approved" || Boolean(data.autoPublished);
           setSubmittedData({ status: data.status, autoPublished: isAuto });
@@ -1558,7 +1575,7 @@ function ContributePage() {
       });
     } else {
       // IA submission
-      if (!iaForm.title.trim() || !iaForm.studentName.trim() || !iaForm.studentEmail.trim() || !iaForm.iaDepartment.trim()) {
+      if (!iaForm.title.trim() || !iaForm.iaDepartment.trim()) {
         setError("Please fill in the required fields before sending.");
         return;
       }
@@ -1566,14 +1583,18 @@ function ContributePage() {
         setError("Please enter a valid Google Drive link.");
         return;
       }
+      if (iaForm.studentEmail.trim() && !emailRegex.test(iaForm.studentEmail.trim())) {
+        setError("Please enter a valid email address, or leave it blank.");
+        return;
+      }
       createSubmission.mutate({ 
         data: { 
           resourceType: "Internal Assessment" as ResourceType,
-          title: iaForm.title,
+          title: iaForm.title.trim(),
           description: "Internal Assessment submission",
           googleDriveUrl: iaForm.googleDriveUrl,
-          studentName: iaForm.studentName,
-          studentEmail: iaForm.studentEmail,
+          studentName: iaForm.studentName.trim() || undefined,
+          studentEmail: iaForm.studentEmail.trim() || undefined,
           iaAcademicYear: iaForm.iaAcademicYear,
           iaSemester: iaForm.iaSemester,
           iaDepartment: iaForm.iaDepartment,
@@ -1690,10 +1711,10 @@ function ContributePage() {
               <Field label="Google Drive link" required hint={`${googleDriveUrlHint} Also make sure link access is set to "Anyone with the link".`}><div className="relative"><Link2 className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" size={16} /><input value={form.googleDriveUrl} onChange={(e) => update("googleDriveUrl", e.target.value)} className="input-style pl-11" placeholder="https://drive.google.com/..." /></div></Field>
             </div>
           </FormSection>
-          <FormSection title="A little about you">
+          <FormSection title="A little about you (optional)">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Your name" required><input value={form.studentName} onChange={(e) => update("studentName", e.target.value)} className="input-style" placeholder="How should we credit you?" /></Field>
-              <Field label="College email" required><input type="email" value={form.studentEmail} onChange={(e) => update("studentEmail", e.target.value)} className="input-style" placeholder="you@college.edu" /></Field>
+              <Field label="Your name"><input value={form.studentName} onChange={(e) => update("studentName", e.target.value)} className="input-style" placeholder="How should we credit you? (optional)" /></Field>
+              <Field label="College email"><input type="email" value={form.studentEmail} onChange={(e) => update("studentEmail", e.target.value)} className="input-style" placeholder="you@college.edu (optional)" /></Field>
             </div>
           </FormSection>
         </>
@@ -1742,10 +1763,10 @@ function ContributePage() {
               </Field>
             </div>
           </FormSection>
-          <FormSection title="A little about you">
+          <FormSection title="A little about you (optional)">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Your name" required><input value={iaForm.studentName} onChange={(e) => updateIa("studentName", e.target.value)} className="input-style" placeholder="How should we credit you?" /></Field>
-              <Field label="College email" required><input type="email" value={iaForm.studentEmail} onChange={(e) => updateIa("studentEmail", e.target.value)} className="input-style" placeholder="you@college.edu" /></Field>
+              <Field label="Your name"><input value={iaForm.studentName} onChange={(e) => updateIa("studentName", e.target.value)} className="input-style" placeholder="How should we credit you? (optional)" /></Field>
+              <Field label="College email"><input type="email" value={iaForm.studentEmail} onChange={(e) => updateIa("studentEmail", e.target.value)} className="input-style" placeholder="you@college.edu (optional)" /></Field>
             </div>
           </FormSection>
         </>
@@ -3299,7 +3320,10 @@ function Progress({ label, value }: { label: string; value: number }) {
 }
 function SubmissionRow({ submission, actions = false, onApprove, onReject, isApproving = false, isRejecting = false, busy }: { submission: Submission; actions?: boolean; onApprove?: () => void; onReject?: () => void; isApproving?: boolean; isRejecting?: boolean; busy?: boolean }) {
   const isBusy = busy || isApproving || isRejecting;
-  return <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.7)] p-3.5"><div className="flex items-start gap-3"><ResourceIcon type={submission.resourceType} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-bold">{submission.title}</h3>{submission.status === "pending" ? <span className="rounded-full bg-[hsl(var(--secondary)/.25)] px-2 py-1 text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">Pending</span> : submission.status === "approved" ? <span className="rounded-full bg-[hsl(var(--accent))] px-2 py-1 text-[10px] font-bold text-[hsl(var(--accent-foreground))]">Approved</span> : <span className="rounded-full bg-[hsl(var(--destructive)/.1)] px-2 py-1 text-[10px] font-bold text-[hsl(var(--destructive))]">Rejected</span>}</div><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{submission.studentName} · {formatDate(submission.submittedAt)}</p></div>{actions && <div className="flex shrink-0 gap-1"><button onClick={onApprove} disabled={isBusy} type="button" className="focus-ring rounded-lg bg-[hsl(var(--accent))] p-2 text-[hsl(var(--accent-foreground))] disabled:opacity-60" aria-label={`Approve ${submission.title}`} data-testid={`button-approve-${submission.id}`}>{isApproving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}</button><button onClick={onReject} disabled={isBusy} type="button" className="focus-ring rounded-lg bg-[hsl(var(--destructive)/.1)] p-2 text-[hsl(var(--destructive))] disabled:opacity-60" aria-label={`Reject ${submission.title}`} data-testid={`button-reject-${submission.id}`}>{isRejecting ? <Loader2 size={15} className="animate-spin" /> : <X size={15} />}</button></div>}</div>{actions && <p className="mt-3 border-t border-[hsl(var(--border))] pt-3 text-xs leading-5 text-[hsl(var(--muted-foreground))]">{submission.description || "No description provided."} <a href={submission.googleDriveUrl} target="_blank" rel="noreferrer" className="ml-1 font-bold text-[hsl(var(--accent-foreground))]" data-testid={`link-review-drive-${submission.id}`}>Open Drive link <ExternalLink size={11} className="inline" /></a></p>}
+  const contributorText = submission.studentName && submission.studentEmail
+    ? `${submission.studentName} (${submission.studentEmail})`
+    : submission.studentName || submission.studentEmail || "Not provided";
+  return <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.7)] p-3.5"><div className="flex items-start gap-3"><ResourceIcon type={submission.resourceType} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-bold">{submission.title}</h3>{submission.status === "pending" ? <span className="rounded-full bg-[hsl(var(--secondary)/.25)] px-2 py-1 text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">Pending</span> : submission.status === "approved" ? <span className="rounded-full bg-[hsl(var(--accent))] px-2 py-1 text-[10px] font-bold text-[hsl(var(--accent-foreground))]">Approved</span> : <span className="rounded-full bg-[hsl(var(--destructive)/.1)] px-2 py-1 text-[10px] font-bold text-[hsl(var(--destructive))]">Rejected</span>}</div><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{contributorText} · {formatDate(submission.submittedAt)}</p></div>{actions && <div className="flex shrink-0 gap-1"><button onClick={onApprove} disabled={isBusy} type="button" className="focus-ring rounded-lg bg-[hsl(var(--accent))] p-2 text-[hsl(var(--accent-foreground))] disabled:opacity-60" aria-label={`Approve ${submission.title}`} data-testid={`button-approve-${submission.id}`}>{isApproving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}</button><button onClick={onReject} disabled={isBusy} type="button" className="focus-ring rounded-lg bg-[hsl(var(--destructive)/.1)] p-2 text-[hsl(var(--destructive))] disabled:opacity-60" aria-label={`Reject ${submission.title}`} data-testid={`button-reject-${submission.id}`}>{isRejecting ? <Loader2 size={15} className="animate-spin" /> : <X size={15} />}</button></div>}</div>{actions && <p className="mt-3 border-t border-[hsl(var(--border))] pt-3 text-xs leading-5 text-[hsl(var(--muted-foreground))]">{submission.description || "No description provided."} <a href={submission.googleDriveUrl} target="_blank" rel="noreferrer" className="ml-1 font-bold text-[hsl(var(--accent-foreground))]" data-testid={`link-review-drive-${submission.id}`}>Open Drive link <ExternalLink size={11} className="inline" /></a></p>}
     {submission.status === "rejected" && submission.rejectionReason && <p className="mt-3 border-t border-[hsl(var(--border))] pt-3 text-xs leading-5 text-[hsl(var(--destructive))]">Reason: {submission.rejectionReason}</p>}
     {submission.status !== "pending" && submission.reviewedBy && <p className="mt-2 text-[11px] text-[hsl(var(--muted-foreground))]">Reviewed by {submission.reviewedBy}{submission.reviewedAt ? ` on ${formatDate(submission.reviewedAt)}` : ""}</p>}</div>;
 }
@@ -10857,7 +10881,7 @@ function AdminIaContributionsSection() {
                     {item.iaAcademicYear} • {item.iaSemester} • {item.iaDepartment} • {item.iaType}
                   </div>
                   <div className="text-[10px] text-[hsl(var(--muted-foreground))] mt-2 border border-[hsl(var(--border))] rounded bg-[hsl(var(--background))] px-2 py-1 inline-block">
-                    By {item.studentName} ({item.studentEmail}) on {new Date(item.submittedAt).toLocaleDateString()}
+                    By {item.studentName && item.studentEmail ? `${item.studentName} (${item.studentEmail})` : item.studentName || item.studentEmail || "Not provided"} on {new Date(item.submittedAt).toLocaleDateString()}
                   </div>
                 </div>
                 <div className="flex flex-col gap-2">

@@ -114,6 +114,8 @@ export async function ensureTables(): Promise<void> {
       `ALTER TABLE "submissions" ADD COLUMN IF NOT EXISTS "ia_semester" text;`,
       `ALTER TABLE "submissions" ADD COLUMN IF NOT EXISTS "ia_department" text;`,
       `ALTER TABLE "submissions" ADD COLUMN IF NOT EXISTS "ia_type" text;`,
+      `ALTER TABLE "submissions" ALTER COLUMN "student_name" DROP NOT NULL;`,
+      `ALTER TABLE "submissions" ALTER COLUMN "student_email" DROP NOT NULL;`,
       `ALTER TYPE "resource_type" ADD VALUE IF NOT EXISTS 'Internal Assessment';`,
       `CREATE TABLE IF NOT EXISTS "feedback" (
         "id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
