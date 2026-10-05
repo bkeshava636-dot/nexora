@@ -1,10 +1,10 @@
 import { type FormEvent, type ReactNode, memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Redirect, Route, Switch, Router as WouterRouter, useLocation, useParams } from "wouter";
 import {
-  ArrowLeft, ArrowRight, BarChart3, Bug, MessageSquare, MessageSquarePlus, BadgeCheck, BookOpen, Calendar, Check, CheckCircle2, ChevronDown, ChevronRight,
+  AlertTriangle, ArrowLeft, ArrowRight, BarChart3, Bug, MessageSquare, MessageSquarePlus, BadgeCheck, BookOpen, Calendar, Check, CheckCircle2, ChevronDown, ChevronRight,
   CircleAlert, Clock3, Download, ExternalLink, Eye, EyeOff, FileArchive, FileDown, FileText, Filter, Flag, FolderOpen, GitBranch, GraduationCap, KeyRound, Layers3,
   LayoutDashboard, LibraryBig, Link2, Loader2, Lock, LogOut, Menu, MoreHorizontal, Pencil, Plus, RotateCcw, Search, Send, ShieldCheck,
-  SlidersHorizontal, Sparkles, Trash2, Upload, Users, X, Zap,
+  SlidersHorizontal, Sparkles, Trash2, Unlink, Upload, Users, X, Zap,
 } from "lucide-react";
 import { ApiWakeOverlay } from "@/components/api-wake-overlay";
 import { BuyMePaneerFooter } from "@/components/buy-me-paneer";
@@ -4551,6 +4551,8 @@ function AdminLinkResourceDialog({
     },
   });
 
+  const [unlinkTarget, setUnlinkTarget] = useState<typeof links[0] | null>(null);
+
   const handleSaveLinks = () => {
     if (!resource || selectedSubjectIds.length === 0) return;
     setError("");
@@ -4560,296 +4562,362 @@ function AdminLinkResourceDialog({
     });
   };
 
-  const handleRemoveLink = (subjectId: number, subjectName: string) => {
-    if (!resource) return;
-    if (links.length <= 1) {
-      if (!window.confirm(`This is the only linked location for this resource. Removing it will unlink the resource from ${subjectName}. Proceed?`)) {
-        return;
-      }
-    }
-    removeLinkMutation.mutate({ id: resource.id, subjectId });
-  };
-
   if (!resource) return null;
 
   const linkedSubjectIds = new Set(links.map((l) => l.subjectId));
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Link2 className="text-[hsl(var(--primary))]" size={20} />
-            Link Resource to Other Subjects
-          </DialogTitle>
-          <DialogDescription>
-            Share this study material across multiple branches or subjects without duplicating files.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Link2 className="text-[hsl(var(--primary))]" size={20} />
+              Manage Resource Links
+            </DialogTitle>
+            <DialogDescription>
+              Share this study material across multiple branches or subjects, or unlink individual locations without deleting files.
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-5 py-2">
-          {/* Resource Title & Details */}
-          <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.6)] p-3.5">
-            <div className="flex items-center gap-2.5">
-              <ResourceIcon type={resource.resourceType} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-bold text-[hsl(var(--foreground))]">{resource.title}</p>
-                <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">
-                  {resource.resourceType} · <span className="font-mono text-[10px]">{resource.googleDriveUrl.slice(0, 45)}...</span>
-                </p>
+          <div className="space-y-5 py-2">
+            {/* Resource Title & Details */}
+            <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.6)] p-3.5">
+              <div className="flex items-center gap-2.5">
+                <ResourceIcon type={resource.resourceType} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-bold text-[hsl(var(--foreground))]">{resource.title}</p>
+                  <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">
+                    {resource.resourceType} · <span className="font-mono text-[10px]">{resource.googleDriveUrl.slice(0, 45)}...</span>
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Current / Primary Location */}
-          <div>
-            <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-              Current Location
-            </p>
-            <div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)] px-3.5 py-2.5 text-xs">
-              <BookOpen size={15} className="shrink-0 text-[hsl(var(--primary))]" />
-              <span className="font-semibold text-[hsl(var(--foreground))]">
-                {[resource.branchName, resource.yearName, resource.semesterName, resource.subjectName].filter(Boolean).join(" → ")}
-              </span>
-            </div>
-          </div>
-
-          {/* Existing Linked Locations */}
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-                Linked Locations ({links.length || 1})
+            {/* Current / Primary Location */}
+            <div>
+              <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                Primary Location
               </p>
-              {linksLoading && <Loader2 size={13} className="animate-spin text-[hsl(var(--muted-foreground))]" />}
+              <div className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)] px-3.5 py-2.5 text-xs">
+                <BookOpen size={15} className="shrink-0 text-[hsl(var(--primary))]" />
+                <span className="font-semibold text-[hsl(var(--foreground))]">
+                  {links.find((l) => l.isPrimary)
+                    ? [links.find((l) => l.isPrimary)?.branchName, links.find((l) => l.isPrimary)?.yearName, links.find((l) => l.isPrimary)?.semesterName, links.find((l) => l.isPrimary)?.subjectName].filter(Boolean).join(" → ")
+                    : links.length > 0
+                      ? [links[0].branchName, links[0].yearName, links[0].semesterName, links[0].subjectName].filter(Boolean).join(" → ")
+                      : "No active subject location (Unlinked from catalog)"}
+                </span>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              {links.length > 0 ? (
-                links.map((link) => {
-                  const isRemoving = removeLinkMutation.isPending && removeLinkMutation.variables?.subjectId === link.subjectId;
-                  return (
-                    <div
-                      key={link.subjectId}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3.5 py-2.5 text-xs transition-colors hover:bg-[hsl(var(--muted)/.3)]"
-                      data-testid={`linked-subject-row-${link.subjectId}`}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="rounded bg-[hsl(var(--primary)/.1)] px-1.5 py-0.5 text-[10px] font-bold text-[hsl(var(--primary))]">
-                            {link.branchShortName || link.branchName}
-                          </span>
-                          <span className="font-bold text-[hsl(var(--foreground))] truncate">
-                            {link.subjectName}
-                          </span>
-                          {link.isPrimary && (
-                            <span className="rounded-full bg-[hsl(var(--muted))] px-2 py-0.5 text-[9px] font-bold text-[hsl(var(--muted-foreground))]">
-                              Primary
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">
-                          {[link.branchName, link.yearName, link.semesterName].filter(Boolean).join(" → ")}
-                        </p>
-                      </div>
+            {/* Existing Linked Locations */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                  Linked Locations ({links.length})
+                </p>
+                {linksLoading && <Loader2 size={13} className="animate-spin text-[hsl(var(--muted-foreground))]" />}
+              </div>
 
-                      <button
-                        type="button"
-                        disabled={removeLinkMutation.isPending}
-                        onClick={() => handleRemoveLink(link.subjectId, link.subjectName)}
-                        className="focus-ring rounded-lg p-1.5 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--destructive)/.1)] hover:text-[hsl(var(--destructive))] disabled:opacity-50"
-                        title={`Remove link from ${link.subjectName}`}
-                        aria-label={`Remove link from ${link.subjectName}`}
-                        data-testid={`button-remove-link-${link.subjectId}`}
-                      >
-                        {isRemoving ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                      </button>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="flex items-center justify-between rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3.5 py-2.5 text-xs">
-                  <span>{[resource.branchName, resource.yearName, resource.semesterName, resource.subjectName].filter(Boolean).join(" → ")}</span>
-                  <span className="rounded-full bg-[hsl(var(--muted))] px-2 py-0.5 text-[9px] font-bold text-[hsl(var(--muted-foreground))]">Primary</span>
+              {/* Last-link protection warning notice */}
+              {links.length === 1 && (
+                <div className="flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
+                  <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <p>
+                    This is the only subject this resource is linked to. Unlinking will remove it from the catalog.
+                  </p>
                 </div>
               )}
-            </div>
-          </div>
 
-          {/* Add Link Section with Cascading Dropdowns */}
-          <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.4)] p-4">
-            <p className="mb-3 text-xs font-bold text-[hsl(var(--foreground))]">
-              Link this resource to:
-            </p>
+              <div className="space-y-2">
+                {links.length > 0 ? (
+                  links.map((link) => {
+                    const isRemoving = removeLinkMutation.isPending && removeLinkMutation.variables?.subjectId === link.subjectId;
+                    return (
+                      <div
+                        key={link.subjectId}
+                        className="flex items-center justify-between gap-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3.5 py-2.5 text-xs transition-colors hover:bg-[hsl(var(--muted)/.3)]"
+                        data-testid={`linked-subject-row-${link.subjectId}`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="rounded bg-[hsl(var(--primary)/.1)] px-1.5 py-0.5 text-[10px] font-bold text-[hsl(var(--primary))]">
+                              {link.branchShortName || link.branchName}
+                            </span>
+                            <span className="font-bold text-[hsl(var(--foreground))] truncate">
+                              {link.subjectName}
+                            </span>
+                            {link.isPrimary && (
+                              <span className="rounded-full bg-[hsl(var(--muted))] px-2 py-0.5 text-[9px] font-bold text-[hsl(var(--muted-foreground))]">
+                                Primary
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">
+                            {[link.branchName, link.yearName, link.semesterName, link.subjectName].filter(Boolean).join(" → ")}
+                          </p>
+                        </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {/* Branch */}
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
-                  Branch
-                </label>
-                <select
-                  value={selectedBranchId ?? ""}
-                  onChange={(e) => handleBranchChange(e.target.value)}
-                  className="input-style h-9 w-full text-xs"
-                  data-testid="select-link-branch"
-                >
-                  <option value="">Select branch...</option>
-                  {branches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.shortName ? `${b.shortName} · ${b.name}` : b.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Year */}
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
-                  Year
-                </label>
-                <select
-                  value={selectedYearId ?? ""}
-                  onChange={(e) => handleYearChange(e.target.value)}
-                  disabled={!selectedBranchId}
-                  className="input-style h-9 w-full text-xs disabled:opacity-50"
-                  data-testid="select-link-year"
-                >
-                  <option value="">Select year...</option>
-                  {years.map((y) => (
-                    <option key={y.id} value={y.id}>
-                      {y.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Semester */}
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
-                  Semester
-                </label>
-                <select
-                  value={selectedSemesterId ?? ""}
-                  onChange={(e) => handleSemesterChange(e.target.value)}
-                  disabled={!selectedYearId}
-                  className="input-style h-9 w-full text-xs disabled:opacity-50"
-                  data-testid="select-link-semester"
-                >
-                  <option value="">Select semester...</option>
-                  {semesters.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Target Subjects Checkboxes */}
-            {selectedSemesterId && (
-              <div className="mt-4 pt-3 border-t border-[hsl(var(--border)/.6)]">
-                <div className="mb-2 flex items-center justify-between">
-                  <label className="text-[11px] font-bold text-[hsl(var(--muted-foreground))]">
-                    Select Target Subject(s):
-                  </label>
-                  {subjects.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const available = subjects
-                          .filter((s) => !linkedSubjectIds.has(s.id) && s.id !== resource.subjectId)
-                          .map((s) => s.id);
-                        setSelectedSubjectIds(available);
-                      }}
-                      className="text-[11px] font-semibold text-[hsl(var(--accent-foreground))] hover:underline"
-                    >
-                      Select all available
-                    </button>
-                  )}
-                </div>
-
-                {subjects.length === 0 ? (
-                  <p className="py-3 text-center text-xs text-[hsl(var(--muted-foreground))]">
-                    No subjects found in this semester.
-                  </p>
-                ) : (
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                    {subjects.map((sub) => {
-                      const isCurrent = sub.id === resource.subjectId;
-                      const isAlreadyLinked = linkedSubjectIds.has(sub.id);
-                      const isDisabled = isCurrent || isAlreadyLinked;
-                      const isChecked = selectedSubjectIds.includes(sub.id);
-
-                      return (
-                        <label
-                          key={sub.id}
-                          className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-xs transition-colors cursor-pointer ${
-                            isDisabled
-                              ? "border-[hsl(var(--border)/.4)] bg-[hsl(var(--muted)/.3)] opacity-60 cursor-not-allowed"
-                              : isChecked
-                                ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary)/.06)]"
-                                : "border-[hsl(var(--border))] hover:bg-[hsl(var(--muted)/.2)]"
-                          }`}
-                          data-testid={`checkbox-link-subject-${sub.id}`}
+                        <button
+                          type="button"
+                          disabled={removeLinkMutation.isPending}
+                          onClick={() => setUnlinkTarget(link)}
+                          className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-[hsl(var(--destructive)/.3)] bg-[hsl(var(--destructive)/.08)] px-2.5 py-1 text-xs font-semibold text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive)/.18)] transition-colors disabled:opacity-50 shrink-0"
+                          title={`Unlink from ${link.subjectName}`}
+                          aria-label={`Unlink from ${link.subjectName}`}
+                          data-testid={`button-unlink-subject-${link.subjectId}`}
                         >
-                          <input
-                            type="checkbox"
-                            disabled={isDisabled}
-                            checked={isChecked || isAlreadyLinked}
-                            onChange={() => !isDisabled && toggleSubjectSelect(sub.id)}
-                            className="h-4 w-4 rounded border-[hsl(var(--border))] text-[hsl(var(--primary))]"
-                          />
-                          <span className="font-semibold text-[hsl(var(--foreground))] flex-1">
-                            {sub.name}
-                          </span>
-                          {isCurrent && (
-                            <span className="rounded bg-[hsl(var(--muted))] px-2 py-0.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">
-                              Current Subject
-                            </span>
-                          )}
-                          {!isCurrent && isAlreadyLinked && (
-                            <span className="rounded bg-[hsl(var(--muted))] px-2 py-0.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">
-                              Already Linked
-                            </span>
-                          )}
-                        </label>
-                      );
-                    })}
+                          {isRemoving ? <Loader2 size={12} className="animate-spin" /> : <Unlink size={12} />}
+                          Unlink
+                        </button>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="rounded-xl border border-dashed border-[hsl(var(--destructive)/.4)] bg-[hsl(var(--destructive)/.05)] p-4 text-center">
+                    <p className="text-xs font-semibold text-[hsl(var(--destructive))]">
+                      This resource is currently not linked to any subject.
+                    </p>
+                    <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">
+                      It is hidden from the student catalog. Select a branch, year, semester, and subject below to link it.
+                    </p>
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Add Link Section with Cascading Dropdowns */}
+            <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.4)] p-4">
+              <p className="mb-3 text-xs font-bold text-[hsl(var(--foreground))]">
+                Link this resource to:
+              </p>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {/* Branch */}
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                    Branch
+                  </label>
+                  <select
+                    value={selectedBranchId ?? ""}
+                    onChange={(e) => handleBranchChange(e.target.value)}
+                    className="input-style h-9 w-full text-xs"
+                    data-testid="select-link-branch"
+                  >
+                    <option value="">Select branch...</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.shortName ? `${b.shortName} · ${b.name}` : b.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Year */}
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                    Year
+                  </label>
+                  <select
+                    value={selectedYearId ?? ""}
+                    onChange={(e) => handleYearChange(e.target.value)}
+                    disabled={!selectedBranchId}
+                    className="input-style h-9 w-full text-xs disabled:opacity-50"
+                    data-testid="select-link-year"
+                  >
+                    <option value="">Select year...</option>
+                    {years.map((y) => (
+                      <option key={y.id} value={y.id}>
+                        {y.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Semester */}
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                    Semester
+                  </label>
+                  <select
+                    value={selectedSemesterId ?? ""}
+                    onChange={(e) => handleSemesterChange(e.target.value)}
+                    disabled={!selectedYearId}
+                    className="input-style h-9 w-full text-xs disabled:opacity-50"
+                    data-testid="select-link-semester"
+                  >
+                    <option value="">Select semester...</option>
+                    {semesters.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Target Subjects Checkboxes */}
+              {selectedSemesterId && (
+                <div className="mt-4 pt-3 border-t border-[hsl(var(--border)/.6)]">
+                  <div className="mb-2 flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-[hsl(var(--muted-foreground))]">
+                      Select Target Subject(s):
+                    </label>
+                    {subjects.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const available = subjects
+                            .filter((s) => !linkedSubjectIds.has(s.id) && s.id !== resource.subjectId)
+                            .map((s) => s.id);
+                          setSelectedSubjectIds(available);
+                        }}
+                        className="text-[11px] font-semibold text-[hsl(var(--accent-foreground))] hover:underline"
+                      >
+                        Select all available
+                      </button>
+                    )}
+                  </div>
+
+                  {subjects.length === 0 ? (
+                    <p className="py-3 text-center text-xs text-[hsl(var(--muted-foreground))]">
+                      No subjects found in this semester.
+                    </p>
+                  ) : (
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                      {subjects.map((sub) => {
+                        const isCurrent = sub.id === resource.subjectId;
+                        const isAlreadyLinked = linkedSubjectIds.has(sub.id);
+                        const isDisabled = isCurrent || isAlreadyLinked;
+                        const isChecked = selectedSubjectIds.includes(sub.id);
+
+                        return (
+                          <label
+                            key={sub.id}
+                            className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-xs transition-colors cursor-pointer ${
+                              isDisabled
+                                ? "border-[hsl(var(--border)/.4)] bg-[hsl(var(--muted)/.3)] opacity-60 cursor-not-allowed"
+                                : isChecked
+                                  ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary)/.06)]"
+                                  : "border-[hsl(var(--border))] hover:bg-[hsl(var(--muted)/.2)]"
+                            }`}
+                            data-testid={`checkbox-link-subject-${sub.id}`}
+                          >
+                            <input
+                              type="checkbox"
+                              disabled={isDisabled}
+                              checked={isChecked || isAlreadyLinked}
+                              onChange={() => !isDisabled && toggleSubjectSelect(sub.id)}
+                              className="h-4 w-4 rounded border-[hsl(var(--border))] text-[hsl(var(--primary))]"
+                            />
+                            <span className="font-semibold text-[hsl(var(--foreground))] flex-1">
+                              {sub.name}
+                            </span>
+                            {isCurrent && (
+                              <span className="rounded bg-[hsl(var(--muted))] px-2 py-0.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">
+                                Current Subject
+                              </span>
+                            )}
+                            {!isCurrent && isAlreadyLinked && (
+                              <span className="rounded bg-[hsl(var(--muted))] px-2 py-0.5 text-[10px] font-medium text-[hsl(var(--muted-foreground))]">
+                                Already Linked
+                              </span>
+                            )}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {error && (
+              <p className="rounded-lg bg-[hsl(var(--destructive)/.1)] p-2.5 text-xs text-[hsl(var(--destructive))]">
+                {error}
+              </p>
             )}
           </div>
 
-          {error && (
-            <p className="rounded-lg bg-[hsl(var(--destructive)/.1)] p-2.5 text-xs text-[hsl(var(--destructive))]">
-              {error}
-            </p>
-          )}
-        </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              disabled={addLinksMutation.isPending || removeLinkMutation.isPending}
+              className="focus-ring rounded-xl border border-[hsl(var(--border))] px-4 py-2 text-xs font-semibold text-[hsl(var(--foreground))]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveLinks}
+              disabled={selectedSubjectIds.length === 0 || addLinksMutation.isPending}
+              className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2 text-xs font-bold text-[hsl(var(--primary-foreground))] disabled:opacity-50"
+              data-testid="button-save-resource-links"
+            >
+              {addLinksMutation.isPending && <Loader2 size={13} className="animate-spin" />}
+              Save Links {selectedSubjectIds.length > 0 && `(${selectedSubjectIds.length})`}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            disabled={addLinksMutation.isPending || removeLinkMutation.isPending}
-            className="focus-ring rounded-xl border border-[hsl(var(--border))] px-4 py-2 text-xs font-semibold text-[hsl(var(--foreground))]"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSaveLinks}
-            disabled={selectedSubjectIds.length === 0 || addLinksMutation.isPending}
-            className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2 text-xs font-bold text-[hsl(var(--primary-foreground))] disabled:opacity-50"
-            data-testid="button-save-resource-links"
-          >
-            {addLinksMutation.isPending && <Loader2 size={13} className="animate-spin" />}
-            Save Links {selectedSubjectIds.length > 0 && `(${selectedSubjectIds.length})`}
-          </button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      {/* Dedicated Unlink Confirmation Dialog */}
+      <Dialog open={Boolean(unlinkTarget)} onOpenChange={(isOpen) => !isOpen && setUnlinkTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <Unlink className="text-[hsl(var(--destructive))]" size={18} />
+              Unlink resource?
+            </DialogTitle>
+            <DialogDescription className="text-xs pt-1">
+              {links.length <= 1 ? (
+                <>
+                  This is the only subject this resource is linked to. Unlinking will remove it from the catalog.
+                  <span className="block mt-2 text-[hsl(var(--muted-foreground))]">
+                    The resource record and Google Drive file will remain safely stored. It can be re-linked to any subject at any time.
+                  </span>
+                </>
+              ) : (
+                `This will remove this resource from ${[unlinkTarget?.branchShortName || unlinkTarget?.branchName, unlinkTarget?.yearName, unlinkTarget?.semesterName, unlinkTarget?.subjectName].filter(Boolean).join(" → ")}. It will remain available in other linked subjects.`
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0 mt-4">
+            <button
+              type="button"
+              disabled={removeLinkMutation.isPending}
+              onClick={() => setUnlinkTarget(null)}
+              className="focus-ring rounded-xl border border-[hsl(var(--border))] px-4 py-2 text-xs font-semibold text-[hsl(var(--foreground))]"
+              data-testid="button-cancel-unlink"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={removeLinkMutation.isPending}
+              onClick={() => {
+                if (!unlinkTarget || !resource) return;
+                removeLinkMutation.mutate(
+                  { id: resource.id, subjectId: unlinkTarget.subjectId },
+                  {
+                    onSuccess: () => {
+                      setUnlinkTarget(null);
+                    },
+                  }
+                );
+              }}
+              className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[hsl(var(--destructive))] px-4 py-2 text-xs font-bold text-[hsl(var(--destructive-foreground))] hover:bg-[hsl(var(--destructive)/.9)] disabled:opacity-50"
+              data-testid="button-confirm-unlink"
+            >
+              {removeLinkMutation.isPending && <Loader2 size={13} className="animate-spin" />}
+              Unlink
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -5958,12 +6026,26 @@ function AdminResources() {
                           </p>
                           {resource.linkedLocations && resource.linkedLocations.filter((l) => !l.isPrimary).length > 0 && (
                             <div className="mt-1 flex flex-wrap items-center gap-1">
-                              <span
-                                className="inline-flex items-center gap-1 rounded bg-[hsl(var(--primary)/.1)] px-1.5 py-0.5 text-[10px] font-semibold text-[hsl(var(--primary))]"
-                                title={resource.linkedLocations.filter((l) => !l.isPrimary).map((l) => `${l.branchName} > ${l.subjectName}`).join(", ")}
+                              <button
+                                type="button"
+                                onClick={() => setLinkingResource(resource)}
+                                className="focus-ring inline-flex items-center gap-1 rounded bg-[hsl(var(--primary)/.1)] px-1.5 py-0.5 text-[10px] font-semibold text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary)/.2)] cursor-pointer"
+                                title="Click to manage linked subjects"
                               >
                                 <Link2 size={10} /> +{resource.linkedLocations.filter((l) => !l.isPrimary).length} linked ({resource.linkedLocations.filter((l) => !l.isPrimary).map((l) => l.branchShortName || l.branchName).join(", ")})
-                              </span>
+                              </button>
+                            </div>
+                          )}
+                          {resource.linkedLocations && resource.linkedLocations.length === 0 && (
+                            <div className="mt-1 flex flex-wrap items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setLinkingResource(resource)}
+                                className="focus-ring inline-flex items-center gap-1 rounded bg-[hsl(var(--destructive)/.1)] px-1.5 py-0.5 text-[10px] font-semibold text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive)/.2)] cursor-pointer"
+                                title="This resource is unlinked from all subjects. Click to link it."
+                              >
+                                <Unlink size={10} /> Unlinked (Hidden from catalog)
+                              </button>
                             </div>
                           )}
                         </div>
@@ -6023,8 +6105,8 @@ function AdminResources() {
                             disabled={isRowBusy}
                             onClick={() => setLinkingResource(resource)}
                             className="focus-ring rounded-lg p-2 text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary)/.1)] disabled:opacity-50"
-                            title="Link to other subjects"
-                            aria-label={`Link ${resource.title} to other subjects`}
+                            title="Manage subject links (Link / Unlink)"
+                            aria-label={`Manage subject links for ${resource.title}`}
                             data-testid={`button-link-resource-${resource.id}`}
                           >
                             <Link2 size={15} />

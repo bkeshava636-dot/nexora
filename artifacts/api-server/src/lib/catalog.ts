@@ -104,51 +104,39 @@ export function buildResourceFilters(filters: ResourceFilters): SQL | undefined 
   const clauses: SQL[] = [];
   if (filters.branchId !== undefined) {
     clauses.push(
-      or(
-        eq(branches.id, filters.branchId),
-        sql`${resources.id} IN (
-          SELECT rs.resource_id FROM resource_subjects rs
-          JOIN subjects s ON rs.subject_id = s.id
-          JOIN semesters sem ON s.semester_id = sem.id
-          JOIN years y ON sem.year_id = y.id
-          WHERE y.branch_id = ${filters.branchId}
-        )`
-      )!
+      sql`${resources.id} IN (
+        SELECT rs.resource_id FROM resource_subjects rs
+        JOIN subjects s ON rs.subject_id = s.id
+        JOIN semesters sem ON s.semester_id = sem.id
+        JOIN years y ON sem.year_id = y.id
+        WHERE y.branch_id = ${filters.branchId}
+      )`
     );
   }
   if (filters.yearId !== undefined) {
     clauses.push(
-      or(
-        eq(years.id, filters.yearId),
-        sql`${resources.id} IN (
-          SELECT rs.resource_id FROM resource_subjects rs
-          JOIN subjects s ON rs.subject_id = s.id
-          JOIN semesters sem ON s.semester_id = sem.id
-          WHERE sem.year_id = ${filters.yearId}
-        )`
-      )!
+      sql`${resources.id} IN (
+        SELECT rs.resource_id FROM resource_subjects rs
+        JOIN subjects s ON rs.subject_id = s.id
+        JOIN semesters sem ON s.semester_id = sem.id
+        WHERE sem.year_id = ${filters.yearId}
+      )`
     );
   }
   if (filters.semesterId !== undefined) {
     clauses.push(
-      or(
-        eq(semesters.id, filters.semesterId),
-        sql`${resources.id} IN (
-          SELECT rs.resource_id FROM resource_subjects rs
-          JOIN subjects s ON rs.subject_id = s.id
-          WHERE s.semester_id = ${filters.semesterId}
-        )`
-      )!
+      sql`${resources.id} IN (
+        SELECT rs.resource_id FROM resource_subjects rs
+        JOIN subjects s ON rs.subject_id = s.id
+        WHERE s.semester_id = ${filters.semesterId}
+      )`
     );
   }
   if (filters.subjectId !== undefined) {
     clauses.push(
-      or(
-        eq(subjects.id, filters.subjectId),
-        sql`${resources.id} IN (
-          SELECT resource_id FROM resource_subjects WHERE subject_id = ${filters.subjectId}
-        )`
-      )!
+      sql`${resources.id} IN (
+        SELECT resource_id FROM resource_subjects WHERE subject_id = ${filters.subjectId}
+      )`
     );
   }
   if (filters.resourceType !== undefined)

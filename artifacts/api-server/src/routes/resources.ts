@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { branches, db, resources, resourceSubjects, subjects, semesters, years } from "@workspace/db";
 import { BulkLinkResourcesBody, CreateResourceBody, ListResourcesQueryParams, UpdateResourceBody } from "@workspace/api-zod";
 import { requireAdmin } from "../middlewares/auth";
@@ -81,9 +81,14 @@ router.get("/resources", async (req, res) => {
 
   // Resources belonging to disabled branches are unpublished from the public
   // catalog. Authenticated admins retain visibility for moderation.
+  // Resources with no remaining links in resource_subjects are unlinked from the public catalog.
   const where = req.admin
     ? buildResourceFilters(parsed.data)
-    : and(buildResourceFilters(parsed.data), eq(branches.isActive, true));
+    : and(
+        buildResourceFilters(parsed.data),
+        eq(branches.isActive, true),
+        sql`EXISTS (SELECT 1 FROM resource_subjects rs WHERE rs.resource_id = ${resources.id})`
+      );
   const rows = await resourceCatalogSelect().where(where).orderBy(desc(resources.createdAt));
 
   // Attach all linked locations (including primary) for each resource
@@ -129,11 +134,14 @@ router.get("/resources/:id", async (req, res) => {
     res.status(400).json({ error: "invalid_request", message: "id must be an integer." });
     return;
   }
-  const rows = await resourceCatalogSelect().where(
-    req.admin
-      ? eq(resources.id, id)
-      : and(eq(resources.id, id), eq(branches.isActive, true)),
-  );
+  const where = req.admin
+    ? eq(resources.id, id)
+    : and(
+        eq(resources.id, id),
+        eq(branches.isActive, true),
+        sql`EXISTS (SELECT 1 FROM resource_subjects rs WHERE rs.resource_id = ${resources.id})`
+      );
+  const rows = await resourceCatalogSelect().where(where);
   if (rows.length === 0) {
     res.status(404).json({ error: "not_found", message: "Resource not found." });
     return;
@@ -218,14 +226,6 @@ router.get(["/resources/:id/links", "/admin/resources/:id/links"], requireAdmin,
     return;
   }
 
-  // Ensure original subject is recorded in resource_subjects if it was not already
-  if (resource.subjectId) {
-    await db
-      .insert(resourceSubjects)
-      .values({ resourceId: resource.id, subjectId: resource.subjectId })
-      .onConflictDoNothing();
-  }
-
   const links = await getResourceLinkLocations(id);
   res.json(links);
 });
@@ -267,6 +267,20 @@ router.post(["/resources/:id/links", "/admin/resources/:id/links"], requireAdmin
     }
   }
 
+  // If the resource's current subjectId is not among active linked subjects, point it to the first newly linked subject
+  const [hasCurrentSubject] = await db
+    .select({ id: resourceSubjects.id })
+    .from(resourceSubjects)
+    .where(and(eq(resourceSubjects.resourceId, id), eq(resourceSubjects.subjectId, resource.subjectId)))
+    .limit(1);
+
+  if (!hasCurrentSubject && targetIds.length > 0) {
+    await db
+      .update(resources)
+      .set({ subjectId: targetIds[0], updatedAt: new Date() })
+      .where(eq(resources.id, id));
+  }
+
   const links = await getResourceLinkLocations(id);
   res.status(200).json(links);
 });
@@ -286,9 +300,15 @@ router.delete(["/resources/:id/links/:subjectId", "/admin/resources/:id/links/:s
     return;
   }
 
-  await db
+  const [deleted] = await db
     .delete(resourceSubjects)
-    .where(and(eq(resourceSubjects.resourceId, id), eq(resourceSubjects.subjectId, subjectId)));
+    .where(and(eq(resourceSubjects.resourceId, id), eq(resourceSubjects.subjectId, subjectId)))
+    .returning({ id: resourceSubjects.id });
+
+  if (!deleted) {
+    res.status(404).json({ error: "not_found", message: "This resource is not linked to the specified subject." });
+    return;
+  }
 
   // If this unlinked subject was the primary resource.subjectId, point it to any remaining linked subject
   if (resource.subjectId === subjectId) {

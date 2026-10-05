@@ -159,6 +159,7 @@ export async function ensureTables(): Promise<void> {
       `INSERT INTO "resource_subjects" ("resource_id", "subject_id", "created_at")
        SELECT "id", "subject_id", "created_at" FROM "resources"
        WHERE "subject_id" IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM "resource_subjects")
        ON CONFLICT ("resource_id", "subject_id") DO NOTHING;`
     ];
 
