@@ -531,6 +531,29 @@ function ResourceDetailsDialog({
                 <span className="font-semibold text-[hsl(var(--foreground))]">{formattedDate}</span>
               </div>
             )}
+            {resource.linkedLocations && resource.linkedLocations.length > 1 && (
+              <div className="col-span-2 sm:col-span-3 pt-1 border-t border-[hsl(var(--border))]">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))] mb-1">
+                  Also available in
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {Array.from(
+                    new Set(
+                      resource.linkedLocations
+                        .map((loc) => loc.branchShortName || loc.branchName)
+                        .filter(Boolean)
+                    )
+                  ).map((bName) => (
+                    <span
+                      key={bName}
+                      className="rounded bg-[hsl(var(--secondary)/.15)] px-2 py-0.5 text-[10px] font-semibold text-[hsl(var(--secondary-foreground))]"
+                    >
+                      {bName}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1077,6 +1100,46 @@ function Breadcrumbs({ items }: { items: { label: string; href?: string }[] }) {
   </nav>;
 }
 
+function getAllLocationsForResource(r: Resource): Array<{
+  branchName: string;
+  branchShortName?: string;
+  yearName: string;
+  semesterName: string;
+  subjectName: string;
+}> {
+  const primary = {
+    branchName: r.branchName || "",
+    branchShortName: (r as any).branchShortName,
+    yearName: r.yearName || "",
+    semesterName: r.semesterName || "",
+    subjectName: r.subjectName || "",
+  };
+
+  const list = [primary];
+  if (r.linkedLocations && Array.isArray(r.linkedLocations)) {
+    for (const loc of r.linkedLocations) {
+      if (
+        !list.some(
+          (x) =>
+            x.branchName === loc.branchName &&
+            x.yearName === loc.yearName &&
+            x.semesterName === loc.semesterName &&
+            x.subjectName === loc.subjectName
+        )
+      ) {
+        list.push({
+          branchName: loc.branchName || "",
+          branchShortName: loc.branchShortName,
+          yearName: loc.yearName || "",
+          semesterName: loc.semesterName || "",
+          subjectName: loc.subjectName || "",
+        });
+      }
+    }
+  }
+  return list;
+}
+
 function ResourcesPage() {
   const [query, setQuery] = useState(() => new URLSearchParams(window.location.search).get("query") ?? "");
   const [branch, setBranch] = useState("All branches");
@@ -1088,6 +1151,14 @@ function ResourcesPage() {
   const { data: resources = [], isLoading } = useListResources();
   const { data: branches = [] } = useListBranches();
 
+  // Cache mapped locations per resource for performance
+  const resourcesWithLocations = useMemo(() => {
+    return resources.map((r) => ({
+      resource: r,
+      locations: getAllLocationsForResource(r),
+    }));
+  }, [resources]);
+
   const availableBranches = useMemo(() => {
     const list: { label: string; value: string }[] = [{ label: "All branches", value: "All branches" }];
     if (branches.length > 0) {
@@ -1096,35 +1167,60 @@ function ResourcesPage() {
         list.push({ label, value: b.name });
       });
     } else {
-      const distinctNames = Array.from(new Set(resources.map((r) => r.branchName).filter((v): v is string => Boolean(v))));
+      const distinctNames = Array.from(
+        new Set(
+          resourcesWithLocations.flatMap(({ locations }) =>
+            locations.map((loc) => loc.branchName).filter(Boolean)
+          )
+        )
+      );
       distinctNames.forEach((name) => {
         list.push({ label: name, value: name });
       });
     }
     return list;
-  }, [branches, resources]);
+  }, [branches, resourcesWithLocations]);
 
   const availableYears = useMemo(() => {
-    const subset = branch === "All branches" ? resources : resources.filter((r) => r.branchName === branch);
-    return ["All years", ...new Set(subset.map((r) => r.yearName).filter((v): v is string => Boolean(v)))];
-  }, [resources, branch]);
+    const yearsSet = new Set<string>();
+    for (const { locations } of resourcesWithLocations) {
+      for (const loc of locations) {
+        if (branch === "All branches" || loc.branchName === branch) {
+          if (loc.yearName) yearsSet.add(loc.yearName);
+        }
+      }
+    }
+    return ["All years", ...Array.from(yearsSet)];
+  }, [resourcesWithLocations, branch]);
 
   const availableSemesters = useMemo(() => {
-    const subset = resources.filter((r) =>
-      (branch === "All branches" || r.branchName === branch) &&
-      (year === "All years" || r.yearName === year)
-    );
-    return ["All semesters", ...new Set(subset.map((r) => r.semesterName).filter((v): v is string => Boolean(v)))];
-  }, [resources, branch, year]);
+    const semestersSet = new Set<string>();
+    for (const { locations } of resourcesWithLocations) {
+      for (const loc of locations) {
+        const branchMatch = branch === "All branches" || loc.branchName === branch;
+        const yearMatch = year === "All years" || loc.yearName === year;
+        if (branchMatch && yearMatch && loc.semesterName) {
+          semestersSet.add(loc.semesterName);
+        }
+      }
+    }
+    return ["All semesters", ...Array.from(semestersSet)];
+  }, [resourcesWithLocations, branch, year]);
 
   const availableSubjects = useMemo(() => {
-    const subset = resources.filter((r) =>
-      (branch === "All branches" || r.branchName === branch) &&
-      (year === "All years" || r.yearName === year) &&
-      (semester === "All semesters" || r.semesterName === semester)
-    );
-    return ["All subjects", ...new Set(subset.map((r) => r.subjectName).filter((v): v is string => Boolean(v)))];
-  }, [resources, branch, year, semester]);
+    const subjectsSet = new Set<string>();
+    for (const { locations } of resourcesWithLocations) {
+      for (const loc of locations) {
+        const branchMatch = branch === "All branches" || loc.branchName === branch;
+        const yearMatch = year === "All years" || loc.yearName === year;
+        const semesterMatch = semester === "All semesters" || loc.semesterName === semester;
+        if (branchMatch && yearMatch && semesterMatch && loc.subjectName) {
+          subjectsSet.add(loc.subjectName);
+        }
+      }
+    }
+    return ["All subjects", ...Array.from(subjectsSet)];
+  }, [resourcesWithLocations, branch, year, semester]);
 
   const handleBranchChange = (newBranch: string) => {
     setBranch(newBranch);
@@ -1167,20 +1263,34 @@ function ResourcesPage() {
   const filtered = useMemo(() => {
     const rawQuery = query.trim().toLowerCase();
     const queryWords = rawQuery ? rawQuery.split(/\s+/).filter(Boolean) : [];
-    return resources.filter((resource) => {
-      if (branch !== "All branches" && resource.branchName !== branch) return false;
-      if (year !== "All years" && resource.yearName !== year) return false;
-      if (semester !== "All semesters" && resource.semesterName !== semester) return false;
-      if (subject !== "All subjects" && resource.subjectName !== subject) return false;
-      if (type !== "All types" && resource.resourceType !== type) return false;
-      if (verified && !resource.isVerified) return false;
-      if (queryWords.length > 0) {
-        const haystack = `${resource.title} ${resource.subjectName ?? ""} ${resource.description ?? ""} ${resource.branchName ?? ""} ${resource.yearName ?? ""} ${resource.semesterName ?? ""} ${resource.resourceType}`.toLowerCase();
-        if (!queryWords.every((word) => haystack.includes(word))) return false;
-      }
-      return true;
-    });
-  }, [resources, query, branch, year, semester, subject, type, verified]);
+
+    return resourcesWithLocations
+      .filter(({ resource, locations }) => {
+        if (type !== "All types" && resource.resourceType !== type) return false;
+        if (verified && !resource.isVerified) return false;
+
+        // Check if ANY location for this resource satisfies the selected branch, year, semester, subject filters
+        const matchesLocation = locations.some((loc) => {
+          if (branch !== "All branches" && loc.branchName !== branch) return false;
+          if (year !== "All years" && loc.yearName !== year) return false;
+          if (semester !== "All semesters" && loc.semesterName !== semester) return false;
+          if (subject !== "All subjects" && loc.subjectName !== subject) return false;
+          return true;
+        });
+
+        if (!matchesLocation) return false;
+
+        if (queryWords.length > 0) {
+          const allBranchNames = locations.map((l) => `${l.branchName} ${l.branchShortName ?? ""}`).join(" ");
+          const allSubjectsNames = locations.map((l) => l.subjectName).join(" ");
+          const haystack = `${resource.title} ${allSubjectsNames} ${resource.description ?? ""} ${allBranchNames} ${resource.yearName ?? ""} ${resource.semesterName ?? ""} ${resource.resourceType}`.toLowerCase();
+          if (!queryWords.every((word) => haystack.includes(word))) return false;
+        }
+
+        return true;
+      })
+      .map(({ resource }) => resource);
+  }, [resourcesWithLocations, query, branch, year, semester, subject, type, verified]);
 
   return <div className="mx-auto max-w-6xl px-4 py-8 sm:px-7 sm:py-12">
     <div className="mb-8">
