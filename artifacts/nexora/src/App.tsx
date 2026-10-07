@@ -864,7 +864,7 @@ function Home() {
           <BranchGrid />
         </section>
 
-        <AdSenseAd className="my-10 mx-auto w-full max-w-5xl overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.5)] p-3 text-center" />
+        <AdSenseAd />
 
         {(isLoading || featured.length > 0) && (
           <section className="mt-12 fade-up fade-up-delay-2">
@@ -1214,7 +1214,7 @@ function ResourcesPage() {
         )}
       </div>
     </div>
-    <AdSenseAd className="my-6 mx-auto w-full overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.5)] p-3 text-center" />
+    <AdSenseAd />
     <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
       <p className="text-sm font-semibold">{filtered.length} <span className="font-normal text-[hsl(var(--muted-foreground))]">resources found</span></p>
       <div className="flex items-center gap-3">
@@ -1479,7 +1479,7 @@ function SubjectPage() {
     { label: activeYear?.name ?? "Year" },
     { label: activeSemester?.name ?? "Semester" },
     { label: activeSubject.name }
-  ]} /><section className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.78)] p-6 sm:p-9"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="micro-label mb-3 text-[hsl(var(--accent-foreground))]">{activeBranch?.shortName ?? "—"} • {activeYear?.name ?? "—"} • {activeSemester?.name ?? "—"}</p><h1 className="display-font text-4xl font-bold tracking-[-.05em] sm:text-5xl">{activeSubject.name}</h1><p className="mt-4 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">{activeSubject.description}</p></div><span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[hsl(var(--muted))] text-[hsl(var(--primary))]"><BookOpen size={25} /></span></div></section><AdSenseAd className="my-6 mx-auto w-full overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.5)] p-3 text-center" /><div className="mt-10"><SectionHeading eyebrow={`${resources.length} resources`} title="Your subject shelf" action={<Link href="/contribute" className="focus-ring flex items-center gap-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-xs font-bold" data-testid="link-contribute-subject"><Plus size={14} /> Add one</Link>} />{resourcesLoading && resources.length === 0 ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{[1, 2, 3].map((i) => <div key={i} className="h-32 animate-pulse rounded-xl bg-[hsl(var(--muted))]" />)}</div> : resources.length ? <ResourceTypeGroups resources={resources} /> : <EmptyState title="This shelf is waiting for its first resource" body="If you have notes or a paper for this subject, you can be the person who starts it." action={<Link href="/contribute" className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--primary-foreground))]" data-testid="link-empty-subject-contribute"><Upload size={14} /> Contribute material</Link>} />}</div></div>;
+  ]} /><section className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.78)] p-6 sm:p-9"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="micro-label mb-3 text-[hsl(var(--accent-foreground))]">{activeBranch?.shortName ?? "—"} • {activeYear?.name ?? "—"} • {activeSemester?.name ?? "—"}</p><h1 className="display-font text-4xl font-bold tracking-[-.05em] sm:text-5xl">{activeSubject.name}</h1><p className="mt-4 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">{activeSubject.description}</p></div><span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[hsl(var(--muted))] text-[hsl(var(--primary))]"><BookOpen size={25} /></span></div></section><AdSenseAd /><div className="mt-10"><SectionHeading eyebrow={`${resources.length} resources`} title="Your subject shelf" action={<Link href="/contribute" className="focus-ring flex items-center gap-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-xs font-bold" data-testid="link-contribute-subject"><Plus size={14} /> Add one</Link>} />{resourcesLoading && resources.length === 0 ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{[1, 2, 3].map((i) => <div key={i} className="h-32 animate-pulse rounded-xl bg-[hsl(var(--muted))]" />)}</div> : resources.length ? <ResourceTypeGroups resources={resources} /> : <EmptyState title="This shelf is waiting for its first resource" body="If you have notes or a paper for this subject, you can be the person who starts it." action={<Link href="/contribute" className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--primary-foreground))]" data-testid="link-empty-subject-contribute"><Upload size={14} /> Contribute material</Link>} />}</div></div>;
 }
 
 function ContributePage() {

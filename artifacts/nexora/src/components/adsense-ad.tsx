@@ -17,7 +17,7 @@ export function AdSenseAd({
   slot = "9231147782",
   format = "auto",
   responsive = true,
-  className = "my-8 mx-auto w-full max-w-5xl overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.5)] p-3 text-center",
+  className = "my-6 mx-auto w-full max-w-5xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.5)] p-1.5 sm:p-3 text-center",
 }: AdSenseAdProps) {
   const insRef = useRef<HTMLModElement | null>(null);
 
@@ -36,13 +36,13 @@ export function AdSenseAd({
 
   return (
     <div className={className} aria-label="Advertisement">
-      <div className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground)/.7)]">
+      <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground)/.7)]">
         Advertisement
       </div>
       <ins
         ref={insRef}
         className="adsbygoogle"
-        style={{ display: "block", minHeight: "90px" }}
+        style={{ display: "block" }}
         data-ad-client="ca-pub-2516613029504029"
         data-ad-slot={slot}
         data-ad-format={format}
