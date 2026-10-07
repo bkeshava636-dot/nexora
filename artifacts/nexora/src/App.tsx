@@ -1216,7 +1216,6 @@ function ResourcesPage() {
         )}
       </div>
     </div>
-    <AdSenseAd />
     <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
       <p className="text-sm font-semibold">{filtered.length} <span className="font-normal text-[hsl(var(--muted-foreground))]">resources found</span></p>
       <div className="flex items-center gap-3">
