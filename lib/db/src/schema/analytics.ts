@@ -23,7 +23,6 @@ export const siteVisits = pgTable(
 );
 
 export const insertSiteVisitSchema = createInsertSchema(siteVisits).omit({
-  id: true,
   createdAt: true,
 });
 export const selectSiteVisitSchema = createSelectSchema(siteVisits);
