@@ -160,7 +160,22 @@ export async function ensureTables(): Promise<void> {
        SELECT "id", "subject_id", "created_at" FROM "resources"
        WHERE "subject_id" IS NOT NULL
          AND NOT EXISTS (SELECT 1 FROM "resource_subjects")
-       ON CONFLICT ("resource_id", "subject_id") DO NOTHING;`
+       ON CONFLICT ("resource_id", "subject_id") DO NOTHING;`,
+      `CREATE TABLE IF NOT EXISTS "site_visits" (
+        "id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        "visitor_id" text,
+        "session_id" text,
+        "path" text NOT NULL DEFAULT '/',
+        "device_type" text NOT NULL DEFAULT 'desktop',
+        "referrer" text,
+        "ip_hash" text,
+        "user_agent" text,
+        "created_at" timestamp with time zone NOT NULL DEFAULT now()
+      );`,
+      `CREATE INDEX IF NOT EXISTS "site_visits_created_at_idx" ON "site_visits" ("created_at");`,
+      `CREATE INDEX IF NOT EXISTS "site_visits_path_idx" ON "site_visits" ("path");`,
+      `CREATE INDEX IF NOT EXISTS "site_visits_visitor_id_idx" ON "site_visits" ("visitor_id");`,
+      `CREATE INDEX IF NOT EXISTS "site_visits_device_type_idx" ON "site_visits" ("device_type");`
     ];
 
     for (const q of ddlQueries) {

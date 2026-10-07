@@ -11,6 +11,8 @@ import { BuyMePaneerFooter } from "@/components/buy-me-paneer";
 import { FeedbackDialog } from "@/components/feedback-dialog";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { AdSenseAd } from "@/components/adsense-ad";
+import { AdminAnalytics } from "@/components/admin-analytics";
+import { AnalyticsTracker } from "@/components/analytics-tracker";
 import {
   Dialog,
   DialogClose,
@@ -2351,6 +2353,7 @@ function AdminLayout({ children }: { children: ReactNode }) {
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const tabs = [
     { href: "/admin", label: "Overview", testId: "link-admin-overview" },
+    { href: "/admin/analytics", label: "Analytics", testId: "link-admin-analytics" },
     { href: "/admin/catalog", label: "Catalog", testId: "link-admin-catalog" },
     { href: "/admin/templates", label: "Curriculum Templates", testId: "link-admin-templates" },
     { href: "/admin/submissions", label: "Submissions", testId: "link-admin-submissions" },
@@ -2919,7 +2922,24 @@ function AdminOverview() {
             <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
               Quick actions
             </h2>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
+              <Link
+                href="/admin/analytics"
+                className="focus-ring card-lift group flex flex-col justify-between rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 transition-colors hover:border-[hsl(var(--secondary))]"
+                data-testid="quick-action-analytics"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[hsl(var(--primary)/.1)] text-[hsl(var(--primary))] group-hover:bg-[hsl(var(--secondary)/.2)]">
+                    <BarChart3 size={18} />
+                  </div>
+                  <ArrowRight size={14} className="text-[hsl(var(--muted-foreground))] transition-transform group-hover:translate-x-0.5" />
+                </div>
+                <div className="mt-4">
+                  <p className="text-xs font-bold text-[hsl(var(--foreground))]">Visitor Analytics</p>
+                  <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">Daily visits & trends</p>
+                </div>
+              </Link>
+
               <Link
                 href="/admin/catalog"
                 className="focus-ring card-lift group flex flex-col justify-between rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 transition-colors hover:border-[hsl(var(--secondary))]"
@@ -10876,6 +10896,7 @@ function AppRouter() {
     <Route path="/forgot-password"><ForgotPasswordPage /></Route>
     <Route path="/reset-password"><ResetPasswordPage /></Route>
     <Route path="/admin"><RequireAdmin><AdminOverview /></RequireAdmin></Route>
+    <Route path="/admin/analytics"><RequireAdmin><AdminLayout><AdminAnalytics /></AdminLayout></RequireAdmin></Route>
     <Route path="/admin/catalog"><RequireAdmin><AdminLayout><AdminCatalog /></AdminLayout></RequireAdmin></Route>
     <Route path="/admin/templates"><RequireAdmin><AdminCurriculumTemplates /></RequireAdmin></Route>
     <Route path="/admin/submissions"><RequireAdmin><AdminSubmissions /></RequireAdmin></Route>
@@ -10889,7 +10910,7 @@ function AppRouter() {
 }
 
 function App() {
-  return <QueryClientProvider client={queryClient}><AuthProvider><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}><Shell><AppRouter /></Shell></WouterRouter><ApiWakeOverlay /><Toaster /></TooltipProvider></AuthProvider></QueryClientProvider>;
+  return <QueryClientProvider client={queryClient}><AuthProvider><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}><AnalyticsTracker /><Shell><AppRouter /></Shell></WouterRouter><ApiWakeOverlay /><Toaster /></TooltipProvider></AuthProvider></QueryClientProvider>;
 }
 
 export default App;
