@@ -857,6 +857,17 @@ function Home() {
                 <Link href="/resources" className="focus-ring inline-flex h-11 items-center justify-center rounded-xl bg-[hsl(var(--primary))] px-6 text-sm font-bold text-[hsl(var(--primary-foreground))] shadow-sm transition-colors hover:bg-[hsl(var(--primary)/.9)]">
                   Explore Resources
                 </Link>
+                <a
+                  href="#branches-section"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById("branches-section")?.scrollIntoView({ behavior: "smooth" });
+                  }}
+                  className="focus-ring inline-flex h-11 items-center justify-center rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-6 text-sm font-bold text-[hsl(var(--foreground))] shadow-sm transition-colors hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
+                  data-testid="link-hero-branches"
+                >
+                  Branches
+                </a>
                 <Link href="/contribute" className="focus-ring inline-flex h-11 items-center justify-center rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-6 text-sm font-bold text-[hsl(var(--foreground))] shadow-sm transition-colors hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]">
                   Contribute
                 </Link>
@@ -869,10 +880,12 @@ function Home() {
 
         <section className="mt-12 fade-up fade-up-delay-1">
           <SectionHeading eyebrow="Quick Access" title="Explore by category" />
-          <CatalogQuickAccess />
+          <CatalogQuickAccess onSelectBranches={() => {
+            document.getElementById("branches-section")?.scrollIntoView({ behavior: "smooth" });
+          }} />
         </section>
 
-        <section className="mt-12 fade-up fade-up-delay-1">
+        <section id="branches-section" className="mt-12 fade-up fade-up-delay-1 scroll-mt-20">
           <SectionHeading
             eyebrow="Start with your path"
             title="All Branches"
@@ -990,7 +1003,7 @@ function getUniqueSemestersCount(semestersList: Array<{ name?: string }>): numbe
   return new Set(semestersList.map((s) => s.name?.trim()).filter(Boolean)).size;
 }
 
-function CatalogQuickAccess() {
+function CatalogQuickAccess({ onSelectBranches }: { onSelectBranches?: () => void }) {
   const { data: branches = [] } = useListBranches();
   const { data: years = [] } = useListYears();
   const { data: semesters = [] } = useListSemesters();
@@ -1018,7 +1031,19 @@ function CatalogQuickAccess() {
           <div className="text-xs font-medium text-[hsl(var(--muted-foreground))]">{resources.length} available</div>
         </div>
       </Link>
-      <Link href="/resources" className="card-lift focus-ring group flex flex-col items-center justify-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 text-center shadow-sm" data-testid="link-quick-branches">
+      <a
+        href="#branches-section"
+        onClick={(e) => {
+          e.preventDefault();
+          if (onSelectBranches) {
+            onSelectBranches();
+          } else {
+            document.getElementById("branches-section")?.scrollIntoView({ behavior: "smooth" });
+          }
+        }}
+        className="card-lift focus-ring group flex flex-col items-center justify-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 text-center shadow-sm cursor-pointer"
+        data-testid="link-quick-branches"
+      >
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[hsl(var(--secondary)/.1)] text-[hsl(var(--secondary))] transition-transform group-hover:scale-110">
           <GitBranch size={24} />
         </div>
@@ -1026,7 +1051,7 @@ function CatalogQuickAccess() {
           <div className="font-bold text-[hsl(var(--foreground))]">Branches</div>
           <div className="text-xs font-medium text-[hsl(var(--muted-foreground))]">{branches.length} available</div>
         </div>
-      </Link>
+      </a>
       <Link href="/resources" className="card-lift focus-ring group flex flex-col items-center justify-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 text-center shadow-sm" data-testid="link-quick-years">
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[hsl(var(--accent)/.1)] text-[hsl(var(--accent-foreground))] transition-transform group-hover:scale-110">
           <Calendar size={24} />
