@@ -868,6 +868,13 @@ function Home() {
                 >
                   Branches
                 </a>
+                <Link
+                  href="/pyqs"
+                  className="focus-ring inline-flex h-11 items-center justify-center rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-6 text-sm font-bold text-[hsl(var(--foreground))] shadow-sm transition-colors hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]"
+                  data-testid="link-hero-pyqs"
+                >
+                  PYQs
+                </Link>
                 <Link href="/contribute" className="focus-ring inline-flex h-11 items-center justify-center rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-6 text-sm font-bold text-[hsl(var(--foreground))] shadow-sm transition-colors hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--accent-foreground))]">
                   Contribute
                 </Link>
