@@ -117,6 +117,7 @@ import {
   useCreateIaPaper,
   useDeleteIaPaper,
   useUpdateSubject,
+  useUpdateSubmission,
   useUpdateSubmissionMode,
   useUpdateTemplateSubject,
   useUpdateYear,
@@ -4036,14 +4037,583 @@ function Progress({ label, value }: { label: string; value: number }) {
     </div>
   );
 }
-function SubmissionRow({ submission, actions = false, onApprove, onReject, isApproving = false, isRejecting = false, busy }: { submission: Submission; actions?: boolean; onApprove?: () => void; onReject?: () => void; isApproving?: boolean; isRejecting?: boolean; busy?: boolean }) {
+function SubmissionRow({
+  submission,
+  actions = false,
+  onApprove,
+  onReject,
+  onEdit,
+  isApproving = false,
+  isRejecting = false,
+  busy,
+}: {
+  submission: Submission;
+  actions?: boolean;
+  onApprove?: () => void;
+  onReject?: () => void;
+  onEdit?: () => void;
+  isApproving?: boolean;
+  isRejecting?: boolean;
+  busy?: boolean;
+}) {
   const isBusy = busy || isApproving || isRejecting;
-  const contributorText = submission.studentName && submission.studentEmail
-    ? `${submission.studentName} (${submission.studentEmail})`
-    : submission.studentName || submission.studentEmail || "Not provided";
-  return <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.7)] p-3.5"><div className="flex items-start gap-3"><ResourceIcon type={submission.resourceType} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-bold">{submission.title}</h3>{submission.status === "pending" ? <span className="rounded-full bg-[hsl(var(--secondary)/.25)] px-2 py-1 text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">Pending</span> : submission.status === "approved" ? <span className="rounded-full bg-[hsl(var(--accent))] px-2 py-1 text-[10px] font-bold text-[hsl(var(--accent-foreground))]">Approved</span> : <span className="rounded-full bg-[hsl(var(--destructive)/.1)] px-2 py-1 text-[10px] font-bold text-[hsl(var(--destructive))]">Rejected</span>}</div><p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">{contributorText} · {formatDate(submission.submittedAt)}</p></div>{actions && <div className="flex shrink-0 gap-1"><button onClick={onApprove} disabled={isBusy} type="button" className="focus-ring rounded-lg bg-[hsl(var(--accent))] p-2 text-[hsl(var(--accent-foreground))] disabled:opacity-60" aria-label={`Approve ${submission.title}`} data-testid={`button-approve-${submission.id}`}>{isApproving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}</button><button onClick={onReject} disabled={isBusy} type="button" className="focus-ring rounded-lg bg-[hsl(var(--destructive)/.1)] p-2 text-[hsl(var(--destructive))] disabled:opacity-60" aria-label={`Reject ${submission.title}`} data-testid={`button-reject-${submission.id}`}>{isRejecting ? <Loader2 size={15} className="animate-spin" /> : <X size={15} />}</button></div>}</div>{actions && <p className="mt-3 border-t border-[hsl(var(--border))] pt-3 text-xs leading-5 text-[hsl(var(--muted-foreground))]">{submission.description || "No description provided."} <a href={submission.googleDriveUrl} target="_blank" rel="noreferrer" className="ml-1 font-bold text-[hsl(var(--accent-foreground))]" data-testid={`link-review-drive-${submission.id}`}>Open Drive link <ExternalLink size={11} className="inline" /></a></p>}
-    {submission.status === "rejected" && submission.rejectionReason && <p className="mt-3 border-t border-[hsl(var(--border))] pt-3 text-xs leading-5 text-[hsl(var(--destructive))]">Reason: {submission.rejectionReason}</p>}
-    {submission.status !== "pending" && submission.reviewedBy && <p className="mt-2 text-[11px] text-[hsl(var(--muted-foreground))]">Reviewed by {submission.reviewedBy}{submission.reviewedAt ? ` on ${formatDate(submission.reviewedAt)}` : ""}</p>}</div>;
+  const contributorText =
+    submission.studentName && submission.studentEmail
+      ? `${submission.studentName} (${submission.studentEmail})`
+      : submission.studentName || submission.studentEmail || "Not provided";
+
+  const locationBreadcrumb =
+    submission.resourceType === "Internal Assessment"
+      ? [submission.iaDepartment, submission.iaAcademicYear, submission.iaSemester, submission.iaType]
+          .filter(Boolean)
+          .join(" · ")
+      : [submission.branchName, submission.yearName, submission.semesterName, submission.subjectName]
+          .filter(Boolean)
+          .join(" → ");
+
+  return (
+    <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.7)] p-4 transition-all hover:border-[hsl(var(--border)/.8)]">
+      <div className="flex items-start gap-3">
+        <ResourceIcon type={submission.resourceType} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="truncate text-sm font-bold text-[hsl(var(--foreground))]">{submission.title}</h3>
+            {submission.status === "pending" ? (
+              <span className="rounded-full bg-[hsl(var(--secondary)/.25)] px-2 py-0.5 text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">
+                Pending
+              </span>
+            ) : submission.status === "approved" ? (
+              <span className="rounded-full bg-[hsl(var(--accent))] px-2 py-0.5 text-[10px] font-bold text-[hsl(var(--accent-foreground))]">
+                Approved
+              </span>
+            ) : (
+              <span className="rounded-full bg-[hsl(var(--destructive)/.1)] px-2 py-0.5 text-[10px] font-bold text-[hsl(var(--destructive))]">
+                Rejected
+              </span>
+            )}
+            <span className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)] px-1.5 py-0.5 text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">
+              {submission.resourceType}
+            </span>
+          </div>
+
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="font-medium text-[hsl(var(--muted-foreground))]">Location:</span>
+            {locationBreadcrumb ? (
+              <span className="font-semibold text-[hsl(var(--foreground))] bg-[hsl(var(--muted)/.4)] px-2 py-0.5 rounded-md text-[11px]">
+                {locationBreadcrumb}
+              </span>
+            ) : (
+              <span className="text-[11px] text-[hsl(var(--destructive))] italic font-medium">
+                No location assigned (Edit to assign branch & subject)
+              </span>
+            )}
+          </div>
+
+          <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+            {contributorText} · {formatDate(submission.submittedAt)}
+          </p>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1.5">
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              disabled={isBusy}
+              type="button"
+              className="focus-ring flex items-center gap-1 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-2.5 py-1.5 text-xs font-semibold text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted)/.8)] transition-colors disabled:opacity-60 cursor-pointer"
+              title="Edit Location & Category"
+              aria-label={`Edit ${submission.title}`}
+              data-testid={`button-edit-submission-${submission.id}`}
+            >
+              <Pencil size={13} />
+              <span className="hidden sm:inline">Edit Location</span>
+            </button>
+          )}
+          {actions && (
+            <>
+              <button
+                onClick={onApprove}
+                disabled={isBusy}
+                type="button"
+                className="focus-ring rounded-lg bg-[hsl(var(--accent))] p-2 text-[hsl(var(--accent-foreground))] hover:opacity-90 disabled:opacity-60 cursor-pointer"
+                aria-label={`Approve ${submission.title}`}
+                title="Approve Submission"
+                data-testid={`button-approve-${submission.id}`}
+              >
+                {isApproving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
+              </button>
+              <button
+                onClick={onReject}
+                disabled={isBusy}
+                type="button"
+                className="focus-ring rounded-lg bg-[hsl(var(--destructive)/.1)] p-2 text-[hsl(var(--destructive))] hover:bg-[hsl(var(--destructive)/.2)] disabled:opacity-60 cursor-pointer"
+                aria-label={`Reject ${submission.title}`}
+                title="Reject Submission"
+                data-testid={`button-reject-${submission.id}`}
+              >
+                {isRejecting ? <Loader2 size={15} className="animate-spin" /> : <X size={15} />}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <p className="mt-3 border-t border-[hsl(var(--border))] pt-3 text-xs leading-5 text-[hsl(var(--muted-foreground))]">
+        {submission.description || "No description provided."}{" "}
+        <a
+          href={submission.googleDriveUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="ml-1 font-bold text-[hsl(var(--accent-foreground))] hover:underline inline-flex items-center gap-1"
+          data-testid={`link-review-drive-${submission.id}`}
+        >
+          Open Drive link <ExternalLink size={11} className="inline" />
+        </a>
+      </p>
+
+      {submission.status === "rejected" && submission.rejectionReason && (
+        <p className="mt-2 text-xs text-[hsl(var(--destructive))]">
+          Reason: {submission.rejectionReason}
+        </p>
+      )}
+      {submission.status !== "pending" && submission.reviewedBy && (
+        <p className="mt-2 text-[11px] text-[hsl(var(--muted-foreground))]">
+          Reviewed by {submission.reviewedBy}
+          {submission.reviewedAt ? ` on ${formatDate(submission.reviewedAt)}` : ""}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function AdminEditSubmissionDialog({
+  submission,
+  open,
+  onOpenChange,
+}: {
+  submission: Submission | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const queryClient = useQueryClient();
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: getListSubmissionsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListResourcesQueryKey() });
+  };
+
+  const updateSubmission = useUpdateSubmission();
+  const approveSubmission = useApproveSubmission();
+
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [resourceType, setResourceType] = useState<ResourceType>("Lecture notes");
+  const [googleDriveUrl, setGoogleDriveUrl] = useState("");
+  const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
+  const [selectedYearId, setSelectedYearId] = useState<number | null>(null);
+  const [selectedSemesterId, setSelectedSemesterId] = useState<number | null>(null);
+  const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null);
+
+  // IA specific
+  const [iaAcademicYear, setIaAcademicYear] = useState("");
+  const [iaSemester, setIaSemester] = useState("");
+  const [iaDepartment, setIaDepartment] = useState("");
+  const [iaType, setIaType] = useState("");
+
+  const [error, setError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Cascading data
+  const { data: branches = [] } = useListBranches();
+  const { data: years = [] } = useListYears(
+    selectedBranchId ? { branchId: selectedBranchId } : undefined,
+    qOpts(Boolean(selectedBranchId)) as any
+  );
+  const { data: semesters = [] } = useListSemesters(
+    selectedYearId ? { yearId: selectedYearId } : undefined,
+    qOpts(Boolean(selectedYearId)) as any
+  );
+  const { data: subjects = [] } = useListSubjects(
+    selectedSemesterId ? { semesterId: selectedSemesterId } : undefined,
+    qOpts(Boolean(selectedSemesterId)) as any
+  );
+  const { data: iaDepartments = [] } = useListIaDepartments(
+    undefined,
+    qOpts(resourceType === "Internal Assessment") as any
+  );
+
+  useEffect(() => {
+    if (submission && open) {
+      setTitle(submission.title);
+      setDescription(submission.description || "");
+      setResourceType(submission.resourceType);
+      setGoogleDriveUrl(submission.googleDriveUrl);
+      setSelectedBranchId(submission.branchId ?? null);
+      setSelectedYearId(submission.yearId ?? null);
+      setSelectedSemesterId(submission.semesterId ?? null);
+      setSelectedSubjectId(submission.subjectId ?? null);
+      setIaAcademicYear(submission.iaAcademicYear || "");
+      setIaSemester(submission.iaSemester || "");
+      setIaDepartment(submission.iaDepartment || "");
+      setIaType(submission.iaType || "");
+      setError("");
+      setIsSaving(false);
+    }
+  }, [submission, open]);
+
+  const handleBranchChange = (branchIdStr: string) => {
+    const bId = branchIdStr ? Number(branchIdStr) : null;
+    setSelectedBranchId(bId);
+    setSelectedYearId(null);
+    setSelectedSemesterId(null);
+    setSelectedSubjectId(null);
+  };
+
+  const handleYearChange = (yearIdStr: string) => {
+    const yId = yearIdStr ? Number(yearIdStr) : null;
+    setSelectedYearId(yId);
+    setSelectedSemesterId(null);
+    setSelectedSubjectId(null);
+  };
+
+  const handleSemesterChange = (semesterIdStr: string) => {
+    const sId = semesterIdStr ? Number(semesterIdStr) : null;
+    setSelectedSemesterId(sId);
+    setSelectedSubjectId(null);
+  };
+
+  const handleSubjectChange = (subjectIdStr: string) => {
+    const sId = subjectIdStr ? Number(subjectIdStr) : null;
+    setSelectedSubjectId(sId);
+  };
+
+  const handleSave = async (andApprove: boolean = false) => {
+    if (!submission) return;
+    if (!title.trim()) {
+      setError("Resource title is required.");
+      return;
+    }
+    if (!googleDriveUrl.trim() || !isValidGoogleDriveUrl(googleDriveUrl)) {
+      setError(googleDriveUrlHint);
+      return;
+    }
+    if (resourceType !== "Internal Assessment" && !selectedSubjectId) {
+      setError("Please select a subject to set the location of this resource.");
+      return;
+    }
+    if (resourceType === "Internal Assessment") {
+      if (!iaDepartment.trim() || !iaAcademicYear.trim() || !iaSemester.trim() || !iaType.trim()) {
+        setError("Please complete all IA fields (Department, Academic Year, Semester, and IA Type).");
+        return;
+      }
+    }
+
+    setError("");
+    setIsSaving(true);
+
+    try {
+      await updateSubmission.mutateAsync({
+        id: submission.id,
+        data: {
+          title: title.trim(),
+          description: description.trim(),
+          resourceType,
+          googleDriveUrl: googleDriveUrl.trim(),
+          branchId: resourceType === "Internal Assessment" ? null : selectedBranchId,
+          yearId: resourceType === "Internal Assessment" ? null : selectedYearId,
+          semesterId: resourceType === "Internal Assessment" ? null : selectedSemesterId,
+          subjectId: resourceType === "Internal Assessment" ? null : selectedSubjectId,
+          iaDepartment: resourceType === "Internal Assessment" ? iaDepartment.trim() : null,
+          iaAcademicYear: resourceType === "Internal Assessment" ? iaAcademicYear.trim() : null,
+          iaSemester: resourceType === "Internal Assessment" ? iaSemester.trim() : null,
+          iaType: resourceType === "Internal Assessment" ? iaType.trim() : null,
+        },
+      });
+
+      if (andApprove) {
+        await approveSubmission.mutateAsync({ id: submission.id });
+        toast({ title: "Submission updated & approved", description: "Resource has been published to the catalog." });
+      } else {
+        toast({ title: "Submission updated", description: "Location and category changes saved." });
+      }
+
+      invalidate();
+      onOpenChange(false);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || "Failed to update submission.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (!submission) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Location & Category</DialogTitle>
+          <DialogDescription>
+            Change the assigned branch, year, semester, subject, and category for this upload before or after review.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSave(false);
+          }}
+          className="space-y-4"
+        >
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-[hsl(var(--muted-foreground))]">
+              Title *
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="input-style h-10 w-full text-xs"
+              placeholder="e.g. Operating Systems Module 1 Notes"
+              required
+              data-testid="input-edit-submission-title"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-[hsl(var(--muted-foreground))]">
+              Category / Resource Type *
+            </label>
+            <select
+              value={resourceType}
+              onChange={(e) => setResourceType(e.target.value as ResourceType)}
+              className="input-style h-10 w-full text-xs"
+              data-testid="select-edit-submission-resource-type"
+            >
+              <option value="Lecture notes">Lecture notes</option>
+              <option value="Previous year paper">Previous year paper</option>
+              <option value="Lab manual">Lab manual</option>
+              <option value="Assignment">Assignment</option>
+              <option value="Reference">Reference</option>
+              <option value="Internal Assessment">Internal Assessment</option>
+            </select>
+          </div>
+
+          {resourceType === "Internal Assessment" ? (
+            <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.5)] p-3.5 space-y-3">
+              <p className="text-xs font-bold text-[hsl(var(--foreground))]">Internal Assessment Location & Metadata</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                    Department *
+                  </label>
+                  <select
+                    value={iaDepartment}
+                    onChange={(e) => setIaDepartment(e.target.value)}
+                    className="input-style h-9 w-full text-xs"
+                    data-testid="select-edit-submission-ia-dept"
+                  >
+                    <option value="">Select department</option>
+                    {iaDepartments.map((d: any) => (
+                      <option key={d.id} value={d.code}>{d.name} ({d.code})</option>
+                    ))}
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.shortName}>{b.name} ({b.shortName})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                    Academic Year *
+                  </label>
+                  <input
+                    type="text"
+                    value={iaAcademicYear}
+                    onChange={(e) => setIaAcademicYear(e.target.value)}
+                    className="input-style h-9 w-full text-xs"
+                    placeholder="e.g. 2024-2025"
+                    data-testid="input-edit-submission-ia-year"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                    Semester *
+                  </label>
+                  <input
+                    type="text"
+                    value={iaSemester}
+                    onChange={(e) => setIaSemester(e.target.value)}
+                    className="input-style h-9 w-full text-xs"
+                    placeholder="e.g. 3rd Semester"
+                    data-testid="input-edit-submission-ia-sem"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                    IA Type *
+                  </label>
+                  <select
+                    value={iaType}
+                    onChange={(e) => setIaType(e.target.value)}
+                    className="input-style h-9 w-full text-xs"
+                    data-testid="select-edit-submission-ia-type"
+                  >
+                    <option value="">Select IA Type</option>
+                    <option value="IA 1">IA 1</option>
+                    <option value="IA 2">IA 2</option>
+                    <option value="IA 3">IA 3</option>
+                    <option value="Improvement">Improvement</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.5)] p-3.5 space-y-3">
+              <p className="text-xs font-bold text-[hsl(var(--foreground))]">Location: Branch → Year → Semester → Subject</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                    Branch *
+                  </label>
+                  <select
+                    value={selectedBranchId ?? ""}
+                    onChange={(e) => handleBranchChange(e.target.value)}
+                    className="input-style h-9 w-full text-xs"
+                    data-testid="select-edit-submission-branch"
+                  >
+                    <option value="">Select branch</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name} ({b.shortName})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                    Year *
+                  </label>
+                  <select
+                    value={selectedYearId ?? ""}
+                    onChange={(e) => handleYearChange(e.target.value)}
+                    disabled={!selectedBranchId}
+                    className="input-style h-9 w-full text-xs disabled:opacity-50"
+                    data-testid="select-edit-submission-year"
+                  >
+                    <option value="">{selectedBranchId ? "Select year" : "Select branch first"}</option>
+                    {years.map((y) => (
+                      <option key={y.id} value={y.id}>{y.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                    Semester *
+                  </label>
+                  <select
+                    value={selectedSemesterId ?? ""}
+                    onChange={(e) => handleSemesterChange(e.target.value)}
+                    disabled={!selectedYearId}
+                    className="input-style h-9 w-full text-xs disabled:opacity-50"
+                    data-testid="select-edit-submission-semester"
+                  >
+                    <option value="">{selectedYearId ? "Select semester" : "Select year first"}</option>
+                    {semesters.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                    Subject *
+                  </label>
+                  <select
+                    value={selectedSubjectId ?? ""}
+                    onChange={(e) => handleSubjectChange(e.target.value)}
+                    disabled={!selectedSemesterId}
+                    className="input-style h-9 w-full text-xs disabled:opacity-50"
+                    data-testid="select-edit-submission-subject"
+                  >
+                    <option value="">{selectedSemesterId ? "Select subject" : "Select semester first"}</option>
+                    {subjects.map((sub) => (
+                      <option key={sub.id} value={sub.id}>{sub.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-[hsl(var(--muted-foreground))]">
+              Google Drive URL *
+            </label>
+            <input
+              type="url"
+              value={googleDriveUrl}
+              onChange={(e) => setGoogleDriveUrl(e.target.value)}
+              className="input-style h-10 w-full text-xs"
+              placeholder="https://drive.google.com/..."
+              required
+              data-testid="input-edit-submission-url"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-[hsl(var(--muted-foreground))]">
+              Description (Optional)
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              className="input-style w-full p-2.5 text-xs"
+              placeholder="Add optional notes or contributor context"
+              data-testid="input-edit-submission-description"
+            />
+          </div>
+
+          {error && (
+            <p className="rounded-lg bg-[hsl(var(--destructive)/.1)] p-2.5 text-xs text-[hsl(var(--destructive))]">
+              {error}
+            </p>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              disabled={isSaving}
+              className="focus-ring rounded-xl border border-[hsl(var(--border))] px-4 py-2 text-xs font-semibold text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted)/.6)] cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2 text-xs font-bold text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-60 cursor-pointer"
+              data-testid="button-save-submission-edit"
+            >
+              {isSaving && <Loader2 size={13} className="animate-spin" />}
+              Save Changes
+            </button>
+            {submission.status === "pending" && (
+              <button
+                type="button"
+                onClick={() => handleSave(true)}
+                disabled={isSaving}
+                className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--accent))] px-4 py-2 text-xs font-bold text-[hsl(var(--accent-foreground))] hover:opacity-90 disabled:opacity-60 cursor-pointer"
+                data-testid="button-save-approve-submission"
+              >
+                {isSaving && <Loader2 size={13} className="animate-spin" />}
+                Save & Approve
+              </button>
+            )}
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function AdminSubmissionApprovalSetting() {
@@ -4201,6 +4771,7 @@ function AdminSubmissionApprovalSetting() {
 
 function AdminSubmissions() {
   const [filter, setFilter] = useState<"pending" | "all">("pending");
+  const [editingSubmission, setEditingSubmission] = useState<Submission | null>(null);
   const { data: submissions = [], isLoading } = useListSubmissions();
   const queryClient = useQueryClient();
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListSubmissionsQueryKey() });
@@ -4235,6 +4806,7 @@ function AdminSubmissions() {
               busy={busyId === submission.id}
               isApproving={isApproving(submission.id)}
               isRejecting={isRejecting(submission.id)}
+              onEdit={() => setEditingSubmission(submission)}
               onApprove={() => approve.mutate({ id: submission.id })}
               onReject={() => {
                 const reason = window.prompt("Reason for rejecting this submission (optional):");
@@ -4247,6 +4819,14 @@ function AdminSubmissions() {
       ) : (
         <EmptyState title="The queue is clear" body="No submissions are waiting for a review right now. A rare, satisfying moment." />
       )}
+
+      <AdminEditSubmissionDialog
+        submission={editingSubmission}
+        open={Boolean(editingSubmission)}
+        onOpenChange={(open) => {
+          if (!open) setEditingSubmission(null);
+        }}
+      />
     </AdminLayout>
   );
 }
@@ -6013,12 +6593,37 @@ function AdminEditResourceDialog({
   const [googleDriveUrl, setGoogleDriveUrl] = useState("");
   const [error, setError] = useState("");
 
+  const [isChangingLocation, setIsChangingLocation] = useState(false);
+  const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
+  const [selectedYearId, setSelectedYearId] = useState<number | null>(null);
+  const [selectedSemesterId, setSelectedSemesterId] = useState<number | null>(null);
+  const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null);
+
+  const { data: branches = [] } = useListBranches();
+  const { data: years = [] } = useListYears(
+    selectedBranchId ? { branchId: selectedBranchId } : undefined,
+    qOpts(Boolean(selectedBranchId)) as any
+  );
+  const { data: semesters = [] } = useListSemesters(
+    selectedYearId ? { yearId: selectedYearId } : undefined,
+    qOpts(Boolean(selectedYearId)) as any
+  );
+  const { data: subjects = [] } = useListSubjects(
+    selectedSemesterId ? { semesterId: selectedSemesterId } : undefined,
+    qOpts(Boolean(selectedSemesterId)) as any
+  );
+
   useEffect(() => {
     if (resource) {
       setTitle(resource.title);
       setDescription(resource.description || "");
       setResourceType(resource.resourceType);
       setGoogleDriveUrl(resource.googleDriveUrl);
+      setIsChangingLocation(false);
+      setSelectedBranchId(null);
+      setSelectedYearId(null);
+      setSelectedSemesterId(null);
+      setSelectedSubjectId(null);
       setError("");
     }
   }, [resource, open]);
@@ -6034,6 +6639,10 @@ function AdminEditResourceDialog({
       setError(googleDriveUrlHint);
       return;
     }
+    if (isChangingLocation && !selectedSubjectId) {
+      setError("Please select a new subject or cancel changing location.");
+      return;
+    }
     setError("");
     updateResource.mutate({
       id: resource.id,
@@ -6042,6 +6651,7 @@ function AdminEditResourceDialog({
         description: description.trim() || undefined,
         resourceType,
         googleDriveUrl: googleDriveUrl.trim(),
+        ...(isChangingLocation && selectedSubjectId ? { subjectId: selectedSubjectId } : {}),
       },
     });
   };
@@ -6064,7 +6674,7 @@ function AdminEditResourceDialog({
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Resource</DialogTitle>
-            <DialogDescription>Update the details, link, and subjects for this resource.</DialogDescription>
+            <DialogDescription>Update the details, link, category, and location for this resource.</DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -6086,7 +6696,7 @@ function AdminEditResourceDialog({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-[hsl(var(--muted-foreground))]">
-                  Resource Type
+                  Resource Type / Category
                 </label>
                 <select
                   value={resourceType}
@@ -6103,12 +6713,107 @@ function AdminEditResourceDialog({
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-semibold text-[hsl(var(--muted-foreground))]">
-                  Primary Location
-                </label>
-                <p className="flex h-10 items-center truncate rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)] px-3 text-xs text-[hsl(var(--muted-foreground))]">
-                  {resource.subjectName ?? "Subject"} · {resource.branchName ?? "Branch"}
-                </p>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-[hsl(var(--muted-foreground))]">
+                    Primary Location
+                  </label>
+                  {!isChangingLocation ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsChangingLocation(true)}
+                      className="text-[11px] font-bold text-[hsl(var(--primary))] hover:underline cursor-pointer"
+                      data-testid="button-change-primary-location"
+                    >
+                      Change location
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsChangingLocation(false);
+                        setSelectedBranchId(null);
+                        setSelectedYearId(null);
+                        setSelectedSemesterId(null);
+                        setSelectedSubjectId(null);
+                      }}
+                      className="text-[11px] font-bold text-[hsl(var(--muted-foreground))] hover:underline cursor-pointer"
+                    >
+                      Keep current
+                    </button>
+                  )}
+                </div>
+                {!isChangingLocation ? (
+                  <p className="flex h-10 items-center truncate rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)] px-3 text-xs text-[hsl(var(--muted-foreground))]">
+                    {resource.subjectName ?? "Subject"} · {resource.branchName ?? "Branch"}
+                  </p>
+                ) : (
+                  <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.5)] p-2.5 space-y-2">
+                    <p className="text-[11px] font-bold text-[hsl(var(--foreground))]">New Primary Subject:</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <select
+                        value={selectedBranchId ?? ""}
+                        onChange={(e) => {
+                          const b = e.target.value ? Number(e.target.value) : null;
+                          setSelectedBranchId(b);
+                          setSelectedYearId(null);
+                          setSelectedSemesterId(null);
+                          setSelectedSubjectId(null);
+                        }}
+                        className="input-style h-8 text-xs"
+                      >
+                        <option value="">Branch</option>
+                        {branches.map((b) => (
+                          <option key={b.id} value={b.id}>{b.shortName || b.name}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={selectedYearId ?? ""}
+                        onChange={(e) => {
+                          const y = e.target.value ? Number(e.target.value) : null;
+                          setSelectedYearId(y);
+                          setSelectedSemesterId(null);
+                          setSelectedSubjectId(null);
+                        }}
+                        disabled={!selectedBranchId}
+                        className="input-style h-8 text-xs disabled:opacity-50"
+                      >
+                        <option value="">Year</option>
+                        {years.map((y) => (
+                          <option key={y.id} value={y.id}>{y.name}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={selectedSemesterId ?? ""}
+                        onChange={(e) => {
+                          const s = e.target.value ? Number(e.target.value) : null;
+                          setSelectedSemesterId(s);
+                          setSelectedSubjectId(null);
+                        }}
+                        disabled={!selectedYearId}
+                        className="input-style h-8 text-xs disabled:opacity-50"
+                      >
+                        <option value="">Semester</option>
+                        {semesters.map((s) => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={selectedSubjectId ?? ""}
+                        onChange={(e) => {
+                          const sub = e.target.value ? Number(e.target.value) : null;
+                          setSelectedSubjectId(sub);
+                        }}
+                        disabled={!selectedSemesterId}
+                        className="input-style h-8 text-xs disabled:opacity-50"
+                      >
+                        <option value="">Subject</option>
+                        {subjects.map((sub) => (
+                          <option key={sub.id} value={sub.id}>{sub.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

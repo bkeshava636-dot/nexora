@@ -911,7 +911,11 @@ export const ListSubmissionsResponseItem = zod.object({
   "rejectionReason": zod.string().nullish(),
   "submittedAt": zod.string().datetime({"offset":true}),
   "reviewedAt": zod.string().datetime({"offset":true}).nullish(),
-  "reviewedBy": zod.string().nullish()
+  "reviewedBy": zod.string().nullish(),
+  "branchName": zod.string().nullish(),
+  "yearName": zod.string().nullish(),
+  "semesterName": zod.string().nullish(),
+  "subjectName": zod.string().nullish()
 })
 export const ListSubmissionsResponse = zod.array(ListSubmissionsResponseItem)
 
@@ -958,7 +962,11 @@ export const CreateSubmissionResponse = zod.object({
   "rejectionReason": zod.string().nullish(),
   "submittedAt": zod.string().datetime({"offset":true}),
   "reviewedAt": zod.string().datetime({"offset":true}).nullish(),
-  "reviewedBy": zod.string().nullish()
+  "reviewedBy": zod.string().nullish(),
+  "branchName": zod.string().nullish(),
+  "yearName": zod.string().nullish(),
+  "semesterName": zod.string().nullish(),
+  "subjectName": zod.string().nullish()
 })
 
 
@@ -990,7 +998,11 @@ export const GetSubmissionResponse = zod.object({
   "rejectionReason": zod.string().nullish(),
   "submittedAt": zod.string().datetime({"offset":true}),
   "reviewedAt": zod.string().datetime({"offset":true}).nullish(),
-  "reviewedBy": zod.string().nullish()
+  "reviewedBy": zod.string().nullish(),
+  "branchName": zod.string().nullish(),
+  "yearName": zod.string().nullish(),
+  "semesterName": zod.string().nullish(),
+  "subjectName": zod.string().nullish()
 })
 
 
@@ -1004,7 +1016,19 @@ export const UpdateSubmissionParams = zod.object({
 export const UpdateSubmissionBody = zod.object({
   "status": zod.enum(['pending', 'approved', 'rejected']).optional(),
   "adminNote": zod.string().optional(),
-  "rejectionReason": zod.string().optional()
+  "rejectionReason": zod.string().optional(),
+  "title": zod.string().optional(),
+  "description": zod.string().optional(),
+  "resourceType": zod.enum(['Lecture notes', 'Previous year paper', 'Lab manual', 'Assignment', 'Reference', 'Internal Assessment']).optional(),
+  "branchId": zod.number().int().nullish(),
+  "yearId": zod.number().int().nullish(),
+  "semesterId": zod.number().int().nullish(),
+  "subjectId": zod.number().int().nullish(),
+  "googleDriveUrl": zod.string().optional(),
+  "iaAcademicYear": zod.string().nullish(),
+  "iaSemester": zod.string().nullish(),
+  "iaDepartment": zod.string().nullish(),
+  "iaType": zod.string().nullish()
 })
 
 export const UpdateSubmissionResponse = zod.object({
@@ -1028,7 +1052,11 @@ export const UpdateSubmissionResponse = zod.object({
   "rejectionReason": zod.string().nullish(),
   "submittedAt": zod.string().datetime({"offset":true}),
   "reviewedAt": zod.string().datetime({"offset":true}).nullish(),
-  "reviewedBy": zod.string().nullish()
+  "reviewedBy": zod.string().nullish(),
+  "branchName": zod.string().nullish(),
+  "yearName": zod.string().nullish(),
+  "semesterName": zod.string().nullish(),
+  "subjectName": zod.string().nullish()
 })
 
 
@@ -1067,7 +1095,11 @@ export const ApproveSubmissionResponse = zod.object({
   "rejectionReason": zod.string().nullish(),
   "submittedAt": zod.string().datetime({"offset":true}),
   "reviewedAt": zod.string().datetime({"offset":true}).nullish(),
-  "reviewedBy": zod.string().nullish()
+  "reviewedBy": zod.string().nullish(),
+  "branchName": zod.string().nullish(),
+  "yearName": zod.string().nullish(),
+  "semesterName": zod.string().nullish(),
+  "subjectName": zod.string().nullish()
 })
 
 
@@ -1103,7 +1135,11 @@ export const RejectSubmissionResponse = zod.object({
   "rejectionReason": zod.string().nullish(),
   "submittedAt": zod.string().datetime({"offset":true}),
   "reviewedAt": zod.string().datetime({"offset":true}).nullish(),
-  "reviewedBy": zod.string().nullish()
+  "reviewedBy": zod.string().nullish(),
+  "branchName": zod.string().nullish(),
+  "yearName": zod.string().nullish(),
+  "semesterName": zod.string().nullish(),
+  "subjectName": zod.string().nullish()
 })
 
 

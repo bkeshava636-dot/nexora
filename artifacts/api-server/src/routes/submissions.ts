@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { desc, eq } from "drizzle-orm";
-import { db, resources, submissions, iaPapers, resourceSubjects } from "@workspace/db";
+import { branches, db, resources, submissions, iaPapers, resourceSubjects, subjects, semesters, years } from "@workspace/db";
 import {
   ApproveSubmissionBody,
   CreateSubmissionBody,
@@ -132,6 +132,34 @@ router.post("/submissions", async (req, res) => {
   }
 });
 
+const submissionSelectFields = {
+  id: submissions.id,
+  branchId: submissions.branchId,
+  yearId: submissions.yearId,
+  semesterId: submissions.semesterId,
+  subjectId: submissions.subjectId,
+  resourceType: submissions.resourceType,
+  title: submissions.title,
+  description: submissions.description,
+  googleDriveUrl: submissions.googleDriveUrl,
+  iaAcademicYear: submissions.iaAcademicYear,
+  iaSemester: submissions.iaSemester,
+  iaDepartment: submissions.iaDepartment,
+  iaType: submissions.iaType,
+  studentName: submissions.studentName,
+  studentEmail: submissions.studentEmail,
+  status: submissions.status,
+  adminNote: submissions.adminNote,
+  rejectionReason: submissions.rejectionReason,
+  submittedAt: submissions.submittedAt,
+  reviewedAt: submissions.reviewedAt,
+  reviewedBy: submissions.reviewedBy,
+  branchName: branches.name,
+  yearName: years.name,
+  semesterName: semesters.name,
+  subjectName: subjects.name,
+};
+
 // Everything else about submissions is admin-only: the review queue and its
 // contents (student name/email, drive links) should not be publicly listable.
 router.get("/submissions", requireAdmin, async (req, res) => {
@@ -141,8 +169,12 @@ router.get("/submissions", requireAdmin, async (req, res) => {
     return;
   }
   const rows = await db
-    .select()
+    .select(submissionSelectFields)
     .from(submissions)
+    .leftJoin(branches, eq(submissions.branchId, branches.id))
+    .leftJoin(years, eq(submissions.yearId, years.id))
+    .leftJoin(semesters, eq(submissions.semesterId, semesters.id))
+    .leftJoin(subjects, eq(submissions.subjectId, subjects.id))
     .where(parsed.data.status !== undefined ? eq(submissions.status, parsed.data.status) : undefined)
     .orderBy(desc(submissions.submittedAt));
   res.json(rows);
@@ -154,7 +186,14 @@ router.get("/submissions/:id", requireAdmin, async (req, res) => {
     res.status(400).json({ error: "invalid_request", message: "id must be an integer." });
     return;
   }
-  const [submission] = await db.select().from(submissions).where(eq(submissions.id, id));
+  const [submission] = await db
+    .select(submissionSelectFields)
+    .from(submissions)
+    .leftJoin(branches, eq(submissions.branchId, branches.id))
+    .leftJoin(years, eq(submissions.yearId, years.id))
+    .leftJoin(semesters, eq(submissions.semesterId, semesters.id))
+    .leftJoin(subjects, eq(submissions.subjectId, subjects.id))
+    .where(eq(submissions.id, id));
   if (!submission) {
     res.status(404).json({ error: "not_found", message: "Submission not found." });
     return;
@@ -173,6 +212,10 @@ router.patch("/submissions/:id", requireAdmin, async (req, res) => {
     res.status(400).json({ error: "invalid_request", message: parsed.error.message });
     return;
   }
+  if (parsed.data.googleDriveUrl !== undefined && !isValidGoogleDriveUrl(parsed.data.googleDriveUrl)) {
+    res.status(400).json({ error: "invalid_google_drive_url", message: GOOGLE_DRIVE_URL_ERROR });
+    return;
+  }
   try {
     const [updated] = await db
       .update(submissions)
@@ -183,7 +226,16 @@ router.patch("/submissions/:id", requireAdmin, async (req, res) => {
       res.status(404).json({ error: "not_found", message: "Submission not found." });
       return;
     }
-    res.json(updated);
+    const [withNames] = await db
+      .select(submissionSelectFields)
+      .from(submissions)
+      .leftJoin(branches, eq(submissions.branchId, branches.id))
+      .leftJoin(years, eq(submissions.yearId, years.id))
+      .leftJoin(semesters, eq(submissions.semesterId, semesters.id))
+      .leftJoin(subjects, eq(submissions.subjectId, subjects.id))
+      .where(eq(submissions.id, id));
+
+    res.json(withNames ?? updated);
   } catch (err) {
     if (!handleDbError(err, res)) throw err;
   }

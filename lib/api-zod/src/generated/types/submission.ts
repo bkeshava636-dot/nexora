@@ -30,4 +30,8 @@ export interface Submission {
   submittedAt: string;
   reviewedAt?: string | null;
   reviewedBy?: string | null;
+  branchName?: string | null;
+  yearName?: string | null;
+  semesterName?: string | null;
+  subjectName?: string | null;
 }

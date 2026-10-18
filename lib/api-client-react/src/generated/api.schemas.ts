@@ -256,6 +256,10 @@ export interface Submission {
   submittedAt: string;
   reviewedAt?: string | null;
   reviewedBy?: string | null;
+  branchName?: string | null;
+  yearName?: string | null;
+  semesterName?: string | null;
+  subjectName?: string | null;
 }
 
 export interface SubmissionInput {
@@ -279,6 +283,18 @@ export interface SubmissionUpdate {
   status?: SubmissionStatus;
   adminNote?: string;
   rejectionReason?: string;
+  title?: string;
+  description?: string;
+  resourceType?: ResourceType;
+  branchId?: number | null;
+  yearId?: number | null;
+  semesterId?: number | null;
+  subjectId?: number | null;
+  googleDriveUrl?: string;
+  iaAcademicYear?: string | null;
+  iaSemester?: string | null;
+  iaDepartment?: string | null;
+  iaType?: string | null;
 }
 
 export interface ApproveSubmissionInput {

@@ -1692,6 +1692,18 @@ components:
         reviewedBy:
           type: string
           nullable: true
+        branchName:
+          type: string
+          nullable: true
+        yearName:
+          type: string
+          nullable: true
+        semesterName:
+          type: string
+          nullable: true
+        subjectName:
+          type: string
+          nullable: true
       required:
         - id
         - resourceType
@@ -1748,6 +1760,38 @@ components:
           type: string
         rejectionReason:
           type: string
+        title:
+          type: string
+        description:
+          type: string
+        resourceType:
+          $ref: "#/components/schemas/ResourceType"
+        branchId:
+          type: integer
+          nullable: true
+        yearId:
+          type: integer
+          nullable: true
+        semesterId:
+          type: integer
+          nullable: true
+        subjectId:
+          type: integer
+          nullable: true
+        googleDriveUrl:
+          type: string
+        iaAcademicYear:
+          type: string
+          nullable: true
+        iaSemester:
+          type: string
+          nullable: true
+        iaDepartment:
+          type: string
+          nullable: true
+        iaType:
+          type: string
+          nullable: true
 
     ApproveSubmissionInput:
       type: object

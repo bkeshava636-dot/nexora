@@ -191,6 +191,15 @@ router.patch("/resources/:id", requireAdmin, async (req, res) => {
       res.status(404).json({ error: "not_found", message: "Resource not found." });
       return;
     }
+    if (parsed.data.subjectId) {
+      await db
+        .insert(resourceSubjects)
+        .values({
+          resourceId: id,
+          subjectId: parsed.data.subjectId,
+        })
+        .onConflictDoNothing();
+    }
     const [withCatalog] = await resourceCatalogSelect().where(eq(resources.id, id));
     res.json(withCatalog);
   } catch (err) {
