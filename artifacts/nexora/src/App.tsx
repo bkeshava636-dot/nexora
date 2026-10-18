@@ -2193,11 +2193,6 @@ function ContributePage() {
                       </div>
                     )}
                   </div>
-                  {!GOOGLE_APPS_SCRIPT_WEBAPP_URL && (
-                    <p className="mt-2 text-[11px] text-[hsl(var(--muted-foreground))]">
-                      ℹ️ Tip: Once your Google Apps Script Web App URL is deployed, files upload directly to your Drive. You can also paste an existing Google Drive share link anytime.
-                    </p>
-                  )}
                 </div>
               ) : (
                 <Field
