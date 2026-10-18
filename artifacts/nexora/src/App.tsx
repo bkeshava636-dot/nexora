@@ -1626,7 +1626,8 @@ function SubjectPage() {
 }
 
 const GOOGLE_APPS_SCRIPT_WEBAPP_URL =
-  (import.meta.env.VITE_GOOGLE_APPS_SCRIPT_WEBAPP_URL as string) || "";
+  (import.meta.env.VITE_GOOGLE_APPS_SCRIPT_WEBAPP_URL as string) ||
+  "https://script.google.com/macros/s/AKfycby2Hc7RXsTVAromMX43c0QyoOsCJumAbDD5KzXDV6p1LuuMomBfp44KjMoTtbaO_SWFig/exec";
 
 function ContributePage() {
   const [submitted, setSubmitted] = useState(false);
