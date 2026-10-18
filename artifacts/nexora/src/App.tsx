@@ -1713,18 +1713,25 @@ function ContributePage() {
   const handleFileSelect = (file: File) => {
     if (!file) return;
     const maxBytes = 25 * 1024 * 1024; // 25 MB limit
-    if (file.size > maxBytes) {
-      setError("File exceeds the 25 MB size limit. Please choose a smaller file or paste a Google Drive link directly.");
-      return;
-    }
-    setSelectedFile(file);
-    setError("");
 
     // Auto-prefill title from file name if blank
     const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ").trim();
     if (cleanName && !form.title.trim()) {
       update("title", cleanName);
     }
+
+    if (file.size > maxBytes) {
+      setSelectedFile(null);
+      setUploadMethod("link");
+      toast({
+        title: "File is larger than 25 MB",
+        description: `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(1)} MB. Direct upload is limited to 25 MB. We've redirected you to the Google Drive Link option—upload your file to Google Drive and paste the share link below.`,
+      });
+      return;
+    }
+
+    setSelectedFile(file);
+    setError("");
   };
 
   const uploadFileToGoogleDrive = async (file: File): Promise<string> => {
@@ -2102,15 +2109,21 @@ function ContributePage() {
             )}
           </div>
 
-          <div className="rounded-3xl border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted)/.25)] p-5 text-xs text-[hsl(var(--muted-foreground))]">
-            <p className="font-bold text-[hsl(var(--foreground))] mb-1 flex items-center gap-1.5">
-              <ShieldCheck size={14} className="text-[hsl(var(--accent-foreground))]" />
-              Safe & Zero-Storage
+          <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.75)] p-5 text-xs text-[hsl(var(--muted-foreground))] shadow-xs">
+            <p className="font-bold text-[hsl(var(--foreground))] mb-1.5 flex items-center gap-1.5">
+              <Link2 size={14} className="text-[hsl(var(--accent-foreground))]" />
+              File larger than 25 MB?
             </p>
             <p className="leading-relaxed">
-              {uploadMethod === "link"
-                ? "Files stay safely hosted in your Google Drive and accessible to students without any file size limits."
-                : "Files are streamed directly into Google Drive with 'Anyone with the link can view' permissions. No files are stored on server disks."}
+              If your file is greater than 25 MB, please switch to the{" "}
+              <button
+                type="button"
+                onClick={() => setUploadMethod("link")}
+                className="font-bold text-[hsl(var(--primary))] underline hover:opacity-80 cursor-pointer"
+              >
+                Google Drive Link
+              </button>{" "}
+              option to share documents of any size with zero restrictions.
             </p>
           </div>
         </div>
@@ -2234,6 +2247,18 @@ function ContributePage() {
                       </div>
                     )}
                   </div>
+                  <p className="mt-2.5 text-[11px] text-[hsl(var(--muted-foreground))] flex items-center gap-1.5">
+                    <span className="font-semibold text-[hsl(var(--foreground))]">📌 Note:</span>
+                    If your file is greater than 25 MB, please use the{" "}
+                    <button
+                      type="button"
+                      onClick={() => setUploadMethod("link")}
+                      className="font-bold text-[hsl(var(--primary))] underline hover:opacity-80 cursor-pointer"
+                    >
+                      Google Drive Link
+                    </button>{" "}
+                    option.
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-4">
