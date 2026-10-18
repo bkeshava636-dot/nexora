@@ -2,7 +2,7 @@ import { type FormEvent, type ReactNode, memo, useCallback, useEffect, useMemo, 
 import { Link, Redirect, Route, Switch, Router as WouterRouter, useLocation, useParams } from "wouter";
 import {
   AlertTriangle, ArrowLeft, ArrowRight, BarChart3, Bug, MessageSquare, MessageSquarePlus, BadgeCheck, BookOpen, Calendar, Check, CheckCircle2, ChevronDown, ChevronRight,
-  CircleAlert, Clock3, Download, ExternalLink, Eye, EyeOff, FileArchive, FileDown, FileText, Filter, Flag, FolderOpen, GitBranch, GraduationCap, KeyRound, Layers3,
+  CircleAlert, Clock3, Download, ExternalLink, Eye, EyeOff, FileArchive, FileCheck, FileDown, FileText, FileUp, Filter, Flag, FolderOpen, GitBranch, GraduationCap, KeyRound, Layers3,
   LayoutDashboard, LibraryBig, Link2, Loader2, Lock, LogOut, Menu, MoreHorizontal, Pencil, Plus, RotateCcw, Search, Send, ShieldCheck,
   SlidersHorizontal, Sparkles, Trash2, Unlink, Upload, Users, X, Zap,
 } from "lucide-react";
@@ -1625,18 +1625,41 @@ function SubjectPage() {
   ]} /><section className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.78)] p-6 sm:p-9"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="micro-label mb-3 text-[hsl(var(--accent-foreground))]">{activeBranch?.shortName ?? "—"} • {activeYear?.name ?? "—"} • {activeSemester?.name ?? "—"}</p><h1 className="display-font text-4xl font-bold tracking-[-.05em] sm:text-5xl">{activeSubject.name}</h1><p className="mt-4 max-w-xl text-sm leading-6 text-[hsl(var(--muted-foreground))]">{activeSubject.description}</p></div><span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[hsl(var(--muted))] text-[hsl(var(--primary))]"><BookOpen size={25} /></span></div></section><AdSenseAd /><div className="mt-10"><SectionHeading eyebrow={`${resources.length} resources`} title="Your subject shelf" action={<Link href="/contribute" className="focus-ring flex items-center gap-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-xs font-bold" data-testid="link-contribute-subject"><Plus size={14} /> Add one</Link>} />{resourcesLoading && resources.length === 0 ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{[1, 2, 3].map((i) => <div key={i} className="h-32 animate-pulse rounded-xl bg-[hsl(var(--muted))]" />)}</div> : resources.length ? <ResourceTypeGroups resources={resources} /> : <EmptyState title="This shelf is waiting for its first resource" body="If you have notes or a paper for this subject, you can be the person who starts it." action={<Link href="/contribute" className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--primary-foreground))]" data-testid="link-empty-subject-contribute"><Upload size={14} /> Contribute material</Link>} />}</div></div>;
 }
 
+const GOOGLE_APPS_SCRIPT_WEBAPP_URL =
+  (import.meta.env.VITE_GOOGLE_APPS_SCRIPT_WEBAPP_URL as string) || "";
+
 function ContributePage() {
   const [submitted, setSubmitted] = useState(false);
-  const [submittedData, setSubmittedData] = useState<{ status: string; autoPublished?: boolean } | null>(null);
-  
+  const [submittedData, setSubmittedData] = useState<{
+    status: string;
+    autoPublished?: boolean;
+    fileUrl?: string;
+    fileName?: string;
+  } | null>(null);
+
   const [contributionMode, setContributionMode] = useState<"resource" | "ia">("resource");
+  const [uploadMethod, setUploadMethod] = useState<"file" | "link">("file");
 
   const [branchId, setBranchId] = useState<number | undefined>(undefined);
   const [yearId, setYearId] = useState<number | undefined>(undefined);
   const [semesterId, setSemesterId] = useState<number | undefined>(undefined);
   const [subjectId, setSubjectId] = useState<number | undefined>(undefined);
-  const [form, setForm] = useState({ resourceType: "Lecture notes" as ResourceType, title: "", description: "", googleDriveUrl: "", studentName: "", studentEmail: "" });
-  
+
+  // File upload states
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [uploadProgressText, setUploadProgressText] = useState("");
+
+  const [form, setForm] = useState({
+    resourceType: "Lecture notes" as ResourceType,
+    title: "",
+    description: "",
+    googleDriveUrl: "",
+    studentName: "",
+    studentEmail: "",
+  });
+
   const [iaForm, setIaForm] = useState({
     iaAcademicYear: "1st Year",
     iaSemester: "1st Semester • Odd",
@@ -1645,7 +1668,7 @@ function ContributePage() {
     title: "",
     googleDriveUrl: "",
     studentName: "",
-    studentEmail: ""
+    studentEmail: "",
   });
 
   const [error, setError] = useState("");
@@ -1659,12 +1682,25 @@ function ContributePage() {
   const { data: iaDepartments = [] } = useListIaDepartments({ includeInactive: false });
   const createSubmission = useCreateSubmission();
 
-  useEffect(() => { if (branches.length && branchId === undefined) setBranchId(branches[0]?.id); }, [branches, branchId]);
-  useEffect(() => { if (years.length) setYearId((current) => current && years.some((y) => y.id === current) ? current : years[0]?.id); else setYearId(undefined); }, [years]);
-  useEffect(() => { if (semesters.length) setSemesterId((current) => current && semesters.some((s) => s.id === current) ? current : semesters[0]?.id); else setSemesterId(undefined); }, [semesters]);
-  useEffect(() => { if (subjects.length) setSubjectId((current) => current && subjects.some((s) => s.id === current) ? current : subjects[0]?.id); else setSubjectId(undefined); }, [subjects]);
-  useEffect(() => { if (iaDepartments.length && !iaForm.iaDepartment) updateIa("iaDepartment", iaDepartments[0]?.name); }, [iaDepartments, iaForm.iaDepartment]);
-  
+  useEffect(() => {
+    if (branches.length && branchId === undefined) setBranchId(branches[0]?.id);
+  }, [branches, branchId]);
+  useEffect(() => {
+    if (years.length) setYearId((current) => (current && years.some((y) => y.id === current) ? current : years[0]?.id));
+    else setYearId(undefined);
+  }, [years]);
+  useEffect(() => {
+    if (semesters.length) setSemesterId((current) => (current && semesters.some((s) => s.id === current) ? current : semesters[0]?.id));
+    else setSemesterId(undefined);
+  }, [semesters]);
+  useEffect(() => {
+    if (subjects.length) setSubjectId((current) => (current && subjects.some((s) => s.id === current) ? current : subjects[0]?.id));
+    else setSubjectId(undefined);
+  }, [subjects]);
+  useEffect(() => {
+    if (iaDepartments.length && !iaForm.iaDepartment) updateIa("iaDepartment", iaDepartments[0]?.name);
+  }, [iaDepartments, iaForm.iaDepartment]);
+
   // Auto-generate title for IA
   useEffect(() => {
     if (contributionMode === "ia") {
@@ -1672,90 +1708,227 @@ function ContributePage() {
     }
   }, [iaForm.iaAcademicYear, iaForm.iaSemester, iaForm.iaDepartment, iaForm.iaType, contributionMode]);
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (createSubmission.isPending) return;
-    
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const handleFileSelect = (file: File) => {
+    if (!file) return;
+    const maxBytes = 25 * 1024 * 1024; // 25 MB limit
+    if (file.size > maxBytes) {
+      setError("File exceeds the 25 MB size limit. Please choose a smaller file or paste a Google Drive link directly.");
+      return;
+    }
+    setSelectedFile(file);
+    setError("");
 
-    if (contributionMode === "resource") {
-      if (!form.title.trim()) {
-        setError("Please enter a title for the resource.");
-        return;
-      }
-      if (!form.googleDriveUrl.trim() || !isValidGoogleDriveUrl(form.googleDriveUrl)) {
-        setError("Please enter a valid Google Drive link.");
-        return;
-      }
-      if (!subjectId) {
-        setError("Please choose a branch, year, semester, and subject before sending.");
-        return;
-      }
-      if (form.studentEmail.trim() && !emailRegex.test(form.studentEmail.trim())) {
-        setError("Please enter a valid email address, or leave it blank.");
-        return;
-      }
-      createSubmission.mutate({
-        data: {
-          ...form,
-          title: form.title.trim(),
-          studentName: form.studentName.trim() || undefined,
-          studentEmail: form.studentEmail.trim() || undefined,
-          branchId,
-          yearId,
-          semesterId,
-          subjectId,
-        }
-      }, {
-        onSuccess: (data: Submission & { autoPublished?: boolean }) => {
-          const isAuto = data.status === "approved" || Boolean(data.autoPublished);
-          setSubmittedData({ status: data.status, autoPublished: isAuto });
-          setSubmitted(true);
-          setError("");
-          if (isAuto) {
-            toast({ title: "Resource published successfully!", description: "You can now find it in the resource library." });
-          } else {
-            toast({ title: "Resource submitted successfully!", description: "Your submission will appear after admin review." });
+    // Auto-prefill title from file name if blank
+    const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ").trim();
+    if (cleanName && !form.title.trim()) {
+      update("title", cleanName);
+    }
+  };
+
+  const uploadFileToGoogleDrive = async (file: File): Promise<string> => {
+    if (!GOOGLE_APPS_SCRIPT_WEBAPP_URL) {
+      throw new Error(
+        "Google Apps Script Web App URL is not configured yet. Please configure VITE_GOOGLE_APPS_SCRIPT_WEBAPP_URL or use the Google Drive Link option."
+      );
+    }
+
+    setUploadProgressText("Reading file...");
+    const base64Data = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Strip data:application/pdf;base64, header
+        const base64 = result.includes(",") ? result.split(",")[1] : result;
+        resolve(base64);
+      };
+      reader.onerror = (err) => reject(err);
+      reader.readAsDataURL(file);
+    });
+
+    setUploadProgressText("Uploading to Google Drive...");
+    const response = await fetch(GOOGLE_APPS_SCRIPT_WEBAPP_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8", // text/plain prevents CORS preflight issues with Google Apps Script
+      },
+      body: JSON.stringify({
+        fileBase64: base64Data,
+        fileName: file.name,
+        mimeType: file.type || "application/pdf",
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Google Apps Script upload failed with status ${response.status}.`);
+    }
+
+    const json = await response.json();
+    if (json.status !== "success" || !json.fileUrl) {
+      throw new Error(json.message || "Failed to receive a valid file URL from Google Drive.");
+    }
+
+    return json.fileUrl;
+  };
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (createSubmission.isPending || isUploadingFile) return;
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    setError("");
+
+    try {
+      if (contributionMode === "resource") {
+        if (uploadMethod === "file") {
+          if (!selectedFile) {
+            setError("Please select or drop a PDF document to upload.");
+            return;
           }
-        },
-        onError: (err) => setError(getErrorMessage(err) || "Unable to submit the resource. Please try again."),
-      });
-    } else {
-      // IA submission
-      if (!iaForm.title.trim() || !iaForm.iaDepartment.trim()) {
-        setError("Please fill in the required fields before sending.");
-        return;
+        }
+
+        if (!form.title.trim()) {
+          setError("Please enter a title for the resource.");
+          return;
+        }
+
+        if (!subjectId) {
+          setError("Please choose a branch, year, semester, and subject before sending.");
+          return;
+        }
+
+        if (form.studentEmail.trim() && !emailRegex.test(form.studentEmail.trim())) {
+          setError("Please enter a valid email address or phone, or leave it blank.");
+          return;
+        }
+
+        let driveUrl = form.googleDriveUrl.trim();
+
+        if (uploadMethod === "file") {
+          setIsUploadingFile(true);
+          try {
+            driveUrl = await uploadFileToGoogleDrive(selectedFile!);
+          } finally {
+            setIsUploadingFile(false);
+            setUploadProgressText("");
+          }
+        } else {
+          if (!driveUrl || !isValidGoogleDriveUrl(driveUrl)) {
+            setError("Please enter a valid Google Drive link.");
+            return;
+          }
+        }
+
+        createSubmission.mutate(
+          {
+            data: {
+              ...form,
+              title: form.title.trim(),
+              googleDriveUrl: driveUrl,
+              studentName: form.studentName.trim() || undefined,
+              studentEmail: form.studentEmail.trim() || undefined,
+              branchId,
+              yearId,
+              semesterId,
+              subjectId,
+            },
+          },
+          {
+            onSuccess: (data: Submission & { autoPublished?: boolean }) => {
+              const isAuto = data.status === "approved" || Boolean(data.autoPublished);
+              setSubmittedData({
+                status: data.status,
+                autoPublished: isAuto,
+                fileUrl: driveUrl,
+                fileName: selectedFile?.name || form.title,
+              });
+              setSubmitted(true);
+              setError("");
+              if (isAuto) {
+                toast({
+                  title: "Resource published successfully!",
+                  description: "You can now find it in the resource library.",
+                });
+              } else {
+                toast({
+                  title: "Resource submitted successfully!",
+                  description: "Your submission will appear after admin review.",
+                });
+              }
+            },
+            onError: (err) => setError(getErrorMessage(err) || "Unable to submit the resource. Please try again."),
+          }
+        );
+      } else {
+        // IA submission
+        if (!iaForm.title.trim() || !iaForm.iaDepartment.trim()) {
+          setError("Please fill in the required fields before sending.");
+          return;
+        }
+
+        let driveUrl = iaForm.googleDriveUrl.trim();
+
+        if (uploadMethod === "file") {
+          if (!selectedFile) {
+            setError("Please select or drop a PDF document to upload.");
+            return;
+          }
+          setIsUploadingFile(true);
+          try {
+            driveUrl = await uploadFileToGoogleDrive(selectedFile);
+          } finally {
+            setIsUploadingFile(false);
+            setUploadProgressText("");
+          }
+        } else {
+          if (!driveUrl || !isValidGoogleDriveUrl(driveUrl)) {
+            setError("Please enter a valid Google Drive link.");
+            return;
+          }
+        }
+
+        if (iaForm.studentEmail.trim() && !emailRegex.test(iaForm.studentEmail.trim())) {
+          setError("Please enter a valid email address or phone, or leave it blank.");
+          return;
+        }
+
+        createSubmission.mutate(
+          {
+            data: {
+              resourceType: "Internal Assessment" as ResourceType,
+              title: iaForm.title.trim(),
+              description: "Internal Assessment submission",
+              googleDriveUrl: driveUrl,
+              studentName: iaForm.studentName.trim() || undefined,
+              studentEmail: iaForm.studentEmail.trim() || undefined,
+              iaAcademicYear: iaForm.iaAcademicYear,
+              iaSemester: iaForm.iaSemester,
+              iaDepartment: iaForm.iaDepartment,
+              iaType: iaForm.iaType,
+            },
+          },
+          {
+            onSuccess: (data: Submission) => {
+              setSubmittedData({
+                status: data.status,
+                autoPublished: false,
+                fileUrl: driveUrl,
+                fileName: selectedFile?.name || iaForm.title,
+              });
+              setSubmitted(true);
+              setError("");
+              toast({
+                title: "IA paper submitted successfully!",
+                description: "It will appear after admin review.",
+              });
+            },
+            onError: (err) => setError(getErrorMessage(err) || "Unable to submit the paper. Please try again."),
+          }
+        );
       }
-      if (!iaForm.googleDriveUrl.trim() || !isValidGoogleDriveUrl(iaForm.googleDriveUrl)) {
-        setError("Please enter a valid Google Drive link.");
-        return;
-      }
-      if (iaForm.studentEmail.trim() && !emailRegex.test(iaForm.studentEmail.trim())) {
-        setError("Please enter a valid email address, or leave it blank.");
-        return;
-      }
-      createSubmission.mutate({ 
-        data: { 
-          resourceType: "Internal Assessment" as ResourceType,
-          title: iaForm.title.trim(),
-          description: "Internal Assessment submission",
-          googleDriveUrl: iaForm.googleDriveUrl,
-          studentName: iaForm.studentName.trim() || undefined,
-          studentEmail: iaForm.studentEmail.trim() || undefined,
-          iaAcademicYear: iaForm.iaAcademicYear,
-          iaSemester: iaForm.iaSemester,
-          iaDepartment: iaForm.iaDepartment,
-          iaType: iaForm.iaType
-        } 
-      }, {
-        onSuccess: (data: Submission) => {
-          setSubmittedData({ status: data.status, autoPublished: false });
-          setSubmitted(true);
-          setError("");
-          toast({ title: "IA paper submitted successfully!", description: "It will appear after admin review." });
-        },
-        onError: (err) => setError(getErrorMessage(err) || "Unable to submit the paper. Please try again."),
-      });
+    } catch (err: any) {
+      setIsUploadingFile(false);
+      setUploadProgressText("");
+      setError(err?.message || "File upload to Google Drive failed. Please try again or paste a link.");
     }
   };
 
@@ -1763,7 +1936,7 @@ function ContributePage() {
     const isAuto = submittedData?.autoPublished || submittedData?.status === "approved";
     return (
       <div className="mx-auto max-w-3xl px-4 py-12 sm:px-7 sm:py-20">
-        <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-6 py-14 text-center sm:px-12">
+        <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-6 py-14 text-center sm:px-12 shadow-sm">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]">
             <CheckCircle2 size={32} />
           </div>
@@ -1775,9 +1948,32 @@ function ContributePage() {
           </h1>
           <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-[hsl(var(--muted-foreground))]">
             {isAuto
-              ? "You can now find it in the resource library. Thank you for contributing to Nexora!"
-              : "Your submission will appear after admin review. Our student editors will check the link and details before it joins Nexora. That keeps the Verified badge meaningful for everyone."}
+              ? "Your document is saved in Google Drive and live in the Nexora library. Thank you for contributing!"
+              : "Your document is securely saved in Google Drive and entered in the review queue. Our student editors will review the details before publishing."}
           </p>
+
+          {submittedData?.fileUrl && (
+            <div className="mx-auto mt-6 max-w-md rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.3)] p-4 text-left">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+                Saved in Google Drive
+              </span>
+              <div className="mt-1 flex items-center justify-between gap-3">
+                <span className="truncate text-xs font-semibold text-[hsl(var(--foreground))]">
+                  {submittedData.fileName || "Uploaded Document"}
+                </span>
+                <a
+                  href={submittedData.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="focus-ring inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[hsl(var(--primary))] px-3 py-1.5 text-xs font-bold text-[hsl(var(--primary-foreground))] hover:opacity-90"
+                  data-testid="link-view-in-google-drive"
+                >
+                  <ExternalLink size={12} /> View in Google Drive
+                </a>
+              </div>
+            </div>
+          )}
+
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
             <Link
               href="/resources"
@@ -1791,14 +1987,15 @@ function ContributePage() {
               onClick={() => {
                 setSubmitted(false);
                 setSubmittedData(null);
+                setSelectedFile(null);
                 setForm({ ...form, title: "", description: "", googleDriveUrl: "" });
                 setIaForm({ ...iaForm, title: "", googleDriveUrl: "" });
                 setError("");
               }}
-              className="focus-ring rounded-xl border border-[hsl(var(--border))] px-5 py-3 text-sm font-bold"
+              className="focus-ring rounded-xl border border-[hsl(var(--border))] px-5 py-3 text-sm font-bold hover:bg-[hsl(var(--muted)/.5)] transition-colors"
               data-testid="button-submit-another"
             >
-              Share another
+              Upload another file
             </button>
           </div>
         </div>
@@ -1806,128 +2003,488 @@ function ContributePage() {
     );
   }
 
-  return <div className="mx-auto max-w-4xl px-4 py-8 sm:px-7 sm:py-12"><Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Contribute" }]} />
-    <div className="mb-8 max-w-2xl"><p className="micro-label mb-2 text-[hsl(var(--accent-foreground))]">Give back a little</p><h1 className="display-font text-4xl font-bold tracking-[-.05em] sm:text-5xl">Put a useful file<br />in the right hands.</h1>
+  return (
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-7 sm:py-12">
+      <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Contribute" }]} />
       
-      <div className="mt-8 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.7)] p-6 sm:p-8">
-        <h3 className="font-bold text-[hsl(var(--foreground))] mb-4">How it works</h3>
-        <ol className="space-y-3 text-sm text-[hsl(var(--muted-foreground))]">
-          <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--secondary)/.2)] text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">1</span><span>Upload your notes, PYQs, or manuals to your Google Drive.</span></li>
-          <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--secondary)/.2)] text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">2</span><span>Make sure the link sharing is set to "Anyone with the link".</span></li>
-          <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--secondary)/.2)] text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">3</span><span>Paste the Google Drive link in the form below.</span></li>
-          <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--secondary)/.2)] text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">4</span><span>Select the correct branch, year, semester, and subject.</span></li>
-          <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--secondary)/.2)] text-[10px] font-bold text-[hsl(var(--secondary-foreground))]">5</span><span>Submit your contribution for review.</span></li>
-          <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--primary)/.2)] text-[10px] font-bold text-[hsl(var(--primary))]">6</span><span className="font-semibold text-[hsl(var(--foreground))]">Approved resources appear in Nexora for everyone.</span></li>
-        </ol>
+      <div className="mb-8">
+        <p className="micro-label mb-2 text-[hsl(var(--accent-foreground))]">Zero-storage community library</p>
+        <h1 className="display-font text-4xl font-bold tracking-[-.05em] sm:text-5xl">
+          Put a useful file<br />in the right hands.
+        </h1>
+        <p className="mt-3 text-sm text-[hsl(var(--muted-foreground))]">
+          Share notes, previous year question papers, or manuals. Files are saved directly to Google Drive.
+        </p>
+      </div>
+
+      <div className="grid gap-8 lg:grid-cols-12">
+        {/* Left-side Instructions Panel: 3-step action guide */}
+        <div className="lg:col-span-4 space-y-6">
+          <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.75)] p-6 sm:p-7 shadow-xs">
+            <h3 className="text-base font-bold text-[hsl(var(--foreground))] mb-4 flex items-center gap-2">
+              <Sparkles size={17} className="text-[hsl(var(--accent-foreground))]" />
+              Quick 3-step guide
+            </h3>
+            <ol className="space-y-4 text-xs">
+              <li className="flex items-start gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--secondary)/.2)] text-xs font-bold text-[hsl(var(--secondary-foreground))]">
+                  1
+                </span>
+                <div>
+                  <p className="font-bold text-[hsl(var(--foreground))]">Select Your PDF File</p>
+                  <p className="mt-0.5 text-[hsl(var(--muted-foreground))]">
+                    Drag and drop your study document (up to 25 MB) or pick a file from your device.
+                  </p>
+                </div>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--secondary)/.2)] text-xs font-bold text-[hsl(var(--secondary-foreground))]">
+                  2
+                </span>
+                <div>
+                  <p className="font-bold text-[hsl(var(--foreground))]">Add Title & Choose Subject</p>
+                  <p className="mt-0.5 text-[hsl(var(--muted-foreground))]">
+                    Title is auto-prefilled from your file name. Pick the correct branch, year, semester & subject.
+                  </p>
+                </div>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--accent)/.3)] text-xs font-bold text-[hsl(var(--accent-foreground))]">
+                  3
+                </span>
+                <div>
+                  <p className="font-bold text-[hsl(var(--foreground))]">Click Upload & Submit</p>
+                  <p className="mt-0.5 text-[hsl(var(--muted-foreground))]">
+                    File uploads straight to Google Drive and joins the review queue automatically.
+                  </p>
+                </div>
+              </li>
+            </ol>
+          </div>
+
+          <div className="rounded-3xl border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted)/.25)] p-5 text-xs text-[hsl(var(--muted-foreground))]">
+            <p className="font-bold text-[hsl(var(--foreground))] mb-1 flex items-center gap-1.5">
+              <ShieldCheck size={14} className="text-[hsl(var(--accent-foreground))]" />
+              Safe & Zero-Storage
+            </p>
+            <p className="leading-relaxed">
+              Files are streamed directly into Google Drive with "Anyone with the link can view" permissions. No files are stored on server disks.
+            </p>
+          </div>
+        </div>
+
+        {/* Right-side Contribution Form */}
+        <div className="lg:col-span-8">
+          <div className="mb-6 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setContributionMode("resource")}
+              className={`focus-ring px-5 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+                contributionMode === "resource"
+                  ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                  : "bg-[hsl(var(--secondary)/.15)] text-[hsl(var(--secondary-foreground))] hover:bg-[hsl(var(--secondary)/.3)]"
+              }`}
+            >
+              Resource Library
+            </button>
+            <button
+              type="button"
+              onClick={() => setContributionMode("ia")}
+              className={`focus-ring px-5 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+                contributionMode === "ia"
+                  ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                  : "bg-[hsl(var(--secondary)/.15)] text-[hsl(var(--secondary-foreground))] hover:bg-[hsl(var(--secondary)/.3)]"
+              }`}
+            >
+              Internal Assessment (IA)
+            </button>
+          </div>
+
+          <form onSubmit={submit} className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.78)] p-5 sm:p-8">
+            {/* 1. File Upload / Link Box */}
+            <FormSection title="1. Document File">
+              <div className="mb-4 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setUploadMethod("file")}
+                  className={`focus-ring inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                    uploadMethod === "file"
+                      ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                      : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
+                  }`}
+                >
+                  <FileUp size={13} /> Direct Upload (PDF/DOC)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUploadMethod("link")}
+                  className={`focus-ring inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                    uploadMethod === "link"
+                      ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
+                      : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
+                  }`}
+                >
+                  <Link2 size={13} /> Google Drive Link
+                </button>
+              </div>
+
+              {uploadMethod === "file" ? (
+                <div>
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDragging(true);
+                    }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDragging(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) handleFileSelect(file);
+                    }}
+                    className={`relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center transition-all ${
+                      isDragging
+                        ? "border-[hsl(var(--accent-foreground))] bg-[hsl(var(--accent)/.2)]"
+                        : selectedFile
+                        ? "border-[hsl(var(--accent-foreground)/.5)] bg-[hsl(var(--accent)/.08)]"
+                        : "border-[hsl(var(--border))] bg-[hsl(var(--muted)/.2)] hover:bg-[hsl(var(--muted)/.4)]"
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      id="pdf-upload-input"
+                      accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleFileSelect(file);
+                      }}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                      data-testid="input-file-upload"
+                    />
+                    {selectedFile ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[hsl(var(--accent))] text-[hsl(var(--accent-foreground))]">
+                          <FileCheck size={24} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-[hsl(var(--foreground))]">{selectedFile.name}</p>
+                          <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                            {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB • Ready to upload
+                          </p>
+                        </div>
+                        <p className="text-[11px] font-semibold text-[hsl(var(--accent-foreground))] underline cursor-pointer mt-1">
+                          Click or drag another file to replace
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[hsl(var(--secondary)/.15)] text-[hsl(var(--secondary-foreground))]">
+                          <Upload size={22} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-[hsl(var(--foreground))]">
+                            Drag & drop your document here
+                          </p>
+                          <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                            or click to browse from device (PDF, DOC, DOCX up to 25 MB)
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {!GOOGLE_APPS_SCRIPT_WEBAPP_URL && (
+                    <p className="mt-2 text-[11px] text-[hsl(var(--muted-foreground))]">
+                      ℹ️ Tip: Once your Google Apps Script Web App URL is deployed, files upload directly to your Drive. You can also paste an existing Google Drive share link anytime.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <Field
+                  label="Google Drive link"
+                  required
+                  hint={`${googleDriveUrlHint} Make sure link access is set to "Anyone with the link".`}
+                >
+                  <div className="relative">
+                    <Link2
+                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]"
+                      size={16}
+                    />
+                    <input
+                      value={contributionMode === "resource" ? form.googleDriveUrl : iaForm.googleDriveUrl}
+                      onChange={(e) =>
+                        contributionMode === "resource"
+                          ? update("googleDriveUrl", e.target.value)
+                          : updateIa("googleDriveUrl", e.target.value)
+                      }
+                      className="input-style pl-11"
+                      placeholder="https://drive.google.com/..."
+                      data-testid="input-gdrive-url"
+                    />
+                  </div>
+                </Field>
+              )}
+            </FormSection>
+
+            {/* 2. Categorization & Subject Details */}
+            {contributionMode === "resource" ? (
+              <>
+                <FormSection title="2. Where does it belong?">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Branch" required>
+                      <select
+                        value={branchId ?? ""}
+                        onChange={(e) => setBranchId(Number(e.target.value))}
+                        className="input-style"
+                        data-testid="select-contribute-branch"
+                      >
+                        {branches.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.shortName} — {item.name}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Subject" required>
+                      <select
+                        value={subjectId ?? ""}
+                        onChange={(e) => setSubjectId(Number(e.target.value))}
+                        className="input-style"
+                        data-testid="select-contribute-subject"
+                      >
+                        {subjects.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Year" required>
+                      <select
+                        value={yearId ?? ""}
+                        onChange={(e) => setYearId(Number(e.target.value))}
+                        className="input-style"
+                        data-testid="select-contribute-year"
+                      >
+                        {years.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Semester" required>
+                      <select
+                        value={semesterId ?? ""}
+                        onChange={(e) => setSemesterId(Number(e.target.value))}
+                        className="input-style"
+                        data-testid="select-contribute-semester"
+                      >
+                        {semesters.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+                </FormSection>
+
+                <FormSection title="3. Document Details">
+                  <div className="grid gap-4">
+                    <Field label="Category / Resource Type" required>
+                      <select
+                        value={form.resourceType}
+                        onChange={(e) => update("resourceType", e.target.value)}
+                        className="input-style"
+                        data-testid="select-contribute-type"
+                      >
+                        {resourceTypes.map((item) => (
+                          <option key={item}>{item}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Title / Document Name" required hint="Auto-filled from your file name, or enter your own title.">
+                      <input
+                        value={form.title}
+                        onChange={(e) => update("title", e.target.value)}
+                        className="input-style"
+                        placeholder="e.g. Data Structures Unit 1 Revision Notes"
+                        data-testid="input-contribute-title"
+                      />
+                    </Field>
+                    <Field label="Additional description / notes (optional)">
+                      <textarea
+                        value={form.description}
+                        onChange={(e) => update("description", e.target.value)}
+                        className="input-style min-h-20 resize-y"
+                        placeholder="What topics or units are covered inside? Any special remarks?"
+                        data-testid="input-contribute-description"
+                      />
+                    </Field>
+                  </div>
+                </FormSection>
+
+                <FormSection title="4. Contributor Credits (optional)">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Contributor name / Credits (optional)">
+                      <input
+                        value={form.studentName}
+                        onChange={(e) => update("studentName", e.target.value)}
+                        className="input-style"
+                        placeholder="How should we credit you?"
+                        data-testid="input-contribute-name"
+                      />
+                    </Field>
+                    <Field label="Contact info (email or phone, optional)">
+                      <input
+                        value={form.studentEmail}
+                        onChange={(e) => update("studentEmail", e.target.value)}
+                        className="input-style"
+                        placeholder="you@college.edu or 9876543210"
+                        data-testid="input-contribute-contact"
+                      />
+                    </Field>
+                  </div>
+                </FormSection>
+              </>
+            ) : (
+              <>
+                <FormSection title="2. Internal Assessment Details">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Academic Year" required>
+                      <select
+                        value={iaForm.iaAcademicYear}
+                        onChange={(e) => updateIa("iaAcademicYear", e.target.value)}
+                        className="input-style"
+                      >
+                        <option>1st Year</option>
+                        <option>2nd Year</option>
+                        <option>3rd Year</option>
+                        <option>4th Year</option>
+                      </select>
+                    </Field>
+                    <Field label="Semester" required>
+                      <select
+                        value={iaForm.iaSemester}
+                        onChange={(e) => updateIa("iaSemester", e.target.value)}
+                        className="input-style"
+                      >
+                        <option>1st Semester • Odd</option>
+                        <option>2nd Semester • Even</option>
+                        <option>3rd Semester</option>
+                        <option>4th Semester</option>
+                        <option>5th Semester</option>
+                        <option>6th Semester</option>
+                        <option>7th Semester</option>
+                        <option>8th Semester</option>
+                      </select>
+                    </Field>
+                    <Field label="Department / Stream" required>
+                      <select
+                        value={iaForm.iaDepartment}
+                        onChange={(e) => updateIa("iaDepartment", e.target.value)}
+                        className="input-style"
+                      >
+                        {iaDepartments.map((d) => (
+                          <option key={d.id} value={d.name}>
+                            {d.name}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="IA Type" required>
+                      <select
+                        value={iaForm.iaType}
+                        onChange={(e) => updateIa("iaType", e.target.value)}
+                        className="input-style"
+                      >
+                        <option>IA-1</option>
+                        <option>IA-2</option>
+                        <option>IA-3</option>
+                        <option>Other</option>
+                      </select>
+                    </Field>
+                    <div className="sm:col-span-2">
+                      <Field label="Title / Document Name" required>
+                        <input
+                          value={iaForm.title}
+                          onChange={(e) => updateIa("title", e.target.value)}
+                          className="input-style"
+                        />
+                      </Field>
+                    </div>
+                  </div>
+                </FormSection>
+
+                <FormSection title="3. Contributor Credits (optional)">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Your name (optional)">
+                      <input
+                        value={iaForm.studentName}
+                        onChange={(e) => updateIa("studentName", e.target.value)}
+                        className="input-style"
+                        placeholder="How should we credit you?"
+                      />
+                    </Field>
+                    <Field label="Contact info (email or phone, optional)">
+                      <input
+                        value={iaForm.studentEmail}
+                        onChange={(e) => updateIa("studentEmail", e.target.value)}
+                        className="input-style"
+                        placeholder="you@college.edu or 9876543210"
+                      />
+                    </Field>
+                  </div>
+                </FormSection>
+              </>
+            )}
+
+            {error && (
+              <div
+                className="mb-4 mt-6 flex items-start gap-2 rounded-xl bg-[hsl(var(--destructive)/.1)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]"
+                role="alert"
+                data-testid="status-contribute-error"
+              >
+                <CircleAlert size={15} className="mt-0.5 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <div className="mt-6 flex flex-col items-start justify-between gap-4 border-t border-[hsl(var(--border))] pt-5 sm:flex-row sm:items-center">
+              <div>
+                <p className="text-xs leading-5 text-[hsl(var(--muted-foreground))]">
+                  Zero server storage cost • Files pipe directly to Google Drive.
+                </p>
+                {uploadProgressText && (
+                  <p className="text-xs font-bold text-[hsl(var(--accent-foreground))] flex items-center gap-1.5 mt-1">
+                    <Loader2 size={13} className="animate-spin" /> {uploadProgressText}
+                  </p>
+                )}
+              </div>
+              <button
+                type="submit"
+                disabled={createSubmission.isPending || isUploadingFile}
+                className="focus-ring inline-flex items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-6 py-3 text-sm font-bold text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-60 w-full sm:w-auto shadow-sm"
+                data-testid="button-submit-upload"
+              >
+                {createSubmission.isPending || isUploadingFile ? (
+                  <>
+                    <Loader2 size={15} className="animate-spin" />
+                    <span>{isUploadingFile ? "Uploading to Drive..." : "Saving submission..."}</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload size={15} />
+                    <span>Upload & Submit</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
-    
-    <div className="mb-6 flex gap-4">
-      <button 
-        type="button" 
-        onClick={() => setContributionMode("resource")} 
-        className={`focus-ring px-5 py-2.5 rounded-xl text-sm font-bold transition-colors ${contributionMode === "resource" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "bg-[hsl(var(--secondary)/.15)] text-[hsl(var(--secondary-foreground))] hover:bg-[hsl(var(--secondary)/.3)]"}`}
-      >
-        Resource
-      </button>
-      <button 
-        type="button" 
-        onClick={() => setContributionMode("ia")} 
-        className={`focus-ring px-5 py-2.5 rounded-xl text-sm font-bold transition-colors ${contributionMode === "ia" ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]" : "bg-[hsl(var(--secondary)/.15)] text-[hsl(var(--secondary-foreground))] hover:bg-[hsl(var(--secondary)/.3)]"}`}
-      >
-        Internal Assessment Paper
-      </button>
-    </div>
-
-    <form onSubmit={submit} className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.78)] p-5 sm:p-8">
-      {contributionMode === "resource" ? (
-        <>
-          <FormSection title="Where does it belong?">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Branch" required><select value={branchId ?? ""} onChange={(e) => setBranchId(Number(e.target.value))} className="input-style">{branches.map((item) => <option key={item.id} value={item.id}>{item.shortName} — {item.name}</option>)}</select></Field>
-              <Field label="Subject" required><select value={subjectId ?? ""} onChange={(e) => setSubjectId(Number(e.target.value))} className="input-style">{subjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
-              <Field label="Year" required><select value={yearId ?? ""} onChange={(e) => setYearId(Number(e.target.value))} className="input-style">{years.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
-              <Field label="Semester" required><select value={semesterId ?? ""} onChange={(e) => setSemesterId(Number(e.target.value))} className="input-style">{semesters.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
-            </div>
-          </FormSection>
-          <FormSection title="Tell us about it">
-            <div className="grid gap-4">
-              <Field label="Resource type" required><select value={form.resourceType} onChange={(e) => update("resourceType", e.target.value)} className="input-style">{resourceTypes.map((item) => <option key={item}>{item}</option>)}</select></Field>
-              <Field label="Title" required><input value={form.title} onChange={(e) => update("title", e.target.value)} className="input-style" placeholder="e.g. Data Structures revision notes" /></Field>
-              <Field label="Short description"><textarea value={form.description} onChange={(e) => update("description", e.target.value)} className="input-style min-h-24 resize-y" placeholder="What will a student find inside?" /></Field>
-              <Field label="Google Drive link" required hint={`${googleDriveUrlHint} Also make sure link access is set to "Anyone with the link".`}><div className="relative"><Link2 className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" size={16} /><input value={form.googleDriveUrl} onChange={(e) => update("googleDriveUrl", e.target.value)} className="input-style pl-11" placeholder="https://drive.google.com/..." /></div></Field>
-            </div>
-          </FormSection>
-          <FormSection title="A little about you (optional)">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Your name"><input value={form.studentName} onChange={(e) => update("studentName", e.target.value)} className="input-style" placeholder="How should we credit you? (optional)" /></Field>
-              <Field label="College email"><input type="email" value={form.studentEmail} onChange={(e) => update("studentEmail", e.target.value)} className="input-style" placeholder="you@college.edu (optional)" /></Field>
-            </div>
-          </FormSection>
-        </>
-      ) : (
-        <>
-          <FormSection title="IA Details">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Year" required>
-                <select value={iaForm.iaAcademicYear} onChange={(e) => updateIa("iaAcademicYear", e.target.value)} className="input-style">
-                  <option>1st Year</option>
-                  <option>2nd Year</option>
-                  <option>3rd Year</option>
-                  <option>4th Year</option>
-                </select>
-              </Field>
-              <Field label="Semester" required>
-                <select value={iaForm.iaSemester} onChange={(e) => updateIa("iaSemester", e.target.value)} className="input-style">
-                  <option>1st Semester • Odd</option>
-                  <option>2nd Semester • Even</option>
-                  <option>3rd Semester</option>
-                  <option>4th Semester</option>
-                  <option>5th Semester</option>
-                  <option>6th Semester</option>
-                  <option>7th Semester</option>
-                  <option>8th Semester</option>
-                </select>
-              </Field>
-              <Field label="Department / Stream" required>
-                <select value={iaForm.iaDepartment} onChange={(e) => updateIa("iaDepartment", e.target.value)} className="input-style">
-                  {iaDepartments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
-                </select>
-              </Field>
-              <Field label="IA Type" required>
-                <select value={iaForm.iaType} onChange={(e) => updateIa("iaType", e.target.value)} className="input-style">
-                  <option>IA-1</option>
-                  <option>IA-2</option>
-                  <option>IA-3</option>
-                  <option>Other</option>
-                </select>
-              </Field>
-              <Field label="Title" required>
-                <input value={iaForm.title} onChange={(e) => updateIa("title", e.target.value)} className="input-style" />
-              </Field>
-              <Field label="Google Drive link" required hint="Make sure your Google Drive file or folder is shared so students with the link can view it.">
-                <div className="relative"><Link2 className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" size={16} /><input value={iaForm.googleDriveUrl} onChange={(e) => updateIa("googleDriveUrl", e.target.value)} className="input-style pl-11" placeholder="https://drive.google.com/..." /></div>
-              </Field>
-            </div>
-          </FormSection>
-          <FormSection title="A little about you (optional)">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Your name"><input value={iaForm.studentName} onChange={(e) => updateIa("studentName", e.target.value)} className="input-style" placeholder="How should we credit you? (optional)" /></Field>
-              <Field label="College email"><input type="email" value={iaForm.studentEmail} onChange={(e) => updateIa("studentEmail", e.target.value)} className="input-style" placeholder="you@college.edu (optional)" /></Field>
-            </div>
-          </FormSection>
-        </>
-      )}
-
-      {error && <div className="mb-4 mt-6 flex items-start gap-2 rounded-xl bg-[hsl(var(--destructive)/.1)] p-3 text-xs font-semibold text-[hsl(var(--destructive))]" role="alert"><CircleAlert size={15} className="mt-0.5 shrink-0" />{error}</div>}
-      <div className="mt-6 flex flex-col items-start justify-between gap-4 border-t border-[hsl(var(--border))] pt-5 sm:flex-row sm:items-center">
-        <p className="text-xs leading-5 text-[hsl(var(--muted-foreground))]">Submissions are checked by the Nexora student team.</p>
-        <button type="submit" disabled={createSubmission.isPending} className="focus-ring inline-flex items-center justify-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-5 py-3 text-sm font-bold text-[hsl(var(--primary-foreground))] hover:opacity-90 disabled:opacity-60 w-full sm:w-auto">
-          {createSubmission.isPending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} Send for review
-        </button>
-      </div>
-    </form>
-  </div>;
+  );
 }
 function FormSection({ title, children }: { title: string; children: ReactNode }) { return <fieldset className="border-b border-[hsl(var(--border))] py-6 first:pt-0 last:border-0"><legend className="mb-4 text-sm font-bold">{title}</legend>{children}</fieldset>; }
 function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: ReactNode }) { return <label className="block"><span className="mb-1.5 block text-xs font-bold">{label}{required && <span className="ml-1 text-[hsl(var(--destructive))]">*</span>}</span>{children}{hint && <span className="mt-1.5 block text-[11px] leading-4 text-[hsl(var(--muted-foreground))]">{hint}</span>}</label>; }
