@@ -2025,43 +2025,81 @@ function ContributePage() {
           <div className="rounded-3xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.75)] p-6 sm:p-7 shadow-xs">
             <h3 className="text-base font-bold text-[hsl(var(--foreground))] mb-4 flex items-center gap-2">
               <Sparkles size={17} className="text-[hsl(var(--accent-foreground))]" />
-              Quick 3-step guide
+              {uploadMethod === "link" ? "Google Drive link guide" : "Quick 3-step guide"}
             </h3>
-            <ol className="space-y-4 text-xs">
-              <li className="flex items-start gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--secondary)/.2)] text-xs font-bold text-[hsl(var(--secondary-foreground))]">
-                  1
-                </span>
-                <div>
-                  <p className="font-bold text-[hsl(var(--foreground))]">Select Your PDF File</p>
-                  <p className="mt-0.5 text-[hsl(var(--muted-foreground))]">
-                    Drag and drop your study document (up to 25 MB) or pick a file from your device.
-                  </p>
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--secondary)/.2)] text-xs font-bold text-[hsl(var(--secondary-foreground))]">
-                  2
-                </span>
-                <div>
-                  <p className="font-bold text-[hsl(var(--foreground))]">Add Title & Choose Subject</p>
-                  <p className="mt-0.5 text-[hsl(var(--muted-foreground))]">
-                    Title is auto-prefilled from your file name. Pick the correct branch, year, semester & subject.
-                  </p>
-                </div>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--accent)/.3)] text-xs font-bold text-[hsl(var(--accent-foreground))]">
-                  3
-                </span>
-                <div>
-                  <p className="font-bold text-[hsl(var(--foreground))]">Click Upload & Submit</p>
-                  <p className="mt-0.5 text-[hsl(var(--muted-foreground))]">
-                    File uploads straight to Google Drive and joins the review queue automatically.
-                  </p>
-                </div>
-              </li>
-            </ol>
+            {uploadMethod === "link" ? (
+              <ol className="space-y-4 text-xs">
+                <li className="flex items-start gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--secondary)/.2)] text-xs font-bold text-[hsl(var(--secondary-foreground))]">
+                    1
+                  </span>
+                  <div>
+                    <p className="font-bold text-[hsl(var(--foreground))]">Upload to Google Drive</p>
+                    <p className="mt-0.5 text-[hsl(var(--muted-foreground))]">
+                      Upload your document (PDF, DOC, notes) to your Google Drive account.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--secondary)/.2)] text-xs font-bold text-[hsl(var(--secondary-foreground))]">
+                    2
+                  </span>
+                  <div>
+                    <p className="font-bold text-[hsl(var(--foreground))]">Set "Anyone with the link"</p>
+                    <p className="mt-0.5 text-[hsl(var(--muted-foreground))]">
+                      Right click &rarr; Share &rarr; Change General Access to "Anyone with the link" (Viewer).
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--accent)/.3)] text-xs font-bold text-[hsl(var(--accent-foreground))]">
+                    3
+                  </span>
+                  <div>
+                    <p className="font-bold text-[hsl(var(--foreground))]">Paste Link & Submit</p>
+                    <p className="mt-0.5 text-[hsl(var(--muted-foreground))]">
+                      Copy the share link, paste it in the form, and choose the subject and branch.
+                    </p>
+                  </div>
+                </li>
+              </ol>
+            ) : (
+              <ol className="space-y-4 text-xs">
+                <li className="flex items-start gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--secondary)/.2)] text-xs font-bold text-[hsl(var(--secondary-foreground))]">
+                    1
+                  </span>
+                  <div>
+                    <p className="font-bold text-[hsl(var(--foreground))]">Select Your PDF File</p>
+                    <p className="mt-0.5 text-[hsl(var(--muted-foreground))]">
+                      Drag and drop your study document (up to 25 MB) or pick a file from your device.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--secondary)/.2)] text-xs font-bold text-[hsl(var(--secondary-foreground))]">
+                    2
+                  </span>
+                  <div>
+                    <p className="font-bold text-[hsl(var(--foreground))]">Add Title & Choose Subject</p>
+                    <p className="mt-0.5 text-[hsl(var(--muted-foreground))]">
+                      Title is auto-prefilled from your file name. Pick the correct branch, year, semester & subject.
+                    </p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--accent)/.3)] text-xs font-bold text-[hsl(var(--accent-foreground))]">
+                    3
+                  </span>
+                  <div>
+                    <p className="font-bold text-[hsl(var(--foreground))]">Click Upload & Submit</p>
+                    <p className="mt-0.5 text-[hsl(var(--muted-foreground))]">
+                      File uploads straight to Google Drive and joins the review queue automatically.
+                    </p>
+                  </div>
+                </li>
+              </ol>
+            )}
           </div>
 
           <div className="rounded-3xl border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted)/.25)] p-5 text-xs text-[hsl(var(--muted-foreground))]">
@@ -2070,7 +2108,9 @@ function ContributePage() {
               Safe & Zero-Storage
             </p>
             <p className="leading-relaxed">
-              Files are streamed directly into Google Drive with "Anyone with the link can view" permissions. No files are stored on server disks.
+              {uploadMethod === "link"
+                ? "Files stay safely hosted in your Google Drive and accessible to students without any file size limits."
+                : "Files are streamed directly into Google Drive with 'Anyone with the link can view' permissions. No files are stored on server disks."}
             </p>
           </div>
         </div>
@@ -2196,29 +2236,83 @@ function ContributePage() {
                   </div>
                 </div>
               ) : (
-                <Field
-                  label="Google Drive link"
-                  required
-                  hint={`${googleDriveUrlHint} Make sure link access is set to "Anyone with the link".`}
-                >
-                  <div className="relative">
-                    <Link2
-                      className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]"
-                      size={16}
-                    />
-                    <input
-                      value={contributionMode === "resource" ? form.googleDriveUrl : iaForm.googleDriveUrl}
-                      onChange={(e) =>
-                        contributionMode === "resource"
-                          ? update("googleDriveUrl", e.target.value)
-                          : updateIa("googleDriveUrl", e.target.value)
-                      }
-                      className="input-style pl-11"
-                      placeholder="https://drive.google.com/..."
-                      data-testid="input-gdrive-url"
-                    />
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.25)] p-4 sm:p-5 text-xs">
+                    <p className="font-bold text-sm text-[hsl(var(--foreground))] mb-3 flex items-center gap-2">
+                      <Link2 size={16} className="text-[hsl(var(--accent-foreground))]" />
+                      Steps to get your Google Drive link
+                    </p>
+                    <div className="grid gap-2.5 sm:grid-cols-2">
+                      <div className="flex items-start gap-2.5 rounded-xl border border-[hsl(var(--border)/.6)] bg-[hsl(var(--card)/.7)] p-3">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--secondary)/.25)] text-[11px] font-bold text-[hsl(var(--secondary-foreground))]">
+                          1
+                        </span>
+                        <div>
+                          <p className="font-bold text-[hsl(var(--foreground))]">Upload to Google Drive</p>
+                          <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">
+                            Go to your Google Drive and upload your notes, syllabus, or paper.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2.5 rounded-xl border border-[hsl(var(--border)/.6)] bg-[hsl(var(--card)/.7)] p-3">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--secondary)/.25)] text-[11px] font-bold text-[hsl(var(--secondary-foreground))]">
+                          2
+                        </span>
+                        <div>
+                          <p className="font-bold text-[hsl(var(--foreground))]">Click Share &rarr; Share</p>
+                          <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">
+                            Right-click the file in Google Drive and select Share.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2.5 rounded-xl border border-[hsl(var(--border)/.6)] bg-[hsl(var(--card)/.7)] p-3">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--secondary)/.25)] text-[11px] font-bold text-[hsl(var(--secondary-foreground))]">
+                          3
+                        </span>
+                        <div>
+                          <p className="font-bold text-[hsl(var(--foreground))]">Set "Anyone with the link"</p>
+                          <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">
+                            Under General access, switch from Restricted to Anyone with the link.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2.5 rounded-xl border border-[hsl(var(--border)/.6)] bg-[hsl(var(--card)/.7)] p-3">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--accent)/.3)] text-[11px] font-bold text-[hsl(var(--accent-foreground))]">
+                          4
+                        </span>
+                        <div>
+                          <p className="font-bold text-[hsl(var(--foreground))]">Copy link & paste below</p>
+                          <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">
+                            Click "Copy link" and paste the share URL in the box below.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </Field>
+
+                  <Field label="Google Drive link" required>
+                    <div className="relative">
+                      <Link2
+                        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]"
+                        size={16}
+                      />
+                      <input
+                        value={contributionMode === "resource" ? form.googleDriveUrl : iaForm.googleDriveUrl}
+                        onChange={(e) =>
+                          contributionMode === "resource"
+                            ? update("googleDriveUrl", e.target.value)
+                            : updateIa("googleDriveUrl", e.target.value)
+                        }
+                        className="input-style pl-11"
+                        placeholder="https://drive.google.com/file/d/.../view"
+                        data-testid="input-gdrive-url"
+                      />
+                    </div>
+                  </Field>
+                </div>
               )}
             </FormSection>
 
