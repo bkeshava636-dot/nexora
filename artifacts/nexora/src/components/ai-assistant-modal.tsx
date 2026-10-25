@@ -2,23 +2,19 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import {
   Bot,
-  Sparkles,
   X,
   Send,
   RotateCcw,
   BookOpen,
-  GraduationCap,
   ArrowRight,
   ExternalLink,
   ChevronRight,
   FileText,
-  Search,
-  CheckCircle2,
   Minimize2,
   Maximize2,
-  HelpCircle,
   Upload,
   Link2,
+  GraduationCap,
 } from "lucide-react";
 import {
   useListSubjects,
@@ -29,7 +25,6 @@ import {
   useListQuickLinks,
   type Subject,
   type Resource,
-  type ImportantLinkItem,
 } from "@workspace/api-client-react";
 
 interface ChatMessage {
@@ -50,108 +45,146 @@ interface ChatMessage {
   };
 }
 
-interface ParsedQuery {
-  subjectName?: string;
-  semesterNum?: number;
-  branchCode?: string;
-  intent: "notes" | "pyq" | "ia" | "syllabus" | "links" | "contribute" | "general";
+interface SubjectTopic {
+  key: string;
+  name: string;
+  synonyms: string[];
 }
 
-// Subject synonyms dictionary for intelligent alias matching
-const SYNONYMS: Record<string, string[]> = {
-  maths: [
-    "math", "maths", "mathematics", "m1", "m2", "m3", "m4", "calculus",
-    "linear algebra", "differential", "fourier", "numerical", "complex analysis",
-    "probability", "statistics", "transform calculus",
-  ],
-  physics: ["physics", "phy", "quantum", "semiconductor", "optics", "modern physics"],
-  chemistry: ["chemistry", "chem", "corrosion", "polymers", "battery", "sensors"],
-  dsa: ["dsa", "data structures", "data structure", "ds", "linked list", "trees", "graphs", "stacks", "queues"],
-  algorithms: ["daa", "algorithm", "algorithms", "design and analysis of algorithms"],
-  dbms: ["dbms", "database", "databases", "sql", "rdbms"],
-  os: ["os", "operating system", "operating systems", "unix", "linux"],
-  cn: ["cn", "computer networks", "networking", "network", "networks", "tcp", "ip"],
-  programming: ["c programming", "c prog", "python", "java", "oops", "object oriented", "cpp", "c++"],
-  ai: ["ai", "artificial intelligence", "ml", "machine learning", "deep learning", "neural"],
-  microcontroller: ["mpmc", "microcontroller", "microprocessor", "arm", "8086", "8051", "embedded"],
-  electronics: ["electronics", "dld", "ade", "digital electronics", "analog", "signals", "circuits", "vlsi"],
-  mechanical: ["mechanics", "thermo", "thermodynamics", "som", "strength of materials", "fluid mechanics", "cad", "cam"],
-  civil: ["civil", "surveying", "concrete", "structural", "geotechnical", "environment", "hydraulics"],
-  constitution: ["constitution", "cip", "ethics", "kannada", "english", "evs", "environmental studies"],
-};
+const TOPICS: SubjectTopic[] = [
+  {
+    key: "maths",
+    name: "Mathematics",
+    synonyms: [
+      "math", "maths", "mathematics", "calculus", "algebra", "fourier",
+      "numerical", "differential", "m1", "m2", "m3", "m4", "transforms", "statistic", "probability"
+    ],
+  },
+  {
+    key: "dsa",
+    name: "Data Structures",
+    synonyms: ["dsa", "data structure", "data structures", "ds", "trees", "graphs", "linked list"],
+  },
+  {
+    key: "os",
+    name: "Operating Systems",
+    synonyms: ["os", "operating system", "operating systems", "unix", "linux"],
+  },
+  {
+    key: "java",
+    name: "Java Programming",
+    synonyms: ["java", "oops with java", "oop java", "object oriented programming with java", "oop"],
+  },
+  {
+    key: "python",
+    name: "Python Programming",
+    synonyms: ["python", "python programming"],
+  },
+  {
+    key: "ddco",
+    name: "Digital Design & Computer Org",
+    synonyms: ["ddco", "digital design", "computer organization", "dld", "ade", "digital electronics"],
+  },
+  {
+    key: "physics",
+    name: "Engineering Physics",
+    synonyms: ["physics", "phy", "p cycle", "quantum", "semiconductor"],
+  },
+  {
+    key: "chemistry",
+    name: "Engineering Chemistry",
+    synonyms: ["chemistry", "chem", "c cycle", "corrosion", "polymers"],
+  },
+  {
+    key: "c_prog",
+    name: "C Programming",
+    synonyms: ["programming in c", "c programming", "c prog"],
+  },
+  {
+    key: "dbms",
+    name: "Database Management (DBMS)",
+    synonyms: ["dbms", "database", "databases", "sql", "rdbms"],
+  },
+  {
+    key: "cn",
+    name: "Computer Networks",
+    synonyms: ["cn", "computer network", "computer networks", "networking"],
+  },
+  {
+    key: "ai",
+    name: "Artificial Intelligence & ML",
+    synonyms: ["ai", "aiml", "artificial intelligence", "machine learning", "ml", "deep learning"],
+  },
+  {
+    key: "biology",
+    name: "Biology for Engineers",
+    synonyms: ["biology", "bio"],
+  },
+  {
+    key: "kannada",
+    name: "Samskritik / Balake Kannada",
+    synonyms: ["kannada", "samskritik", "balake"],
+  },
+  {
+    key: "constitution",
+    name: "Indian Constitution & Ethics",
+    synonyms: ["constitution", "cip", "ethics", "engineering ethics"],
+  },
+  {
+    key: "caed",
+    name: "Computer Aided Drawing (CAED)",
+    synonyms: ["caed", "drawing", "engineering drawing", "computer aided"],
+  },
+];
 
-function normalizeText(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9\s]/g, " ").trim();
+function normalizeSemName(semName?: string): { num: number; label: string } {
+  if (!semName) return { num: 1, label: "1st Sem" };
+  const upper = semName.toUpperCase();
+  if (upper.includes("C-CYCLE") || upper.includes("CHEM")) return { num: 1, label: "1st Sem (C-Cycle)" };
+  if (upper.includes("P-CYCLE") || upper.includes("PHY")) return { num: 2, label: "2nd Sem (P-Cycle)" };
+  const m = upper.match(/\b([1-8])\b/);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    const suffixes = ["", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"];
+    return { num: n, label: `${suffixes[n] || n + "th"} Sem` };
+  }
+  return { num: 1, label: semName };
 }
 
-function parseUserIntent(rawInput: string): ParsedQuery {
-  const norm = normalizeText(rawInput);
-  const words = norm.split(/\s+/);
+function extractSemesterFromText(rawText: string): number | null {
+  const norm = rawText.toLowerCase();
 
-  // 1. Detect Semester
-  let semesterNum: number | undefined;
+  if (norm.includes("c cycle") || norm.includes("c-cycle") || norm.includes("chem cycle") || norm.includes("chemistry cycle")) {
+    return 1;
+  }
+  if (norm.includes("p cycle") || norm.includes("p-cycle") || norm.includes("phy cycle") || norm.includes("physics cycle")) {
+    return 2;
+  }
+
   const semMatch = norm.match(/\b(?:sem|semester|s)\s*([1-8])\b/) ||
                    norm.match(/\b([1-8])(?:st|nd|rd|th)?\s*(?:sem|semester)\b/) ||
-                   norm.match(/\bsem([1-8])\b/);
+                   norm.match(/\bsem([1-8])\b/) ||
+                   norm.match(/\bs([1-8])\b/);
   if (semMatch) {
-    semesterNum = parseInt(semMatch[1], 10);
-  } else if (norm.includes("first sem") || norm.includes("first year sem 1")) {
-    semesterNum = 1;
-  } else if (norm.includes("second sem") || norm.includes("2nd sem")) {
-    semesterNum = 2;
-  } else if (norm.includes("third sem") || norm.includes("3rd sem")) {
-    semesterNum = 3;
-  } else if (norm.includes("fourth sem") || norm.includes("4th sem")) {
-    semesterNum = 4;
-  } else if (norm.includes("fifth sem") || norm.includes("5th sem")) {
-    semesterNum = 5;
-  } else if (norm.includes("sixth sem") || norm.includes("6th sem")) {
-    semesterNum = 6;
-  } else if (norm.includes("seventh sem") || norm.includes("7th sem")) {
-    semesterNum = 7;
-  } else if (norm.includes("eighth sem") || norm.includes("8th sem")) {
-    semesterNum = 8;
+    return parseInt(semMatch[1], 10);
   }
 
-  // 2. Detect Intent
-  let intent: ParsedQuery["intent"] = "notes";
-  if (norm.includes("pyq") || norm.includes("question paper") || norm.includes("previous year") || norm.includes("qp")) {
-    intent = "pyq";
-  } else if (norm.includes("ia") || norm.includes("internal") || norm.includes("midterm") || norm.includes("cie")) {
-    intent = "ia";
-  } else if (norm.includes("syllabus") || norm.includes("scheme") || norm.includes("curriculum")) {
-    intent = "syllabus";
-  } else if (norm.includes("result") || norm.includes("results") || norm.includes("portal") || norm.includes("vtu") || norm.includes("link") || norm.includes("calendar")) {
-    intent = "links";
-  } else if (norm.includes("upload") || norm.includes("contribute") || norm.includes("submit notes")) {
-    intent = "contribute";
+  if (norm.includes("1st") || norm.includes("first")) return 1;
+  if (norm.includes("2nd") || norm.includes("second")) return 2;
+  if (norm.includes("3rd") || norm.includes("third")) return 3;
+  if (norm.includes("4th") || norm.includes("fourth")) return 4;
+  if (norm.includes("5th") || norm.includes("fifth")) return 5;
+  if (norm.includes("6th") || norm.includes("sixth")) return 6;
+  if (norm.includes("7th") || norm.includes("seventh")) return 7;
+  if (norm.includes("8th") || norm.includes("eighth")) return 8;
+
+  // Single digit check if input is short like "3" or "sem 3"
+  const singleDigit = norm.match(/^\s*([1-8])\s*$/);
+  if (singleDigit) {
+    return parseInt(singleDigit[1], 10);
   }
 
-  // 3. Detect Subject
-  let matchedSubjectKey: string | undefined;
-  for (const [key, aliases] of Object.entries(SYNONYMS)) {
-    if (aliases.some((alias) => norm.includes(alias))) {
-      matchedSubjectKey = key;
-      break;
-    }
-  }
-
-  // Detect Branch
-  let branchCode: string | undefined;
-  const branchKeywords = ["cse", "aiml", "ai", "ece", "eee", "mech", "civil", "ise", "csbs"];
-  for (const b of branchKeywords) {
-    if (words.includes(b)) {
-      branchCode = b.toUpperCase();
-      break;
-    }
-  }
-
-  return {
-    subjectName: matchedSubjectKey,
-    semesterNum,
-    branchCode,
-    intent,
-  };
+  return null;
 }
 
 export function AiAssistantModal() {
@@ -162,8 +195,6 @@ export function AiAssistantModal() {
   // Queries
   const { data: allSubjects = [] } = useListSubjects();
   const { data: allSemesters = [] } = useListSemesters();
-  const { data: allYears = [] } = useListYears();
-  const { data: branches = [] } = useListBranches();
   const { data: resources = [] } = useListResources();
   const { data: quickLinks = [] } = useListQuickLinks();
 
@@ -173,23 +204,23 @@ export function AiAssistantModal() {
     {
       id: "welcome",
       sender: "bot",
-      text: "👋 Hi! I'm your **Nexora Study Assistant**.\n\nAsk me for any notes, question papers, or subjects — for example:\n• *\"I need maths notes\"*\n• *\"3rd sem DSA PYQs\"*\n• *\"VTU results link\"*\n\nHow can I help you study today?",
+      text: "👋 Hi! I'm your **Nexora Study Assistant**.\n\nTell me what you're looking for, for example:\n• *\"I need maths notes\"*\n• *\"Data Structures notes\"*\n• *\"Previous Year Question Papers\"*\n• *\"VTU results link\"*\n\nWhat would you like to study?",
       timestamp: "Just now",
       quickReplies: [
         { label: "📐 Maths Notes", value: "i need maths notes" },
         { label: "💻 Data Structures", value: "data structures notes" },
-        { label: "📄 3rd Sem PYQs", value: "3rd sem pyqs" },
+        { label: "📝 3rd Sem PYQs", value: "3rd sem pyqs" },
         { label: "🔗 College Results Link", value: "results link" },
       ],
     },
   ]);
 
-  // Conversational state memory
-  const [activeContext, setActiveContext] = useState<{
-    subjectKey?: string;
-    intent?: string;
-    pendingOptions?: { subject: Subject; semNumber: number }[];
-  }>({});
+  // Context memory for multi-turn conversations
+  const [pendingClarification, setPendingClarification] = useState<{
+    topicKey: string;
+    topicName: string;
+    options: Array<{ semNum: number; semLabel: string; subject: Subject; count: number }>;
+  } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -203,35 +234,25 @@ export function AiAssistantModal() {
     }
   }, [messages, isOpen, isMinimized, isTyping]);
 
-  // Helper map: semesterId -> semester number
-  const semesterMap = useMemo(() => {
-    const map = new Map<number, { number: number; name: string }>();
-    allSemesters.forEach((sem) => {
-      let num = 0;
-      const m = sem.name.match(/\b([1-8])\b/);
-      if (m) num = parseInt(m[1], 10);
-      map.set(sem.id, { number: num, name: sem.name });
+  // Semesters lookup map
+  const semMap = useMemo(() => {
+    const map = new Map<number, { num: number; label: string; raw: string }>();
+    allSemesters.forEach((s) => {
+      map.set(s.id, { raw: s.name, ...normalizeSemName(s.name) });
     });
     return map;
   }, [allSemesters]);
 
-  // Subject matching logic
-  const findMatchingSubjects = (subjectKey: string, targetSem?: number) => {
-    const aliases = SYNONYMS[subjectKey] || [subjectKey];
-    return allSubjects.filter((subj) => {
-      const subjNorm = normalizeText(subj.name + " " + (subj.description || ""));
-      const matchesAlias = aliases.some((alias) => subjNorm.includes(alias));
-      if (!matchesAlias) return false;
-
-      if (targetSem !== undefined) {
-        const semInfo = semesterMap.get(subj.semesterId);
-        if (semInfo && semInfo.number > 0 && semInfo.number !== targetSem) {
-          return false;
-        }
-      }
-      return true;
+  // Resources grouped by subject ID
+  const resourcesBySubject = useMemo(() => {
+    const map = new Map<number, Resource[]>();
+    resources.forEach((r) => {
+      const list = map.get(r.subjectId) || [];
+      list.push(r);
+      map.set(r.subjectId, list);
     });
-  };
+    return map;
+  }, [resources]);
 
   const handleSendMessage = (textToSend?: string) => {
     const userQuery = (textToSend ?? input).trim();
@@ -249,68 +270,81 @@ export function AiAssistantModal() {
     setInput("");
     setIsTyping(true);
 
-    // Process intelligence
     setTimeout(() => {
-      processBotResponse(userQuery);
+      processBotQuery(userQuery);
       setIsTyping(false);
-    }, 450);
+    }, 380);
   };
 
-  const processBotResponse = (userText: string) => {
-    const parsed = parseUserIntent(userText);
-    const norm = normalizeText(userText);
+  const processBotQuery = (rawQuery: string) => {
+    const q = rawQuery.toLowerCase().trim();
+    const extractedSem = extractSemesterFromText(q);
 
-    // 1. Check if user is answering a pending "Which semester?" question
-    if (activeContext.pendingOptions && activeContext.pendingOptions.length > 0) {
-      const chosenSem = parsed.semesterNum;
-      if (chosenSem) {
-        const matchedOption = activeContext.pendingOptions.find((opt) => opt.semNumber === chosenSem) ||
-                              activeContext.pendingOptions[0];
+    // 1. Check if user is responding to a pending "Which semester?" question
+    if (pendingClarification) {
+      const targetSem = extractedSem;
+      if (targetSem !== null) {
+        // Find matching option for this semester
+        const matchedOpt =
+          pendingClarification.options.find((opt) => opt.semNum === targetSem) ||
+          pendingClarification.options[0];
 
-        if (matchedOption) {
-          const targetSubj = matchedOption.subject;
-          const subjResources = resources.filter((r) => r.subjectId === targetSubj.id);
-          const notesCount = subjResources.filter((r) => r.resourceType?.toLowerCase().includes("note")).length;
-
-          const responseMsg: ChatMessage = {
-            id: (Date.now() + 1).toString(),
-            sender: "bot",
-            text: `🎯 Here is the shelf for **Semester ${matchedOption.semNumber}: ${targetSubj.name}**!${
-              notesCount > 0 ? ` Found **${notesCount} notes & materials** ready to study.` : ""
-            }`,
-            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-            actionCard: {
-              type: "subject",
-              title: targetSubj.name,
-              subtitle: `Semester ${matchedOption.semNumber} • ${subjResources.length} Resources available`,
-              badge: `Sem ${matchedOption.semNumber}`,
-              targetUrl: `/subject/${targetSubj.id}`,
-              buttonText: `Take me to ${targetSubj.name.slice(0, 24)} Shelf`,
-              resources: subjResources.slice(0, 3).map((r) => ({
-                title: r.title,
-                url: r.googleDriveUrl,
-                type: r.resourceType || "Notes",
-              })),
-            },
-            quickReplies: [
-              { label: "📄 Check PYQs for this", value: `pyqs for ${targetSubj.name}` },
-              { label: "🔍 Search another subject", value: "search another subject" },
-            ],
-          };
-
-          setActiveContext({});
-          setMessages((prev) => [...prev, responseMsg]);
+        if (matchedOpt) {
+          serveSubjectShelf(matchedOpt.subject, matchedOpt.semNum, matchedOpt.semLabel);
+          setPendingClarification(null);
           return;
         }
       }
     }
 
-    // 2. Quick Links / Results Intent
-    if (parsed.intent === "links" || norm.includes("result") || norm.includes("portal") || norm.includes("calendar")) {
-      const matchingLinks = quickLinks.filter((l) =>
-        norm.includes("result") ? l.title.toLowerCase().includes("result") || l.category.toLowerCase().includes("result") : true
+    // 2. Direct PYQ Intent
+    if (
+      q.includes("pyq") ||
+      q.includes("question paper") ||
+      q.includes("previous year") ||
+      q.includes("old paper") ||
+      q.includes("qp")
+    ) {
+      const semText = extractedSem ? `for **Semester ${extractedSem}**` : "for all departments and semesters";
+      const responseMsg: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        sender: "bot",
+        text: `📝 Looking for Previous Year Question Papers? We have VTU End-Semester exam papers and Internal Assessment (IA) test archives ${semText}!`,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        actionCard: {
+          type: "pyqs",
+          title: extractedSem ? `Semester ${extractedSem} Question Papers` : "PYQ & Question Papers Archive",
+          subtitle: "End-semester VTU exam papers & mid-term IA papers",
+          badge: extractedSem ? `Sem ${extractedSem} PYQs` : "Exam Prep",
+          targetUrl: "/pyqs",
+          buttonText: "Open PYQs Section ➔",
+        },
+        quickReplies: [
+          { label: "📐 Maths PYQs", value: "maths pyq" },
+          { label: "💻 CSE / AIML PYQs", value: "cse pyqs" },
+          { label: "⚡ ECE PYQs", value: "ece pyqs" },
+        ],
+      };
+      setMessages((prev) => [...prev, responseMsg]);
+      return;
+    }
+
+    // 3. Quick Links & Results Intent
+    if (
+      q.includes("result") ||
+      q.includes("results") ||
+      q.includes("vtu portal") ||
+      q.includes("calendar") ||
+      q.includes("portal") ||
+      q.includes("quick links")
+    ) {
+      const match = quickLinks.find(
+        (l) =>
+          l.title.toLowerCase().includes("result") ||
+          (l.description && l.description.toLowerCase().includes("result")) ||
+          l.category.toLowerCase().includes("result")
       );
-      const topLink = matchingLinks[0] || quickLinks[0];
+      const topLink = match || quickLinks[0];
 
       const responseMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -326,29 +360,29 @@ export function AiAssistantModal() {
           badge: "Official Portal",
           targetUrl: topLink ? topLink.url : "/quick-links",
           external: !!topLink,
-          buttonText: topLink ? "Open Portal Directly ↗" : "View All Quick Links",
+          buttonText: topLink ? "Open Portal Directly ↗" : "View All Quick Links ➔",
         },
         quickReplies: [
-          { label: "View all Quick Links", value: "all quick links" },
-          { label: "Maths Notes", value: "i need maths notes" },
+          { label: "📐 Maths Notes", value: "i need maths notes" },
+          { label: "View All Quick Links", value: "quick links" },
         ],
       };
       setMessages((prev) => [...prev, responseMsg]);
       return;
     }
 
-    // 3. Contribute Intent
-    if (parsed.intent === "contribute") {
+    // 4. Contribute / Upload Intent
+    if (q.includes("upload") || q.includes("contribute") || q.includes("share notes") || q.includes("submit notes")) {
       const responseMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         sender: "bot",
-        text: "✨ Want to help your fellow BITM students? You can upload notes, question papers, and study guides with **zero-cost instant upload**!",
+        text: "✨ Want to help fellow students? You can upload your PDF notes (up to 25 MB or via Google Drive link) on our **Contribute** desk with zero storage costs!",
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         actionCard: {
           type: "contribute",
           title: "Contribute Study Material",
-          subtitle: "Upload PDF directly (up to 25 MB or Google Drive link). Your credits are saved!",
-          badge: "Zero-Cost Storage",
+          subtitle: "Fast zero-storage direct Google Drive upload. Your name is credited!",
+          badge: "Community Upload",
           targetUrl: "/contribute",
           buttonText: "Go to Contribute Page ➔",
         },
@@ -357,196 +391,173 @@ export function AiAssistantModal() {
       return;
     }
 
-    // 4. PYQ Intent without subject
-    if (parsed.intent === "pyq" && !parsed.subjectName) {
+    // 5. Subject Search & Clarification Pipeline
+    let matchedTopic: SubjectTopic | null = null;
+    for (const t of TOPICS) {
+      if (t.synonyms.some((s) => q.includes(s))) {
+        matchedTopic = t;
+        break;
+      }
+    }
+
+    let candidateSubjects: Subject[] = [];
+
+    if (matchedTopic) {
+      candidateSubjects = allSubjects.filter((subj) => {
+        const text = (subj.name + " " + (subj.description || "")).toLowerCase();
+        return matchedTopic!.synonyms.some((s) => text.includes(s));
+      });
+    } else {
+      // General free-text fuzzy search across all subjects
+      candidateSubjects = allSubjects.filter((subj) => {
+        const text = (subj.name + " " + (subj.description || "")).toLowerCase();
+        return text.includes(q) || q.includes(subj.name.toLowerCase());
+      });
+    }
+
+    // Filter by branch if user mentioned one
+    const branchesNorm = ["cse", "aiml", "ai", "ece", "eee", "mech", "civil", "ise", "ds"];
+    const mentionedBranch = branchesNorm.find((b) => q.includes(b));
+
+    // Sort candidate subjects so that subjects with actual resources come first!
+    candidateSubjects.sort((a, b) => {
+      const countA = (resourcesBySubject.get(a.id) || []).length;
+      const countB = (resourcesBySubject.get(b.id) || []).length;
+      return countB - countA;
+    });
+
+    if (candidateSubjects.length === 0) {
+      // Check if any resource titles match
+      const matchingRes = resources.filter((r) =>
+        r.title.toLowerCase().includes(q) || (r.description && r.description.toLowerCase().includes(q))
+      );
+
+      if (matchingRes.length > 0) {
+        const res = matchingRes[0];
+        const responseMsg: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          sender: "bot",
+          text: `📄 Found resource: **${res.title}**!`,
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          actionCard: {
+            type: "resources",
+            title: res.title,
+            subtitle: res.description || "Study material in resource library",
+            badge: res.resourceType || "Notes",
+            targetUrl: `/resources?query=${encodeURIComponent(rawQuery)}`,
+            buttonText: "Open in Resource Library ➔",
+          },
+        };
+        setMessages((prev) => [...prev, responseMsg]);
+        return;
+      }
+
+      // No matches found fallback
       const responseMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         sender: "bot",
-        text: parsed.semesterNum
-          ? `📝 Looking for Semester ${parsed.semesterNum} Question Papers? We have both end-sem VTU papers and mid-term IA papers available!`
-          : "📝 We have a dedicated archive of Semester Question Papers (PYQs) and Internal Assessment (IA) papers across all departments!",
+        text: `🤔 I couldn't find a direct match for *"${rawQuery}"*.\n\nTry searching by subject name (like *Maths*, *Physics*, *DSA*, *Operating Systems*, *Java*) or browse our library:`,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        actionCard: {
-          type: "pyqs",
-          title: parsed.semesterNum ? `Semester ${parsed.semesterNum} Question Papers` : "PYQs & Question Papers Archive",
-          subtitle: "Browse Autonomous & VTU End-Sem papers and Internal Assessment tests",
-          badge: "Exam Prep",
-          targetUrl: "/pyqs",
-          buttonText: "Explore PYQ Archive ➔",
-        },
         quickReplies: [
-          { label: "📐 Maths PYQs", value: "maths pyq" },
-          { label: "💻 CSE / AIML PYQs", value: "cse pyqs" },
-          { label: "⚡ ECE PYQs", value: "ece pyqs" },
+          { label: "📐 Maths Notes", value: "i need maths notes" },
+          { label: "💻 Data Structures", value: "data structures notes" },
+          { label: "📝 3rd Sem PYQs", value: "3rd sem pyqs" },
+          { label: "📚 Explore All Resources", value: "resources" },
         ],
       };
       setMessages((prev) => [...prev, responseMsg]);
       return;
     }
 
-    // 5. Subject Search Intent (e.g. "I need maths notes" or "data structures")
-    const subjectKey = parsed.subjectName || (norm.includes("math") ? "maths" : undefined);
+    // Group subjects by normalized semester number (1 to 8)
+    const semMapOptions = new Map<number, { semNum: number; semLabel: string; subject: Subject; count: number }>();
 
-    if (subjectKey) {
-      const matched = findMatchingSubjects(subjectKey);
+    candidateSubjects.forEach((subj) => {
+      const semInfo = semMap.get(subj.semesterId) || { num: 1, label: "1st Sem", raw: "" };
+      const count = (resourcesBySubject.get(subj.id) || []).length;
+      const current = semMapOptions.get(semInfo.num);
 
-      if (matched.length === 0) {
-        // Fallback: general query search in all subjects
-        const generalMatches = allSubjects.filter((s) =>
-          normalizeText(s.name).includes(norm) || norm.includes(normalizeText(s.name))
-        );
-
-        if (generalMatches.length > 0) {
-          const first = generalMatches[0];
-          const semInfo = semesterMap.get(first.semesterId);
-          const responseMsg: ChatMessage = {
-            id: (Date.now() + 1).toString(),
-            sender: "bot",
-            text: `📚 I found **${first.name}**! Here is the direct link to the study shelf:`,
-            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-            actionCard: {
-              type: "subject",
-              title: first.name,
-              subtitle: semInfo ? `Semester ${semInfo.number}` : undefined,
-              badge: semInfo ? `Sem ${semInfo.number}` : "Subject",
-              targetUrl: `/subject/${first.id}`,
-              buttonText: `Open ${first.name.slice(0, 20)} Shelf ➔`,
-            },
-          };
-          setMessages((prev) => [...prev, responseMsg]);
-          return;
-        }
-
-        // Search in general resources
-        const matchingRes = resources.filter((r) =>
-          normalizeText(r.title).includes(norm) || norm.includes(normalizeText(r.title))
-        );
-
-        if (matchingRes.length > 0) {
-          const res = matchingRes[0];
-          const responseMsg: ChatMessage = {
-            id: (Date.now() + 1).toString(),
-            sender: "bot",
-            text: `📄 Found resource: **${res.title}**!`,
-            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-            actionCard: {
-              type: "resources",
-              title: res.title,
-              subtitle: res.description || "Study material in resource library",
-              badge: res.resourceType || "Document",
-              targetUrl: `/resources?query=${encodeURIComponent(userText)}`,
-              buttonText: "View in Resource Library ➔",
-            },
-          };
-          setMessages((prev) => [...prev, responseMsg]);
-          return;
-        }
-
-        // No matches found
-        const responseMsg: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          sender: "bot",
-          text: `🤔 I couldn't find a direct match for *"${userText}"*. Try searching by subject name (like *Maths*, *Physics*, *DSA*, *DBMS*) or browse our library.`,
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          quickReplies: [
-            { label: "📐 Maths Notes", value: "maths notes" },
-            { label: "💻 Data Structures", value: "data structures notes" },
-            { label: "📚 Browse All Resources", value: "browse all resources" },
-          ],
-        };
-        setMessages((prev) => [...prev, responseMsg]);
-        return;
+      // Prefer the subject that has resources or cleaner name
+      if (!current || count > current.count) {
+        semMapOptions.set(semInfo.num, {
+          semNum: semInfo.num,
+          semLabel: semInfo.label,
+          subject: subj,
+          count,
+        });
       }
+    });
 
-      // Group matches by semester
-      const semOptionsMap = new Map<number, Subject>();
-      matched.forEach((subj) => {
-        const sem = semesterMap.get(subj.semesterId);
-        const semNum = sem?.number ?? 1;
-        if (!semOptionsMap.has(semNum)) {
-          semOptionsMap.set(semNum, subj);
-        }
-      });
+    const semesterOptions = Array.from(semMapOptions.values()).sort((a, b) => a.semNum - b.semNum);
 
-      const options = Array.from(semOptionsMap.entries())
-        .map(([semNumber, subject]) => ({ semNumber, subject }))
-        .sort((a, b) => a.semNumber - b.semNumber);
-
-      // If user specified a semester or only 1 semester exists:
-      if (parsed.semesterNum || options.length === 1) {
-        const targetSem = parsed.semesterNum ?? options[0].semNumber;
-        const selected = options.find((o) => o.semNumber === targetSem) || options[0];
-        const subj = selected.subject;
-        const subjResources = resources.filter((r) => r.subjectId === subj.id);
-        const notesCount = subjResources.filter((r) => r.resourceType?.toLowerCase().includes("note")).length;
-
-        const responseMsg: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          sender: "bot",
-          text: `🎯 Found **Semester ${selected.semNumber} ${subj.name}**!${
-            notesCount > 0 ? ` There are **${notesCount} notes & study materials** available.` : ""
-          }`,
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          actionCard: {
-            type: "subject",
-            title: subj.name,
-            subtitle: `Semester ${selected.semNumber} • ${subjResources.length} Resources available`,
-            badge: `Sem ${selected.semNumber}`,
-            targetUrl: `/subject/${subj.id}`,
-            buttonText: `Take me to ${subj.name.slice(0, 24)} Shelf ➔`,
-            resources: subjResources.slice(0, 3).map((r) => ({
-              title: r.title,
-              url: r.googleDriveUrl,
-              type: r.resourceType || "Notes",
-            })),
-          },
-          quickReplies: [
-            { label: "📄 See PYQs", value: `pyqs for ${subj.name}` },
-            { label: "📐 Other Maths Semesters", value: "maths notes" },
-          ],
-        };
-        setMessages((prev) => [...prev, responseMsg]);
-        return;
-      }
-
-      // MULTIPLE SEMESTERS FOUND -> Ask clarifying question as requested!
-      const subjectTitleNice = subjectKey === "maths" ? "Mathematics" : subjectKey.toUpperCase();
-      const semChips = options.map((opt) => ({
-        label: `Sem ${opt.semNumber} (${opt.subject.name.slice(0, 20)}...)`,
-        value: `sem ${opt.semNumber}`,
-      }));
-
-      // Store in memory state for next response
-      setActiveContext({
-        subjectKey,
-        pendingOptions: options,
-      });
-
-      const responseMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        sender: "bot",
-        text: `📚 I found **${subjectTitleNice}** across several semesters!\n\n**Which semester are you looking for?** Click below or type your semester:`,
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        quickReplies: semChips,
-      };
-
-      setMessages((prev) => [...prev, responseMsg]);
+    // If user specified a semester in their query, or only 1 semester exists:
+    if (extractedSem !== null || semesterOptions.length === 1) {
+      const targetSem = extractedSem ?? semesterOptions[0].semNum;
+      const matchedOption = semesterOptions.find((opt) => opt.semNum === targetSem) || semesterOptions[0];
+      serveSubjectShelf(matchedOption.subject, matchedOption.semNum, matchedOption.semLabel);
       return;
     }
 
-    // Default conversational fallback
+    // MULTIPLE SEMESTERS FOUND -> Ask clarifying question as requested!
+    const topicTitle = matchedTopic ? matchedTopic.name : "this subject";
+
+    // Set state for next response
+    setPendingClarification({
+      topicKey: matchedTopic ? matchedTopic.key : "general",
+      topicName: topicTitle,
+      options: semesterOptions,
+    });
+
+    const quickReplyButtons = semesterOptions.map((opt) => ({
+      label: `${opt.semLabel} (${opt.subject.name.slice(0, 18)}${opt.subject.name.length > 18 ? "…" : ""}${
+        opt.count > 0 ? ` • ${opt.count} notes` : ""
+      })`,
+      value: `sem ${opt.semNum}`,
+    }));
+
     const responseMsg: ChatMessage = {
       id: (Date.now() + 1).toString(),
       sender: "bot",
-      text: "✨ I'm here to help you find whatever you need! What subject, semester, or study material are you looking for?",
+      text: `📚 I found **${topicTitle}** across several semesters!\n\n**Which semester do you need notes for?** Click below or type your semester:`,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      quickReplies: quickReplyButtons,
+    };
+
+    setMessages((prev) => [...prev, responseMsg]);
+  };
+
+  const serveSubjectShelf = (subject: Subject, semNum: number, semLabel: string) => {
+    const subjResources = resourcesBySubject.get(subject.id) || [];
+    const notesCount = subjResources.filter((r) => r.resourceType?.toLowerCase().includes("note")).length;
+
+    const responseMsg: ChatMessage = {
+      id: (Date.now() + 1).toString(),
+      sender: "bot",
+      text: `🎯 Here is the shelf for **${semLabel}: ${subject.name}**!${
+        subjResources.length > 0
+          ? ` There are **${subjResources.length} resources & notes** available.`
+          : " Ready to view in library."
+      }`,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      actionCard: {
+        type: "subject",
+        title: subject.name,
+        subtitle: `${semLabel} • ${subjResources.length} Materials available`,
+        badge: semLabel,
+        targetUrl: `/subject/${subject.id}`,
+        buttonText: `🎯 Take me to ${subject.name.slice(0, 22)} Shelf ➔`,
+        resources: subjResources.slice(0, 3).map((r) => ({
+          title: r.title,
+          url: r.googleDriveUrl,
+          type: r.resourceType || "Notes",
+        })),
+      },
       quickReplies: [
-        { label: "📐 Maths Notes", value: "i need maths notes" },
-        { label: "💻 Data Structures", value: "data structures notes" },
-        { label: "📄 Previous Year Question Papers", value: "pyqs" },
-        { label: "🔗 College Results Link", value: "results link" },
+        { label: `📄 See PYQs for ${semLabel}`, value: `pyqs for sem ${semNum}` },
+        { label: "🔍 Search another subject", value: "search another subject" },
       ],
     };
+
     setMessages((prev) => [...prev, responseMsg]);
   };
 
@@ -606,7 +617,7 @@ export function AiAssistantModal() {
                 <h3 id="ai-assistant-title" className="text-xs font-bold leading-none tracking-tight flex items-center gap-1.5">
                   Nexora AI Assistant
                   <span className="rounded-md bg-[hsl(var(--secondary)/.18)] px-1.5 py-0.5 text-[9px] font-extrabold text-[hsl(var(--secondary))]">
-                    PRO
+                    ACTIVE
                   </span>
                 </h3>
                 <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
@@ -628,11 +639,11 @@ export function AiAssistantModal() {
                       quickReplies: [
                         { label: "📐 Maths Notes", value: "i need maths notes" },
                         { label: "💻 Data Structures", value: "data structures notes" },
-                        { label: "📄 3rd Sem PYQs", value: "3rd sem pyqs" },
+                        { label: "📝 3rd Sem PYQs", value: "3rd sem pyqs" },
                       ],
                     },
                   ]);
-                  setActiveContext({});
+                  setPendingClarification(null);
                 }}
                 className="focus-ring rounded-lg p-1.5 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
                 title="Reset conversation"
