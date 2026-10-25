@@ -9,6 +9,7 @@ import {
 import { ApiWakeOverlay } from "@/components/api-wake-overlay";
 import { BuyMePaneerFooter } from "@/components/buy-me-paneer";
 import { FeedbackDialog } from "@/components/feedback-dialog";
+import { AiAssistantModal } from "@/components/ai-assistant-modal";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { AdSenseAd } from "@/components/adsense-ad";
 const AdminAnalytics = lazy(() => import("@/components/admin-analytics").then((m) => ({ default: m.AdminAnalytics })));
@@ -348,16 +349,19 @@ function Shell({ children }: { children: ReactNode }) {
     </div>
 
     {!location.startsWith("/admin") && (
-      <button
-        type="button"
-        onClick={() => setFeedbackOpen(true)}
-        className="focus-ring fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--foreground))] shadow-lg backdrop-blur-md transition-all hover:scale-105 hover:border-[hsl(var(--secondary))] hover:bg-[hsl(var(--secondary))] hover:text-[hsl(var(--secondary-foreground))] cursor-pointer active:scale-95 group"
-        data-testid="button-floating-feedback"
-        aria-label="Feedback and Bug Reports"
-      >
-        <MessageSquarePlus size={16} className="text-[hsl(var(--secondary))] group-hover:text-current transition-colors" />
-        <span>Feedback</span>
-      </button>
+      <div className="fixed bottom-5 right-5 z-40 flex items-center gap-2">
+        <AiAssistantModal />
+        <button
+          type="button"
+          onClick={() => setFeedbackOpen(true)}
+          className="focus-ring inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3.5 py-2.5 text-xs font-bold text-[hsl(var(--foreground))] shadow-lg backdrop-blur-md transition-all hover:scale-105 hover:border-[hsl(var(--secondary))] hover:bg-[hsl(var(--secondary))] hover:text-[hsl(var(--secondary-foreground))] cursor-pointer active:scale-95 group"
+          data-testid="button-floating-feedback"
+          aria-label="Feedback and Bug Reports"
+        >
+          <MessageSquarePlus size={15} className="text-[hsl(var(--secondary))] group-hover:text-current transition-colors" />
+          <span className="hidden sm:inline">Feedback</span>
+        </button>
+      </div>
     )}
 
     <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
