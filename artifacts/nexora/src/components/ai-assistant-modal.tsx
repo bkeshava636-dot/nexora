@@ -48,94 +48,228 @@ interface ChatMessage {
 interface SubjectTopic {
   key: string;
   name: string;
-  synonyms: string[];
+  acronyms: string[];
+  phrases: string[];
+}
+
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const d = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+  for (let i = 0; i <= a.length; i++) d[i][0] = i;
+  for (let j = 0; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+    }
+  }
+  return d[a.length][b.length];
 }
 
 const TOPICS: SubjectTopic[] = [
   {
-    key: "maths",
-    name: "Mathematics",
-    synonyms: [
-      "math", "maths", "mathematics", "calculus", "algebra", "fourier",
-      "numerical", "differential", "m1", "m2", "m3", "m4", "transforms", "statistic", "probability"
+    key: "ddco",
+    name: "Digital Design and Computer Organization",
+    acronyms: ["ddco", "dsdco", "dsd", "dld", "ade", "coa"],
+    phrases: [
+      "digital design and computer organization",
+      "digital design",
+      "computer organization",
+      "digital system design",
+      "digital logic design",
+      "computer architecture",
     ],
   },
   {
     key: "dsa",
-    name: "Data Structures",
-    synonyms: ["dsa", "data structure", "data structures", "ds", "trees", "graphs", "linked list"],
+    name: "Data Structures and Applications",
+    acronyms: ["dsa", "ds"],
+    phrases: [
+      "data structures and applications",
+      "data structures",
+      "data structure",
+      "trees and graphs",
+      "linked list",
+    ],
   },
   {
     key: "os",
     name: "Operating Systems",
-    synonyms: ["os", "operating system", "operating systems", "unix", "linux"],
+    acronyms: ["os"],
+    phrases: ["operating systems", "operating system", "linux", "unix"],
+  },
+  {
+    key: "maths",
+    name: "Mathematics",
+    acronyms: ["m1", "m2", "m3", "m4", "math", "maths"],
+    phrases: [
+      "mathematics",
+      "applied mathematics",
+      "transform calculus",
+      "complex analysis",
+      "numerical methods",
+      "fourier series",
+      "statistics and probability",
+      "linear algebra",
+      "discrete mathematics",
+    ],
   },
   {
     key: "java",
-    name: "Java Programming",
-    synonyms: ["java", "oops with java", "oop java", "object oriented programming with java", "oop"],
+    name: "Object Oriented Programming with Java",
+    acronyms: ["java", "oops"],
+    phrases: [
+      "object oriented programming with java",
+      "java programming",
+      "object oriented programming",
+      "oop java",
+    ],
   },
   {
     key: "python",
     name: "Python Programming",
-    synonyms: ["python", "python programming"],
-  },
-  {
-    key: "ddco",
-    name: "Digital Design & Computer Org",
-    synonyms: ["ddco", "digital design", "computer organization", "dld", "ade", "digital electronics"],
+    acronyms: ["python"],
+    phrases: ["python programming", "python language"],
   },
   {
     key: "physics",
     name: "Engineering Physics",
-    synonyms: ["physics", "phy", "p cycle", "quantum", "semiconductor"],
+    acronyms: ["phy"],
+    phrases: [
+      "physics for ai",
+      "engineering physics",
+      "physics",
+      "p-cycle physics",
+      "p cycle physics",
+      "quantum mechanics",
+    ],
   },
   {
     key: "chemistry",
-    name: "Engineering Chemistry",
-    synonyms: ["chemistry", "chem", "c cycle", "corrosion", "polymers"],
+    name: "Applied Chemistry",
+    acronyms: ["chem"],
+    phrases: [
+      "applied chemistry",
+      "engineering chemistry",
+      "chemistry",
+      "c-cycle chemistry",
+      "c cycle chemistry",
+    ],
   },
   {
     key: "c_prog",
-    name: "C Programming",
-    synonyms: ["programming in c", "c programming", "c prog"],
+    name: "Programming in C",
+    acronyms: ["cip", "cprog"],
+    phrases: ["programming in c", "c programming", "c language"],
   },
   {
     key: "dbms",
-    name: "Database Management (DBMS)",
-    synonyms: ["dbms", "database", "databases", "sql", "rdbms"],
+    name: "Database Management Systems",
+    acronyms: ["dbms", "sql", "rdbms"],
+    phrases: [
+      "database management systems",
+      "database management",
+      "database",
+      "databases",
+    ],
   },
   {
     key: "cn",
     name: "Computer Networks",
-    synonyms: ["cn", "computer network", "computer networks", "networking"],
+    acronyms: ["cn"],
+    phrases: ["computer networks", "computer network", "networking"],
   },
   {
     key: "ai",
-    name: "Artificial Intelligence & ML",
-    synonyms: ["ai", "aiml", "artificial intelligence", "machine learning", "ml", "deep learning"],
+    name: "Introduction to AI and Applications",
+    acronyms: ["ai", "aiml", "ml"],
+    phrases: [
+      "introduction to ai",
+      "artificial intelligence",
+      "machine learning",
+      "deep learning",
+    ],
   },
   {
     key: "biology",
-    name: "Biology for Engineers",
-    synonyms: ["biology", "bio"],
+    name: "Biology for Computer Engineers",
+    acronyms: ["bio"],
+    phrases: ["biology for computer engineers", "biology for engineers", "biology"],
   },
   {
     key: "kannada",
     name: "Samskritik / Balake Kannada",
-    synonyms: ["kannada", "samskritik", "balake"],
+    acronyms: ["kannada"],
+    phrases: ["samskritik kannada", "balake kannada", "kannada"],
   },
   {
     key: "constitution",
-    name: "Indian Constitution & Ethics",
-    synonyms: ["constitution", "cip", "ethics", "engineering ethics"],
+    name: "Indian Constitution and Engineering Ethics",
+    acronyms: ["constitution", "ethics"],
+    phrases: [
+      "indian constitution and engineering ethics",
+      "constitution of india",
+      "engineering ethics",
+    ],
   },
   {
     key: "caed",
-    name: "Computer Aided Drawing (CAED)",
-    synonyms: ["caed", "drawing", "engineering drawing", "computer aided"],
+    name: "Computer Aided Engineering Drawing",
+    acronyms: ["caed"],
+    phrases: ["computer aided engineering drawing", "engineering drawing", "caed drawing"],
   },
 ];
+
+function scoreTopic(inputWords: string[], rawNorm: string, topic: SubjectTopic): number {
+  let score = 0;
+
+  // 1. Exact acronym matching (word boundary match)
+  for (const acr of topic.acronyms) {
+    if (inputWords.includes(acr)) {
+      score += 150;
+    }
+    // Fuzzy check on user words if user made a slight typo (e.g. dsdco -> ddco)
+    for (const w of inputWords) {
+      if (w.length >= 4 && acr.length >= 4 && levenshtein(w, acr) === 1) {
+        score += 80;
+      }
+    }
+  }
+
+  // 2. Phrase matching
+  for (const phr of topic.phrases) {
+    if (rawNorm.includes(phr)) {
+      score += phr.length * 6;
+    }
+  }
+
+  // 3. Token & fuzzy matching against phrases
+  for (const w of inputWords) {
+    if (
+      w.length < 3 ||
+      ["notes", "note", "sem", "semester", "need", "give", "shelf", "subject", "exam", "book"].includes(w)
+    ) {
+      continue;
+    }
+
+    for (const phr of topic.phrases) {
+      const phrWords = phr.split(/\s+/);
+      if (phrWords.includes(w)) {
+        score += w.length * 3;
+      } else {
+        for (const pw of phrWords) {
+          if (w.length >= 5 && pw.length >= 5 && levenshtein(w, pw) <= 1) {
+            score += 15;
+          }
+        }
+      }
+    }
+  }
+
+  return score;
+}
 
 function normalizeSemName(semName?: string): { num: number; label: string } {
   if (!semName) return { num: 1, label: "1st Sem" };
@@ -161,10 +295,11 @@ function extractSemesterFromText(rawText: string): number | null {
     return 2;
   }
 
-  const semMatch = norm.match(/\b(?:sem|semester|s)\s*([1-8])\b/) ||
-                   norm.match(/\b([1-8])(?:st|nd|rd|th)?\s*(?:sem|semester)\b/) ||
-                   norm.match(/\bsem([1-8])\b/) ||
-                   norm.match(/\bs([1-8])\b/);
+  const semMatch =
+    norm.match(/\b(?:sem|semester|s)\s*([1-8])\b/) ||
+    norm.match(/\b([1-8])(?:st|nd|rd|th)?\s*(?:sem|semester)\b/) ||
+    norm.match(/\bsem([1-8])\b/) ||
+    norm.match(/\bs([1-8])\b/);
   if (semMatch) {
     return parseInt(semMatch[1], 10);
   }
@@ -178,7 +313,6 @@ function extractSemesterFromText(rawText: string): number | null {
   if (norm.includes("7th") || norm.includes("seventh")) return 7;
   if (norm.includes("8th") || norm.includes("eighth")) return 8;
 
-  // Single digit check if input is short like "3" or "sem 3"
   const singleDigit = norm.match(/^\s*([1-8])\s*$/);
   if (singleDigit) {
     return parseInt(singleDigit[1], 10);
@@ -204,13 +338,13 @@ export function AiAssistantModal() {
     {
       id: "welcome",
       sender: "bot",
-      text: "👋 Hi! I'm your **Nexora Study Assistant**.\n\nTell me what you're looking for, for example:\n• *\"I need maths notes\"*\n• *\"Data Structures notes\"*\n• *\"Previous Year Question Papers\"*\n• *\"VTU results link\"*\n\nWhat would you like to study?",
+      text: "👋 Hi! I'm your **Nexora Study Assistant** for BITM.\n\nAsk me for notes, question papers, or links, for example:\n• *\"I need maths notes\"*\n• *\"DSDCO / DDCO notes\"*\n• *\"Data Structures notes\"*\n• *\"BITM results link\"*\n\nHow can I help you today?",
       timestamp: "Just now",
       quickReplies: [
         { label: "📐 Maths Notes", value: "i need maths notes" },
+        { label: "⚡ DSDCO / DDCO Notes", value: "dsdco notes" },
         { label: "💻 Data Structures", value: "data structures notes" },
-        { label: "📝 3rd Sem PYQs", value: "3rd sem pyqs" },
-        { label: "🔗 College Results Link", value: "results link" },
+        { label: "📊 BITM Results Link", value: "bitm result link" },
       ],
     },
   ]);
@@ -277,14 +411,14 @@ export function AiAssistantModal() {
   };
 
   const processBotQuery = (rawQuery: string) => {
-    const q = rawQuery.toLowerCase().trim();
-    const extractedSem = extractSemesterFromText(q);
+    const norm = rawQuery.toLowerCase().replace(/[^a-z0-9\s]/g, " ").trim();
+    const words = norm.split(/\s+/);
+    const extractedSem = extractSemesterFromText(rawQuery);
 
-    // 1. Check if user is responding to a pending "Which semester?" question
+    // 1. Multi-turn Clarification Response
     if (pendingClarification) {
       const targetSem = extractedSem;
       if (targetSem !== null) {
-        // Find matching option for this semester
         const matchedOpt =
           pendingClarification.options.find((opt) => opt.semNum === targetSem) ||
           pendingClarification.options[0];
@@ -297,52 +431,57 @@ export function AiAssistantModal() {
       }
     }
 
-    // 2. Direct PYQ Intent
+    // 2. BITM Autonomous Results Intent (Strict priority over general links!)
     if (
-      q.includes("pyq") ||
-      q.includes("question paper") ||
-      q.includes("previous year") ||
-      q.includes("old paper") ||
-      q.includes("qp")
+      norm.includes("result") ||
+      norm.includes("results") ||
+      norm.includes("marks") ||
+      norm.includes("sgpa") ||
+      norm.includes("cgpa") ||
+      norm.includes("grade") ||
+      norm.includes("contineo")
     ) {
-      const semText = extractedSem ? `for **Semester ${extractedSem}**` : "for all departments and semesters";
+      const bitmResultsLink = quickLinks.find(
+        (l) => l.url.includes("bitmeresults.contineo.in") || l.title.toLowerCase().includes("result")
+      );
+      const url = bitmResultsLink ? bitmResultsLink.url : "https://bitmeresults.contineo.in/";
+
       const responseMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         sender: "bot",
-        text: `📝 Looking for Previous Year Question Papers? We have VTU End-Semester exam papers and Internal Assessment (IA) test archives ${semText}!`,
+        text: "🎓 Here is the official **BITM Autonomous Examination Results Portal (Contineo)** link to check your semester results, SGPA, and grade sheets:",
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         actionCard: {
-          type: "pyqs",
-          title: extractedSem ? `Semester ${extractedSem} Question Papers` : "PYQ & Question Papers Archive",
-          subtitle: "End-semester VTU exam papers & mid-term IA papers",
-          badge: extractedSem ? `Sem ${extractedSem} PYQs` : "Exam Prep",
-          targetUrl: "/pyqs",
-          buttonText: "Open PYQs Section ➔",
+          type: "link",
+          title: "BITM Results Portal (Contineo)",
+          subtitle: "Official Autonomous Examination Results • bitmeresults.contineo.in",
+          badge: "BITM Official",
+          targetUrl: url,
+          external: true,
+          buttonText: "Open BITM Results Portal ↗",
         },
         quickReplies: [
-          { label: "📐 Maths PYQs", value: "maths pyq" },
-          { label: "💻 CSE / AIML PYQs", value: "cse pyqs" },
-          { label: "⚡ ECE PYQs", value: "ece pyqs" },
+          { label: "📅 Academic Calendar", value: "academic calendar" },
+          { label: "🎒 Contineo Student Portal", value: "contineo student portal" },
+          { label: "📐 Maths Notes", value: "i need maths notes" },
         ],
       };
       setMessages((prev) => [...prev, responseMsg]);
       return;
     }
 
-    // 3. Quick Links & Results Intent
+    // 3. Official Academic Calendar / Portals Intent
     if (
-      q.includes("result") ||
-      q.includes("results") ||
-      q.includes("vtu portal") ||
-      q.includes("calendar") ||
-      q.includes("portal") ||
-      q.includes("quick links")
+      norm.includes("calendar") ||
+      norm.includes("academic") ||
+      norm.includes("portal") ||
+      norm.includes("quick links")
     ) {
       const match = quickLinks.find(
         (l) =>
-          l.title.toLowerCase().includes("result") ||
-          (l.description && l.description.toLowerCase().includes("result")) ||
-          l.category.toLowerCase().includes("result")
+          l.title.toLowerCase().includes(norm) ||
+          (l.description && l.description.toLowerCase().includes(norm)) ||
+          l.category.toLowerCase().includes(norm)
       );
       const topLink = match || quickLinks[0];
 
@@ -350,20 +489,20 @@ export function AiAssistantModal() {
         id: (Date.now() + 1).toString(),
         sender: "bot",
         text: topLink
-          ? `🔗 Here is the official link for **${topLink.title}**! You can open it directly or view all verified academic portals:`
-          : "🔗 Here are the official academic links and portals for results, calendars, and syllabus:",
+          ? `🔗 Here is the official link for **${topLink.title}**:`
+          : "🔗 Here are the official BITM academic links and portals:",
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         actionCard: {
           type: "link",
           title: topLink ? topLink.title : "Official Quick Links & Portals",
-          subtitle: topLink ? (topLink.description ?? undefined) : "VTU result portals, academic calendar, exam notifications",
-          badge: "Official Portal",
+          subtitle: topLink ? (topLink.description ?? undefined) : "Academic portals, calendar & notifications",
+          badge: "BITM Official",
           targetUrl: topLink ? topLink.url : "/quick-links",
           external: !!topLink,
-          buttonText: topLink ? "Open Portal Directly ↗" : "View All Quick Links ➔",
+          buttonText: topLink ? `Open ${topLink.title.slice(0, 20)} ↗` : "View All Quick Links ➔",
         },
         quickReplies: [
-          { label: "📐 Maths Notes", value: "i need maths notes" },
+          { label: "📊 BITM Results", value: "bitm result link" },
           { label: "View All Quick Links", value: "quick links" },
         ],
       };
@@ -371,12 +510,49 @@ export function AiAssistantModal() {
       return;
     }
 
-    // 4. Contribute / Upload Intent
-    if (q.includes("upload") || q.includes("contribute") || q.includes("share notes") || q.includes("submit notes")) {
+    // 4. PYQ Intent
+    if (
+      norm.includes("pyq") ||
+      norm.includes("question paper") ||
+      norm.includes("previous year") ||
+      norm.includes("old paper") ||
+      norm.includes("qp")
+    ) {
+      const semText = extractedSem ? `for **Semester ${extractedSem}**` : "for all departments and semesters";
       const responseMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         sender: "bot",
-        text: "✨ Want to help fellow students? You can upload your PDF notes (up to 25 MB or via Google Drive link) on our **Contribute** desk with zero storage costs!",
+        text: `📝 Looking for Previous Year Question Papers? We have BITM Autonomous End-Semester exam papers and Internal Assessment (IA) test archives ${semText}!`,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        actionCard: {
+          type: "pyqs",
+          title: extractedSem ? `Semester ${extractedSem} Question Papers` : "PYQ & Question Papers Archive",
+          subtitle: "Autonomous End-Sem exam papers & mid-term IA papers",
+          badge: extractedSem ? `Sem ${extractedSem} PYQs` : "Exam Prep",
+          targetUrl: "/pyqs",
+          buttonText: "Open PYQs Section ➔",
+        },
+        quickReplies: [
+          { label: "📐 Maths PYQs", value: "maths pyq" },
+          { label: "💻 CSE / AIML PYQs", value: "cse pyqs" },
+          { label: "⚡ DSDCO / DDCO Notes", value: "dsdco notes" },
+        ],
+      };
+      setMessages((prev) => [...prev, responseMsg]);
+      return;
+    }
+
+    // 5. Contribute / Upload Intent
+    if (
+      norm.includes("upload") ||
+      norm.includes("contribute") ||
+      norm.includes("share notes") ||
+      norm.includes("submit notes")
+    ) {
+      const responseMsg: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        sender: "bot",
+        text: "✨ Want to help fellow BITM students? You can upload your PDF notes (up to 25 MB or via Google Drive link) on our **Contribute** desk with zero storage costs!",
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         actionCard: {
           type: "contribute",
@@ -391,33 +567,35 @@ export function AiAssistantModal() {
       return;
     }
 
-    // 5. Subject Search & Clarification Pipeline
-    let matchedTopic: SubjectTopic | null = null;
-    for (const t of TOPICS) {
-      if (t.synonyms.some((s) => q.includes(s))) {
-        matchedTopic = t;
-        break;
-      }
-    }
+    // 6. Token-scored Topic Matching (Solves DSDCO vs DSA collision!)
+    const scoredTopics = TOPICS.map((topic) => ({
+      topic,
+      score: scoreTopic(words, norm, topic),
+    })).sort((a, b) => b.score - a.score);
+
+    const bestTopic = scoredTopics[0].score >= 50 ? scoredTopics[0].topic : null;
 
     let candidateSubjects: Subject[] = [];
 
-    if (matchedTopic) {
+    if (bestTopic) {
       candidateSubjects = allSubjects.filter((subj) => {
         const text = (subj.name + " " + (subj.description || "")).toLowerCase();
-        return matchedTopic!.synonyms.some((s) => text.includes(s));
+        // Check if any phrase or acronym matches this subject text
+        return (
+          bestTopic.phrases.some((p) => text.includes(p)) ||
+          bestTopic.acronyms.some((a) => {
+            const subjWords = text.replace(/[^a-z0-9\s]/g, " ").split(/\s+/);
+            return subjWords.includes(a);
+          })
+        );
       });
     } else {
-      // General free-text fuzzy search across all subjects
+      // General fuzzy search on subjects
       candidateSubjects = allSubjects.filter((subj) => {
         const text = (subj.name + " " + (subj.description || "")).toLowerCase();
-        return text.includes(q) || q.includes(subj.name.toLowerCase());
+        return text.includes(norm) || norm.includes(subj.name.toLowerCase());
       });
     }
-
-    // Filter by branch if user mentioned one
-    const branchesNorm = ["cse", "aiml", "ai", "ece", "eee", "mech", "civil", "ise", "ds"];
-    const mentionedBranch = branchesNorm.find((b) => q.includes(b));
 
     // Sort candidate subjects so that subjects with actual resources come first!
     candidateSubjects.sort((a, b) => {
@@ -428,9 +606,10 @@ export function AiAssistantModal() {
 
     if (candidateSubjects.length === 0) {
       // Check if any resource titles match
-      const matchingRes = resources.filter((r) =>
-        r.title.toLowerCase().includes(q) || (r.description && r.description.toLowerCase().includes(q))
-      );
+      const matchingRes = resources.filter((r) => {
+        const titleNorm = r.title.toLowerCase();
+        return titleNorm.includes(norm) || (r.description && r.description.toLowerCase().includes(norm));
+      });
 
       if (matchingRes.length > 0) {
         const res = matchingRes[0];
@@ -456,13 +635,13 @@ export function AiAssistantModal() {
       const responseMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         sender: "bot",
-        text: `🤔 I couldn't find a direct match for *"${rawQuery}"*.\n\nTry searching by subject name (like *Maths*, *Physics*, *DSA*, *Operating Systems*, *Java*) or browse our library:`,
+        text: `🤔 I couldn't find a direct match for *"${rawQuery}"*.\n\nTry searching by subject name (like *Maths*, *DSDCO / DDCO*, *Data Structures*, *Operating Systems*, *Java*) or browse our library:`,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         quickReplies: [
           { label: "📐 Maths Notes", value: "i need maths notes" },
+          { label: "⚡ DSDCO / DDCO Notes", value: "dsdco notes" },
           { label: "💻 Data Structures", value: "data structures notes" },
-          { label: "📝 3rd Sem PYQs", value: "3rd sem pyqs" },
-          { label: "📚 Explore All Resources", value: "resources" },
+          { label: "📊 BITM Results Link", value: "bitm result link" },
         ],
       };
       setMessages((prev) => [...prev, responseMsg]);
@@ -477,7 +656,6 @@ export function AiAssistantModal() {
       const count = (resourcesBySubject.get(subj.id) || []).length;
       const current = semMapOptions.get(semInfo.num);
 
-      // Prefer the subject that has resources or cleaner name
       if (!current || count > current.count) {
         semMapOptions.set(semInfo.num, {
           semNum: semInfo.num,
@@ -499,11 +677,11 @@ export function AiAssistantModal() {
     }
 
     // MULTIPLE SEMESTERS FOUND -> Ask clarifying question as requested!
-    const topicTitle = matchedTopic ? matchedTopic.name : "this subject";
+    const topicTitle = bestTopic ? bestTopic.name : "this subject";
 
     // Set state for next response
     setPendingClarification({
-      topicKey: matchedTopic ? matchedTopic.key : "general",
+      topicKey: bestTopic ? bestTopic.key : "general",
       topicName: topicTitle,
       options: semesterOptions,
     });
@@ -528,7 +706,6 @@ export function AiAssistantModal() {
 
   const serveSubjectShelf = (subject: Subject, semNum: number, semLabel: string) => {
     const subjResources = resourcesBySubject.get(subject.id) || [];
-    const notesCount = subjResources.filter((r) => r.resourceType?.toLowerCase().includes("note")).length;
 
     const responseMsg: ChatMessage = {
       id: (Date.now() + 1).toString(),
@@ -536,7 +713,7 @@ export function AiAssistantModal() {
       text: `🎯 Here is the shelf for **${semLabel}: ${subject.name}**!${
         subjResources.length > 0
           ? ` There are **${subjResources.length} resources & notes** available.`
-          : " Ready to view in library."
+          : " Ready to view on your desk."
       }`,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       actionCard: {
@@ -617,7 +794,7 @@ export function AiAssistantModal() {
                 <h3 id="ai-assistant-title" className="text-xs font-bold leading-none tracking-tight flex items-center gap-1.5">
                   Nexora AI Assistant
                   <span className="rounded-md bg-[hsl(var(--secondary)/.18)] px-1.5 py-0.5 text-[9px] font-extrabold text-[hsl(var(--secondary))]">
-                    ACTIVE
+                    BITM
                   </span>
                 </h3>
                 <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
@@ -638,8 +815,9 @@ export function AiAssistantModal() {
                       timestamp: "Just now",
                       quickReplies: [
                         { label: "📐 Maths Notes", value: "i need maths notes" },
+                        { label: "⚡ DSDCO / DDCO Notes", value: "dsdco notes" },
                         { label: "💻 Data Structures", value: "data structures notes" },
-                        { label: "📝 3rd Sem PYQs", value: "3rd sem pyqs" },
+                        { label: "📊 BITM Results Link", value: "bitm result link" },
                       ],
                     },
                   ]);
