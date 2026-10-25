@@ -11,4 +11,4 @@ export * from "./analytics";
 export * from "./semester-qps";
 export * from "./ia-papers";
 export * from "./quick-links";
-
+export * from "./ai";

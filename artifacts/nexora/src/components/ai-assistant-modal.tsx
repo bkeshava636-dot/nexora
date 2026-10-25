@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, type KeyboardEvent } from "react";
 import { useLocation } from "wouter";
 import {
   Bot,
@@ -15,20 +15,25 @@ import {
   Upload,
   Link2,
   GraduationCap,
+  Copy,
+  Check,
+  Sparkles,
+  RefreshCw,
+  AlertCircle,
+  HelpCircle,
 } from "lucide-react";
 import {
+  useAiChat,
   useListSubjects,
   useListSemesters,
-  useListYears,
-  useListBranches,
   useListResources,
   useListQuickLinks,
   useListIaPapers,
   useListSemesterQps,
   type Subject,
   type Resource,
-  type IaPaperItem,
-  type SemesterQpItem,
+  type ContextState,
+  type ActionCardData,
 } from "@workspace/api-client-react";
 
 interface ChatMessage {
@@ -37,344 +42,200 @@ interface ChatMessage {
   text: string;
   timestamp: string;
   quickReplies?: { label: string; value: string }[];
-  actionCard?: {
-    type: "subject" | "pyqs" | "link" | "contribute" | "resources";
-    title: string;
-    subtitle?: string;
-    badge?: string;
-    targetUrl: string;
-    external?: boolean;
-    buttonText: string;
-    resources?: { title: string; url?: string; type: string }[];
+  actionCard?: ActionCardData;
+  isError?: boolean;
+  canRetry?: boolean;
+  failedQuery?: string;
+}
+
+// ============================================================================
+// 1. CODE BLOCK WITH 1-CLICK COPY
+// ============================================================================
+function CodeBlock({ language, code }: { language: string; code: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
+
+  return (
+    <div className="my-2.5 overflow-hidden rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)] shadow-xs">
+      <div className="flex items-center justify-between border-b border-[hsl(var(--border))] bg-[hsl(var(--muted)/.6)] px-3 py-1.5 text-[11px] font-mono text-[hsl(var(--muted-foreground))]">
+        <span className="uppercase font-semibold tracking-wider text-[10px] text-[hsl(var(--secondary))]">
+          {language || "code"}
+        </span>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 hover:bg-[hsl(var(--card))] hover:text-[hsl(var(--foreground))] transition-colors cursor-pointer text-[10px] font-medium"
+          title="Copy code to clipboard"
+        >
+          {copied ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+          <span>{copied ? "Copied!" : "Copy"}</span>
+        </button>
+      </div>
+      <pre className="overflow-x-auto p-3 text-[11px] font-mono leading-relaxed text-[hsl(var(--foreground))] mobile-scroll">
+        <code>{code}</code>
+      </pre>
+    </div>
+  );
 }
 
-interface SubjectTopic {
-  key: string;
-  name: string;
-  acronyms: string[];
-  phrases: string[];
+// ============================================================================
+// 2. INLINE & PROSE MARKDOWN FORMATTER
+// ============================================================================
+function renderInline(text: string) {
+  // Tokenize bold, code, and italic formatting
+  const tokens = text.split(/(\*\*.*?\*\*|`.*?`|\*.*?\*)/g);
+  return tokens.map((token, i) => {
+    if (token.startsWith("**") && token.endsWith("**") && token.length >= 4) {
+      return (
+        <strong key={i} className="font-bold text-[hsl(var(--foreground))]">
+          {token.slice(2, -2)}
+        </strong>
+      );
+    }
+    if (token.startsWith("`") && token.endsWith("`") && token.length >= 2) {
+      return (
+        <code
+          key={i}
+          className="rounded-md bg-[hsl(var(--muted))] px-1.5 py-0.5 font-mono text-[11px] text-[hsl(var(--secondary))] font-semibold"
+        >
+          {token.slice(1, -1)}
+        </code>
+      );
+    }
+    if (token.startsWith("*") && token.endsWith("*") && token.length >= 2) {
+      return (
+        <em key={i} className="italic text-[hsl(var(--foreground))]">
+          {token.slice(1, -1)}
+        </em>
+      );
+    }
+    return token;
+  });
 }
 
-function levenshtein(a: string, b: string): number {
-  if (a === b) return 0;
-  if (!a.length) return b.length;
-  if (!b.length) return a.length;
-  const d = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
-  for (let i = 0; i <= a.length; i++) d[i][0] = i;
-  for (let j = 0; j <= b.length; j++) d[0][j] = j;
-  for (let i = 1; i <= a.length; i++) {
-    for (let j = 1; j <= b.length; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
-    }
-  }
-  return d[a.length][b.length];
-}
+function FormattedMessage({ content }: { content: string }) {
+  // Split into fenced code blocks and prose
+  const parts = content.split(/(```[\s\S]*?```)/g);
 
-const TOPICS: SubjectTopic[] = [
-  {
-    key: "ddco",
-    name: "Digital Design and Computer Organization",
-    acronyms: ["ddco", "dsdco", "dsd", "dld", "ade", "coa"],
-    phrases: [
-      "digital design and computer organization",
-      "digital design",
-      "computer organization",
-      "digital system design",
-      "digital logic design",
-      "computer architecture",
-    ],
-  },
-  {
-    key: "dsa",
-    name: "Data Structures and Applications",
-    acronyms: ["dsa", "ds"],
-    phrases: [
-      "data structures and applications",
-      "data structures",
-      "data structure",
-      "trees and graphs",
-      "linked list",
-    ],
-  },
-  {
-    key: "os",
-    name: "Operating Systems",
-    acronyms: ["os"],
-    phrases: ["operating systems", "operating system", "linux", "unix"],
-  },
-  {
-    key: "maths",
-    name: "Mathematics",
-    acronyms: ["m1", "m2", "m3", "m4", "math", "maths"],
-    phrases: [
-      "mathematics",
-      "applied mathematics",
-      "transform calculus",
-      "complex analysis",
-      "numerical methods",
-      "fourier series",
-      "statistics and probability",
-      "linear algebra",
-      "discrete mathematics",
-    ],
-  },
-  {
-    key: "java",
-    name: "Object Oriented Programming with Java",
-    acronyms: ["java", "oops"],
-    phrases: [
-      "object oriented programming with java",
-      "java programming",
-      "object oriented programming",
-      "oop java",
-    ],
-  },
-  {
-    key: "python",
-    name: "Python Programming",
-    acronyms: ["python"],
-    phrases: ["python programming", "python language"],
-  },
-  {
-    key: "physics",
-    name: "Engineering Physics",
-    acronyms: ["phy"],
-    phrases: [
-      "physics for ai",
-      "engineering physics",
-      "physics",
-      "p-cycle physics",
-      "p cycle physics",
-      "quantum mechanics",
-    ],
-  },
-  {
-    key: "chemistry",
-    name: "Applied Chemistry",
-    acronyms: ["chem"],
-    phrases: [
-      "applied chemistry",
-      "engineering chemistry",
-      "chemistry",
-      "c-cycle chemistry",
-      "c cycle chemistry",
-    ],
-  },
-  {
-    key: "c_prog",
-    name: "Programming in C",
-    acronyms: ["cip", "cprog"],
-    phrases: ["programming in c", "c programming", "c language"],
-  },
-  {
-    key: "dbms",
-    name: "Database Management Systems",
-    acronyms: ["dbms", "sql", "rdbms"],
-    phrases: [
-      "database management systems",
-      "database management",
-      "database",
-      "databases",
-    ],
-  },
-  {
-    key: "cn",
-    name: "Computer Networks",
-    acronyms: ["cn"],
-    phrases: ["computer networks", "computer network", "networking"],
-  },
-  {
-    key: "ai",
-    name: "Introduction to AI and Applications",
-    acronyms: ["ai", "aiml", "ml"],
-    phrases: [
-      "introduction to ai",
-      "artificial intelligence",
-      "machine learning",
-      "deep learning",
-    ],
-  },
-  {
-    key: "biology",
-    name: "Biology for Computer Engineers",
-    acronyms: ["bio"],
-    phrases: ["biology for computer engineers", "biology for engineers", "biology"],
-  },
-  {
-    key: "kannada",
-    name: "Samskritik / Balake Kannada",
-    acronyms: ["kannada"],
-    phrases: ["samskritik kannada", "balake kannada", "kannada"],
-  },
-  {
-    key: "constitution",
-    name: "Indian Constitution and Engineering Ethics",
-    acronyms: ["constitution", "ethics"],
-    phrases: [
-      "indian constitution and engineering ethics",
-      "constitution of india",
-      "engineering ethics",
-    ],
-  },
-  {
-    key: "caed",
-    name: "Computer Aided Engineering Drawing",
-    acronyms: ["caed"],
-    phrases: ["computer aided engineering drawing", "engineering drawing", "caed drawing"],
-  },
-];
-
-function scoreTopic(inputWords: string[], rawNorm: string, topic: SubjectTopic): number {
-  let score = 0;
-
-  // 1. Exact acronym matching (word boundary match)
-  for (const acr of topic.acronyms) {
-    if (inputWords.includes(acr)) {
-      score += 150;
-    }
-    // Fuzzy check on user words if user made a slight typo (e.g. dsdco -> ddco)
-    for (const w of inputWords) {
-      if (w.length >= 4 && acr.length >= 4 && levenshtein(w, acr) === 1) {
-        score += 80;
-      }
-    }
-  }
-
-  // 2. Phrase matching
-  for (const phr of topic.phrases) {
-    if (rawNorm.includes(phr)) {
-      score += phr.length * 6;
-    }
-  }
-
-  // 3. Token & fuzzy matching against phrases
-  for (const w of inputWords) {
-    if (
-      w.length < 3 ||
-      ["notes", "note", "sem", "semester", "need", "give", "shelf", "subject", "exam", "book"].includes(w)
-    ) {
-      continue;
-    }
-
-    for (const phr of topic.phrases) {
-      const phrWords = phr.split(/\s+/);
-      if (phrWords.includes(w)) {
-        score += w.length * 3;
-      } else {
-        for (const pw of phrWords) {
-          if (w.length >= 5 && pw.length >= 5 && levenshtein(w, pw) <= 1) {
-            score += 15;
-          }
+  return (
+    <div className="space-y-1.5 leading-relaxed text-xs">
+      {parts.map((part, index) => {
+        if (part.startsWith("```") && part.endsWith("```")) {
+          const match = part.match(/```(\w*)\n?([\s\S]*?)```/);
+          const lang = match ? match[1] : "";
+          const code = match ? match[2].trim() : part.slice(3, -3).trim();
+          return <CodeBlock key={index} language={lang} code={code} />;
         }
-      }
-    }
-  }
 
-  return score;
+        const lines = part.split("\n");
+        return (
+          <div key={index} className="space-y-1">
+            {lines.map((line, lIdx) => {
+              const trimmed = line.trim();
+              if (!trimmed) return <div key={lIdx} className="h-1" />;
+
+              if (trimmed.startsWith("### ")) {
+                return (
+                  <h4 key={lIdx} className="font-bold text-[13px] text-[hsl(var(--foreground))] mt-2.5 mb-1">
+                    {renderInline(trimmed.slice(4))}
+                  </h4>
+                );
+              }
+              if (trimmed.startsWith("## ")) {
+                return (
+                  <h3 key={lIdx} className="font-bold text-[14px] text-[hsl(var(--foreground))] mt-2.5 mb-1">
+                    {renderInline(trimmed.slice(3))}
+                  </h3>
+                );
+              }
+              if (trimmed.startsWith("# ")) {
+                return (
+                  <h2 key={lIdx} className="font-extrabold text-[15px] text-[hsl(var(--foreground))] mt-2.5 mb-1">
+                    {renderInline(trimmed.slice(2))}
+                  </h2>
+                );
+              }
+              if (trimmed.startsWith("> ")) {
+                return (
+                  <blockquote
+                    key={lIdx}
+                    className="border-l-2 border-[hsl(var(--secondary))] pl-2.5 py-0.5 my-1 text-[hsl(var(--muted-foreground))] italic bg-[hsl(var(--muted)/.2)] rounded-r-md"
+                  >
+                    {renderInline(trimmed.slice(2))}
+                  </blockquote>
+                );
+              }
+              if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+                return (
+                  <div key={lIdx} className="flex items-start gap-1.5 pl-1.5">
+                    <span className="text-[hsl(var(--secondary))] font-bold leading-normal">•</span>
+                    <span>{renderInline(trimmed.slice(2))}</span>
+                  </div>
+                );
+              }
+              const numMatch = trimmed.match(/^(\d+)\.\s+(.*)/);
+              if (numMatch) {
+                return (
+                  <div key={lIdx} className="flex items-start gap-1.5 pl-1.5">
+                    <span className="font-bold text-[hsl(var(--secondary))] shrink-0">{numMatch[1]}.</span>
+                    <span>{renderInline(numMatch[2])}</span>
+                  </div>
+                );
+              }
+
+              return <p key={lIdx}>{renderInline(line)}</p>;
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
-function normalizeSemName(semName?: string): { num: number; label: string } {
-  if (!semName) return { num: 1, label: "1st Sem" };
-  const upper = semName.toUpperCase();
-  if (upper.includes("C-CYCLE") || upper.includes("CHEM")) return { num: 1, label: "1st Sem (C-Cycle)" };
-  if (upper.includes("P-CYCLE") || upper.includes("PHY")) return { num: 2, label: "2nd Sem (P-Cycle)" };
-  const m = upper.match(/\b([1-8])\b/);
-  if (m) {
-    const n = parseInt(m[1], 10);
-    const suffixes = ["", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"];
-    return { num: n, label: `${suffixes[n] || n + "th"} Sem` };
-  }
-  return { num: 1, label: semName };
-}
-
-function extractSemesterFromText(rawText: string): number | null {
-  const norm = rawText.toLowerCase();
-
-  if (norm.includes("c cycle") || norm.includes("c-cycle") || norm.includes("chem cycle") || norm.includes("chemistry cycle")) {
-    return 1;
-  }
-  if (norm.includes("p cycle") || norm.includes("p-cycle") || norm.includes("phy cycle") || norm.includes("physics cycle")) {
-    return 2;
-  }
-
-  const semMatch =
-    norm.match(/\b(?:sem|semester|s)\s*([1-8])\b/) ||
-    norm.match(/\b([1-8])(?:st|nd|rd|th)?\s*(?:sem|semester)\b/) ||
-    norm.match(/\bsem([1-8])\b/) ||
-    norm.match(/\bs([1-8])\b/);
-  if (semMatch) {
-    return parseInt(semMatch[1], 10);
-  }
-
-  if (norm.includes("1st") || norm.includes("first")) return 1;
-  if (norm.includes("2nd") || norm.includes("second")) return 2;
-  if (norm.includes("3rd") || norm.includes("third")) return 3;
-  if (norm.includes("4th") || norm.includes("fourth")) return 4;
-  if (norm.includes("5th") || norm.includes("fifth")) return 5;
-  if (norm.includes("6th") || norm.includes("sixth")) return 6;
-  if (norm.includes("7th") || norm.includes("seventh")) return 7;
-  if (norm.includes("8th") || norm.includes("eighth")) return 8;
-
-  const singleDigit = norm.match(/^\s*([1-8])\s*$/);
-  if (singleDigit) {
-    return parseInt(singleDigit[1], 10);
-  }
-
-  return null;
-}
-
-function semNumberToShortLabel(n: number): string {
-  const suffixes = ["", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"];
-  return `${suffixes[n] || n + "th"} Sem`;
-}
-
-function semNumToIaSemesterName(n: number): string {
-  const suffixes = ["", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"];
-  return `${suffixes[n] || n + "th"} Semester`;
-}
-
+// ============================================================================
+// 3. MAIN AI ASSISTANT MODAL COMPONENT
+// ============================================================================
 export function AiAssistantModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(false);
   const [, setLocation] = useLocation();
 
-  // Queries
-  const { data: allSubjects = [] } = useListSubjects();
-  const { data: allSemesters = [] } = useListSemesters();
-  const { data: resources = [] } = useListResources();
-  const { data: quickLinks = [] } = useListQuickLinks();
-  const { data: iaPapers = [] } = useListIaPapers();
-  const { data: semesterQps = [] } = useListSemesterQps();
+  // Multi-turn context state across questions
+  const [contextState, setContextState] = useState<ContextState>({});
 
+  // Input & message thread state
   const [input, setInput] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
+  const [loadingStep, setLoadingStep] = useState<string>("Thinking...");
+
   const [messages, setMessages] = useState<ChatMessage[]>(() => [
     {
       id: "welcome",
       sender: "bot",
-      text: "👋 Hi! I'm your **Nexora Study Assistant** for BITM.\n\nAsk me for notes, question papers, or links, for example:\n• *\"I need maths notes\"*\n• *\"3rd sem IA papers\"*\n• *\"DSDCO / DDCO notes\"*\n• *\"BITM results link\"*\n\nHow can I help you today?",
+      text: "👋 Hi! I'm your **Nexora AI Study Assistant** for BITM.\n\nAsk me for verified notes, question papers, academic explanations, or exam guidance:\n• *\"Where can I get DSA notes?\"*\n• *\"I need 3rd sem IA papers\"*\n• *\"Explain recursion in simple words\"*\n• *\"BITM results link\"*\n\nHow can I help you study today?",
       timestamp: "Just now",
       quickReplies: [
         { label: "📐 Maths Notes", value: "i need maths notes" },
         { label: "📋 3rd Sem IA Papers", value: "i need 3rd sem ia papers" },
         { label: "⚡ DSDCO Notes", value: "dsdco notes" },
+        { label: "💡 Explain Recursion", value: "explain recursion in simple words" },
         { label: "📊 BITM Results Link", value: "bitm result link" },
       ],
     },
   ]);
 
-  // Context memory for multi-turn conversations
-  const [pendingClarification, setPendingClarification] = useState<{
-    topicKey: string;
-    topicName: string;
-    options: Array<{ semNum: number; semLabel: string; subject: Subject; count: number }>;
-  } | null>(null);
-
-  const [pendingIaClarification, setPendingIaClarification] = useState<boolean>(false);
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Backend AI Chat Mutation
+  const chatMutation = useAiChat();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -384,560 +245,19 @@ export function AiAssistantModal() {
     if (isOpen && !isMinimized) {
       scrollToBottom();
     }
-  }, [messages, isOpen, isMinimized, isTyping]);
+  }, [messages, isOpen, isMinimized, chatMutation.isPending]);
 
-  // Semesters lookup map
-  const semMap = useMemo(() => {
-    const map = new Map<number, { num: number; label: string; raw: string }>();
-    allSemesters.forEach((s) => {
-      map.set(s.id, { raw: s.name, ...normalizeSemName(s.name) });
-    });
-    return map;
-  }, [allSemesters]);
-
-  // Resources grouped by subject ID
-  const resourcesBySubject = useMemo(() => {
-    const map = new Map<number, Resource[]>();
-    resources.forEach((r) => {
-      const list = map.get(r.subjectId) || [];
-      list.push(r);
-      map.set(r.subjectId, list);
-    });
-    return map;
-  }, [resources]);
-
-  const handleSendMessage = (textToSend?: string) => {
-    const userQuery = (textToSend ?? input).trim();
-    if (!userQuery) return;
-
-    const userMsgId = Date.now().toString();
-    const newUserMsg: ChatMessage = {
-      id: userMsgId,
-      sender: "user",
-      text: userQuery,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+  // Handle dynamic loading steps while request is in flight
+  useEffect(() => {
+    if (!chatMutation.isPending) return;
+    setLoadingStep("Finding relevant resources...");
+    const t1 = setTimeout(() => setLoadingStep("Analyzing academic concepts..."), 700);
+    const t2 = setTimeout(() => setLoadingStep("Preparing your verified answer..."), 1500);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
     };
-
-    setMessages((prev) => [...prev, newUserMsg]);
-    setInput("");
-    setIsTyping(true);
-
-    setTimeout(() => {
-      processBotQuery(userQuery);
-      setIsTyping(false);
-    }, 380);
-  };
-
-  const processBotQuery = (rawQuery: string) => {
-    const norm = rawQuery.toLowerCase().replace(/[^a-z0-9\s]/g, " ").trim();
-    const words = norm.split(/\s+/);
-    const extractedSem = extractSemesterFromText(rawQuery);
-
-    // 1. Multi-turn Clarification Response
-    if (pendingClarification) {
-      const targetSem = extractedSem;
-      if (targetSem !== null) {
-        const matchedOpt =
-          pendingClarification.options.find((opt) => opt.semNum === targetSem) ||
-          pendingClarification.options[0];
-
-        if (matchedOpt) {
-          serveSubjectShelf(matchedOpt.subject, matchedOpt.semNum, matchedOpt.semLabel);
-          setPendingClarification(null);
-          return;
-        }
-      }
-    }
-
-    // 1b. Multi-turn Clarification Response for IA Papers
-    if (pendingIaClarification) {
-      if (extractedSem !== null) {
-        serveIaPapers(extractedSem);
-        setPendingIaClarification(false);
-        return;
-      }
-    }
-
-    // 2. BITM Autonomous Results Intent (Strict priority over general links!)
-    if (
-      norm.includes("result") ||
-      norm.includes("results") ||
-      norm.includes("marks") ||
-      norm.includes("sgpa") ||
-      norm.includes("cgpa") ||
-      norm.includes("grade") ||
-      norm.includes("contineo")
-    ) {
-      const bitmResultsLink = quickLinks.find(
-        (l) => l.url.includes("bitmeresults.contineo.in") || l.title.toLowerCase().includes("result")
-      );
-      const url = bitmResultsLink ? bitmResultsLink.url : "https://bitmeresults.contineo.in/";
-
-      const responseMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        sender: "bot",
-        text: "🎓 Here is the official **BITM Autonomous Examination Results Portal (Contineo)** link to check your semester results, SGPA, and grade sheets:",
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        actionCard: {
-          type: "link",
-          title: "BITM Results Portal (Contineo)",
-          subtitle: "Official Autonomous Examination Results • bitmeresults.contineo.in",
-          badge: "BITM Official",
-          targetUrl: url,
-          external: true,
-          buttonText: "Open BITM Results Portal ↗",
-        },
-        quickReplies: [
-          { label: "📅 Academic Calendar", value: "academic calendar" },
-          { label: "🎒 Contineo Student Portal", value: "contineo student portal" },
-          { label: "📐 Maths Notes", value: "i need maths notes" },
-        ],
-      };
-      setMessages((prev) => [...prev, responseMsg]);
-      return;
-    }
-
-    // 3. Official Academic Calendar / Portals Intent
-    if (
-      norm.includes("calendar") ||
-      norm.includes("academic") ||
-      norm.includes("portal") ||
-      norm.includes("quick links")
-    ) {
-      const match = quickLinks.find(
-        (l) =>
-          l.title.toLowerCase().includes(norm) ||
-          (l.description && l.description.toLowerCase().includes(norm)) ||
-          l.category.toLowerCase().includes(norm)
-      );
-      const topLink = match || quickLinks[0];
-
-      const responseMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        sender: "bot",
-        text: topLink
-          ? `🔗 Here is the official link for **${topLink.title}**:`
-          : "🔗 Here are the official BITM academic links and portals:",
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        actionCard: {
-          type: "link",
-          title: topLink ? topLink.title : "Official Quick Links & Portals",
-          subtitle: topLink ? (topLink.description ?? undefined) : "Academic portals, calendar & notifications",
-          badge: "BITM Official",
-          targetUrl: topLink ? topLink.url : "/quick-links",
-          external: !!topLink,
-          buttonText: topLink ? `Open ${topLink.title.slice(0, 20)} ↗` : "View All Quick Links ➔",
-        },
-        quickReplies: [
-          { label: "📊 BITM Results", value: "bitm result link" },
-          { label: "View All Quick Links", value: "quick links" },
-        ],
-      };
-      setMessages((prev) => [...prev, responseMsg]);
-      return;
-    }
-
-    // 4. Internal Assessment (IA) Papers Intent
-    const isIaIntent =
-      words.includes("ia") ||
-      words.includes("internals") ||
-      words.includes("internal") ||
-      words.includes("cie") ||
-      words.includes("midterm") ||
-      words.includes("midterms") ||
-      norm.includes("ia paper") ||
-      norm.includes("ia papers") ||
-      norm.includes("internal paper") ||
-      norm.includes("internal papers") ||
-      norm.includes("internals paper") ||
-      norm.includes("internals papers") ||
-      norm.includes("cie paper") ||
-      norm.includes("cie papers") ||
-      norm.includes("ia 1") ||
-      norm.includes("ia 2") ||
-      norm.includes("ia1") ||
-      norm.includes("ia2") ||
-      norm.includes("cie 1") ||
-      norm.includes("cie 2");
-
-    if (isIaIntent) {
-      if (extractedSem !== null) {
-        serveIaPapers(extractedSem);
-        return;
-      }
-
-      setPendingIaClarification(true);
-      const responseMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        sender: "bot",
-        text: "📝 Which semester do you need **Internal Assessment (IA) question papers** for?\n\nSelect your semester below to view official IA-1 and IA-2 test papers with direct Google Drive links:",
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        actionCard: {
-          type: "pyqs",
-          title: "BITM IA Question Papers Archive",
-          subtitle: "Autonomous IA-1 and IA-2 question paper bundles",
-          badge: "IA Papers",
-          targetUrl: "/pyqs?tab=ia",
-          buttonText: "Browse All IA Papers ➔",
-        },
-        quickReplies: [
-          { label: "1st Sem IA", value: "1st sem ia papers" },
-          { label: "2nd Sem IA", value: "2nd sem ia papers" },
-          { label: "3rd Sem IA", value: "3rd sem ia papers" },
-          { label: "4th Sem IA", value: "4th sem ia papers" },
-          { label: "5th Sem IA", value: "5th sem ia papers" },
-          { label: "6th Sem IA", value: "6th sem ia papers" },
-        ],
-      };
-      setMessages((prev) => [...prev, responseMsg]);
-      return;
-    }
-
-    // 5. Previous Year Question Papers (PYQ) Intent
-    const isPyqIntent =
-      norm.includes("pyq") ||
-      norm.includes("question paper") ||
-      norm.includes("previous year") ||
-      norm.includes("old paper") ||
-      words.includes("qp") ||
-      norm.includes("end sem") ||
-      norm.includes("semester exam");
-
-    if (isPyqIntent) {
-      if (extractedSem !== null) {
-        serveSemesterQps(extractedSem);
-        return;
-      }
-
-      const responseMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        sender: "bot",
-        text: "📝 Looking for Previous Year Question Papers? We have BITM Autonomous End-Semester exam papers and Internal Assessment (IA) test archives!\n\nWhich semester do you need?",
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        actionCard: {
-          type: "pyqs",
-          title: "Autonomous Question Papers Archive",
-          subtitle: "End-Sem exam papers & mid-term IA papers",
-          badge: "Exam Prep",
-          targetUrl: "/pyqs",
-          buttonText: "Open PYQs Section ➔",
-        },
-        quickReplies: [
-          { label: "1st Sem PYQs", value: "1st sem pyq" },
-          { label: "2nd Sem PYQs", value: "2nd sem pyq" },
-          { label: "3rd Sem PYQs", value: "3rd sem pyq" },
-          { label: "4th Sem PYQs", value: "4th sem pyq" },
-          { label: "📋 IA Test Papers", value: "ia papers" },
-        ],
-      };
-      setMessages((prev) => [...prev, responseMsg]);
-      return;
-    }
-
-    // 5. Contribute / Upload Intent
-    if (
-      norm.includes("upload") ||
-      norm.includes("contribute") ||
-      norm.includes("share notes") ||
-      norm.includes("submit notes")
-    ) {
-      const responseMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        sender: "bot",
-        text: "✨ Want to help fellow BITM students? You can upload your PDF notes (up to 25 MB or via Google Drive link) on our **Contribute** desk with zero storage costs!",
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        actionCard: {
-          type: "contribute",
-          title: "Contribute Study Material",
-          subtitle: "Fast zero-storage direct Google Drive upload. Your name is credited!",
-          badge: "Community Upload",
-          targetUrl: "/contribute",
-          buttonText: "Go to Contribute Page ➔",
-        },
-      };
-      setMessages((prev) => [...prev, responseMsg]);
-      return;
-    }
-
-    // 6. Token-scored Topic Matching (Solves DSDCO vs DSA collision!)
-    const scoredTopics = TOPICS.map((topic) => ({
-      topic,
-      score: scoreTopic(words, norm, topic),
-    })).sort((a, b) => b.score - a.score);
-
-    const bestTopic = scoredTopics[0].score >= 50 ? scoredTopics[0].topic : null;
-
-    let candidateSubjects: Subject[] = [];
-
-    if (bestTopic) {
-      candidateSubjects = allSubjects.filter((subj) => {
-        const text = (subj.name + " " + (subj.description || "")).toLowerCase();
-        // Check if any phrase or acronym matches this subject text
-        return (
-          bestTopic.phrases.some((p) => text.includes(p)) ||
-          bestTopic.acronyms.some((a) => {
-            const subjWords = text.replace(/[^a-z0-9\s]/g, " ").split(/\s+/);
-            return subjWords.includes(a);
-          })
-        );
-      });
-    } else {
-      // General fuzzy search on subjects
-      candidateSubjects = allSubjects.filter((subj) => {
-        const text = (subj.name + " " + (subj.description || "")).toLowerCase();
-        return text.includes(norm) || norm.includes(subj.name.toLowerCase());
-      });
-    }
-
-    // Sort candidate subjects so that subjects with actual resources come first!
-    candidateSubjects.sort((a, b) => {
-      const countA = (resourcesBySubject.get(a.id) || []).length;
-      const countB = (resourcesBySubject.get(b.id) || []).length;
-      return countB - countA;
-    });
-
-    if (candidateSubjects.length === 0) {
-      // Check if any resource titles match
-      const matchingRes = resources.filter((r) => {
-        const titleNorm = r.title.toLowerCase();
-        return titleNorm.includes(norm) || (r.description && r.description.toLowerCase().includes(norm));
-      });
-
-      if (matchingRes.length > 0) {
-        const res = matchingRes[0];
-        const responseMsg: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          sender: "bot",
-          text: `📄 Found resource: **${res.title}**!`,
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          actionCard: {
-            type: "resources",
-            title: res.title,
-            subtitle: res.description || "Study material in resource library",
-            badge: res.resourceType || "Notes",
-            targetUrl: `/resources?query=${encodeURIComponent(rawQuery)}`,
-            buttonText: "Open in Resource Library ➔",
-          },
-        };
-        setMessages((prev) => [...prev, responseMsg]);
-        return;
-      }
-
-      // No matches found fallback
-      const responseMsg: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        sender: "bot",
-        text: `🤔 I couldn't find a direct match for *"${rawQuery}"*.\n\nTry searching by subject name (like *Maths*, *DSDCO / DDCO*, *Data Structures*, *Operating Systems*, *Java*) or browse our library:`,
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        quickReplies: [
-          { label: "📐 Maths Notes", value: "i need maths notes" },
-          { label: "⚡ DSDCO / DDCO Notes", value: "dsdco notes" },
-          { label: "💻 Data Structures", value: "data structures notes" },
-          { label: "📊 BITM Results Link", value: "bitm result link" },
-        ],
-      };
-      setMessages((prev) => [...prev, responseMsg]);
-      return;
-    }
-
-    // Group subjects by normalized semester number (1 to 8)
-    const semMapOptions = new Map<number, { semNum: number; semLabel: string; subject: Subject; count: number }>();
-
-    candidateSubjects.forEach((subj) => {
-      const semInfo = semMap.get(subj.semesterId) || { num: 1, label: "1st Sem", raw: "" };
-      const count = (resourcesBySubject.get(subj.id) || []).length;
-      const current = semMapOptions.get(semInfo.num);
-
-      if (!current || count > current.count) {
-        semMapOptions.set(semInfo.num, {
-          semNum: semInfo.num,
-          semLabel: semInfo.label,
-          subject: subj,
-          count,
-        });
-      }
-    });
-
-    const semesterOptions = Array.from(semMapOptions.values()).sort((a, b) => a.semNum - b.semNum);
-
-    // If user specified a semester in their query, or only 1 semester exists:
-    if (extractedSem !== null || semesterOptions.length === 1) {
-      const targetSem = extractedSem ?? semesterOptions[0].semNum;
-      const matchedOption = semesterOptions.find((opt) => opt.semNum === targetSem) || semesterOptions[0];
-      serveSubjectShelf(matchedOption.subject, matchedOption.semNum, matchedOption.semLabel);
-      return;
-    }
-
-    // MULTIPLE SEMESTERS FOUND -> Ask clarifying question as requested!
-    const topicTitle = bestTopic ? bestTopic.name : "this subject";
-
-    // Set state for next response
-    setPendingClarification({
-      topicKey: bestTopic ? bestTopic.key : "general",
-      topicName: topicTitle,
-      options: semesterOptions,
-    });
-
-    const quickReplyButtons = semesterOptions.map((opt) => ({
-      label: `${opt.semLabel} (${opt.subject.name.slice(0, 18)}${opt.subject.name.length > 18 ? "…" : ""}${
-        opt.count > 0 ? ` • ${opt.count} notes` : ""
-      })`,
-      value: `sem ${opt.semNum}`,
-    }));
-
-    const responseMsg: ChatMessage = {
-      id: (Date.now() + 1).toString(),
-      sender: "bot",
-      text: `📚 I found **${topicTitle}** across several semesters!\n\n**Which semester do you need notes for?** Click below or type your semester:`,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      quickReplies: quickReplyButtons,
-    };
-
-    setMessages((prev) => [...prev, responseMsg]);
-  };
-
-  const serveSubjectShelf = (subject: Subject, semNum: number, semLabel: string) => {
-    const subjResources = resourcesBySubject.get(subject.id) || [];
-
-    const responseMsg: ChatMessage = {
-      id: (Date.now() + 1).toString(),
-      sender: "bot",
-      text: `🎯 Here is the shelf for **${semLabel}: ${subject.name}**!${
-        subjResources.length > 0
-          ? ` There are **${subjResources.length} resources & notes** available.`
-          : " Ready to view on your desk."
-      }`,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      actionCard: {
-        type: "subject",
-        title: subject.name,
-        subtitle: `${semLabel} • ${subjResources.length} Materials available`,
-        badge: semLabel,
-        targetUrl: `/subject/${subject.id}`,
-        buttonText: `🎯 Take me to ${subject.name.slice(0, 22)} Shelf ➔`,
-        resources: subjResources.slice(0, 3).map((r) => ({
-          title: r.title,
-          url: r.googleDriveUrl,
-          type: r.resourceType || "Notes",
-        })),
-      },
-      quickReplies: [
-        { label: `📄 See PYQs for ${semLabel}`, value: `pyqs for sem ${semNum}` },
-        { label: "🔍 Search another subject", value: "search another subject" },
-      ],
-    };
-
-    setMessages((prev) => [...prev, responseMsg]);
-  };
-
-  const serveIaPapers = (semNum: number) => {
-    const semStr = semNumToIaSemesterName(semNum);
-    const semLabel = semNumberToShortLabel(semNum);
-
-    const matchedIa = iaPapers.filter((p) => {
-      const pSem = (p.semester || "").toLowerCase();
-      return (
-        pSem.includes(`${semNum}rd`) ||
-        pSem.includes(`${semNum}th`) ||
-        pSem.includes(`${semNum}st`) ||
-        pSem.includes(`${semNum}nd`) ||
-        pSem.includes(`sem ${semNum}`) ||
-        pSem.includes(`semester ${semNum}`) ||
-        pSem.includes(`${semNum}`)
-      );
-    });
-
-    const directResources = matchedIa.slice(0, 4).map((p) => ({
-      title: `${p.iaType ? p.iaType + " • " : ""}${p.title} (${p.department || "All Branches"})`,
-      url: p.googleDriveUrl,
-      type: "IA Paper",
-    }));
-
-    const responseMsg: ChatMessage = {
-      id: (Date.now() + 1).toString(),
-      sender: "bot",
-      text:
-        matchedIa.length > 0
-          ? `📋 Here are the official **${semLabel} Internal Assessment (IA) Question Papers** from the BITM archive! Click any paper to view directly on Google Drive, or explore the full IA archive:`
-          : `📋 Here is the **${semLabel} Internal Assessment (IA) Papers** section for BITM. Browse all available question paper sets:`,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      actionCard: {
-        type: "pyqs",
-        title: `${semLabel} Internal Assessment (IA) Papers`,
-        subtitle:
-          matchedIa.length > 0
-            ? `${matchedIa.length} IA paper set${matchedIa.length > 1 ? "s" : ""} available • BITM 2022 Scheme`
-            : "BITM CIE 1 & CIE 2 test archives",
-        badge: `${semLabel} IA`,
-        targetUrl: `/pyqs?tab=ia&semester=${encodeURIComponent(semStr)}`,
-        buttonText: `🎯 Open ${semLabel} IA Papers Archive ➔`,
-        resources: directResources.length > 0 ? directResources : undefined,
-      },
-      quickReplies: [
-        { label: "1st Sem IA", value: "1st sem ia papers" },
-        { label: "2nd Sem IA", value: "2nd sem ia papers" },
-        { label: "3rd Sem IA", value: "3rd sem ia papers" },
-        { label: "4th Sem IA", value: "4th sem ia papers" },
-        { label: "📚 Autonomous PYQs", value: "previous year question papers" },
-      ],
-    };
-
-    setMessages((prev) => [...prev, responseMsg]);
-  };
-
-  const serveSemesterQps = (semNum: number) => {
-    const semStr = semNumToIaSemesterName(semNum);
-    const semLabel = semNumberToShortLabel(semNum);
-
-    const matchedQps = semesterQps.filter((q) => {
-      const qSem = (q.semester || "").toLowerCase();
-      return (
-        qSem.includes(`${semNum}rd`) ||
-        qSem.includes(`${semNum}th`) ||
-        qSem.includes(`${semNum}st`) ||
-        qSem.includes(`${semNum}nd`) ||
-        qSem.includes(`sem ${semNum}`) ||
-        qSem.includes(`semester ${semNum}`) ||
-        qSem.includes(`${semNum}`)
-      );
-    });
-
-    const directResources = matchedQps.slice(0, 4).map((q) => ({
-      title: `${q.examYear ? q.examYear + " • " : ""}${q.title} (${q.department || "All"})`,
-      url: q.downloadUrl,
-      type: "End-Sem PYQ",
-    }));
-
-    const responseMsg: ChatMessage = {
-      id: (Date.now() + 1).toString(),
-      sender: "bot",
-      text:
-        matchedQps.length > 0
-          ? `📝 Here are the **${semLabel} Previous Year Question Papers (PYQs)** from BITM Autonomous Examinations:`
-          : `📝 Looking for Previous Year Question Papers? We have BITM Autonomous End-Semester exam papers for **${semLabel}**!`,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      actionCard: {
-        type: "pyqs",
-        title: `${semLabel} Question Papers (PYQs)`,
-        subtitle:
-          matchedQps.length > 0
-            ? `${matchedQps.length} exam paper set${matchedQps.length > 1 ? "s" : ""} available`
-            : "Autonomous End-Sem exam question paper archive",
-        badge: `${semLabel} PYQs`,
-        targetUrl: `/pyqs?tab=semester&semester=${encodeURIComponent(semStr)}`,
-        buttonText: `🎯 Open ${semLabel} PYQs Section ➔`,
-        resources: directResources.length > 0 ? directResources : undefined,
-      },
-      quickReplies: [
-        { label: `📋 ${semLabel} IA Papers`, value: `${semLabel.toLowerCase()} ia papers` },
-        { label: "1st Sem PYQs", value: "1st sem pyq" },
-        { label: "2nd Sem PYQs", value: "2nd sem pyq" },
-        { label: "3rd Sem PYQs", value: "3rd sem pyq" },
-      ],
-    };
-
-    setMessages((prev) => [...prev, responseMsg]);
-  };
+  }, [chatMutation.isPending]);
 
   const handleActionNavigate = (targetUrl: string, external?: boolean) => {
     if (external) {
@@ -958,6 +278,105 @@ export function AiAssistantModal() {
       setIsMinimized(true);
     }
   };
+
+  const handleSendMessage = (textToSend?: string) => {
+    const userQuery = (textToSend ?? input).trim();
+    if (!userQuery || chatMutation.isPending) return;
+
+    const userMsgId = Date.now().toString();
+    const newUserMsg: ChatMessage = {
+      id: userMsgId,
+      sender: "user",
+      text: userQuery,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    setMessages((prev) => [...prev, newUserMsg]);
+    setInput("");
+
+    // Build history for context (last 6 turns)
+    const historyPayload = messages
+      .filter((m) => m.sender === "user" || (m.sender === "bot" && !m.isError))
+      .slice(-6)
+      .map((m) => ({
+        role: m.sender === "user" ? ("user" as const) : ("assistant" as const),
+        content: m.text,
+      }));
+
+    chatMutation.mutate(
+      {
+        message: userQuery,
+        history: historyPayload,
+        contextState,
+      },
+      {
+        onSuccess: (data) => {
+          const botMsg: ChatMessage = {
+            id: (Date.now() + 1).toString(),
+            sender: "bot",
+            text: data.reply,
+            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            actionCard: data.actionCard,
+            quickReplies: data.quickReplies,
+          };
+          setMessages((prev) => [...prev, botMsg]);
+
+          if (data.updatedContextState) {
+            setContextState((prev) => ({
+              ...prev,
+              ...data.updatedContextState,
+            }));
+          }
+        },
+        onError: (err) => {
+          const errorMsg: ChatMessage = {
+            id: (Date.now() + 1).toString(),
+            sender: "bot",
+            text: "⚠️ I encountered an issue connecting to the academic server. Please click Retry below to send your question again.",
+            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            isError: true,
+            canRetry: true,
+            failedQuery: userQuery,
+          };
+          setMessages((prev) => [...prev, errorMsg]);
+        },
+      }
+    );
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  const handleClearContext = () => {
+    setContextState({});
+  };
+
+  const handleResetConversation = () => {
+    setMessages([
+      {
+        id: "welcome-reset",
+        sender: "bot",
+        text: "✨ Conversation reset! What subject, question paper, or academic topic can I help you find?",
+        timestamp: "Just now",
+        quickReplies: [
+          { label: "📐 Maths Notes", value: "i need maths notes" },
+          { label: "📋 3rd Sem IA Papers", value: "i need 3rd sem ia papers" },
+          { label: "⚡ DSDCO Notes", value: "dsdco notes" },
+          { label: "💡 Explain Recursion", value: "explain recursion in simple words" },
+          { label: "📊 BITM Results Link", value: "bitm result link" },
+        ],
+      },
+    ]);
+    setContextState({});
+  };
+
+  const hasActiveContext = Boolean(
+    contextState.subject || contextState.semester || contextState.branch
+  );
 
   return (
     <>
@@ -986,30 +405,33 @@ export function AiAssistantModal() {
       {/* Floating Chat Modal */}
       {isOpen && (
         <div
-          className={`fixed z-50 transition-all duration-300 ease-out ${
+          className={`fixed z-50 transition-all duration-300 ease-out border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))] backdrop-blur-2xl ${
             isMinimized
               ? "bottom-5 right-20 w-72 h-14 rounded-2xl shadow-xl overflow-hidden"
-              : "bottom-5 right-4 sm:right-6 w-[calc(100vw-2rem)] sm:w-[420px] h-[600px] max-h-[85vh] rounded-3xl shadow-2xl flex flex-col"
-          } border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))] backdrop-blur-2xl`}
+              : isMaximized
+              ? "inset-2 sm:inset-6 rounded-3xl shadow-2xl flex flex-col"
+              : "bottom-5 right-3 sm:right-6 w-[calc(100vw-1.5rem)] sm:w-[440px] h-[620px] max-h-[88vh] rounded-3xl shadow-2xl flex flex-col"
+          }`}
           role="dialog"
           aria-labelledby="ai-assistant-title"
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)] px-4 py-3">
+          <div className="flex items-center justify-between border-b border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)] px-4 py-3 shrink-0">
             <div className="flex items-center gap-2.5">
               <div className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] shadow-sm">
                 <Bot size={17} strokeWidth={2.4} />
-                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[hsl(var(--card))] bg-emerald-500" />
               </div>
               <div>
-                <h3 id="ai-assistant-title" className="text-xs font-bold leading-none tracking-tight flex items-center gap-1.5">
-                  Nexora AI Assistant
-                  <span className="rounded-md bg-[hsl(var(--secondary)/.18)] px-1.5 py-0.5 text-[9px] font-extrabold text-[hsl(var(--secondary))]">
-                    BITM
+                <div className="flex items-center gap-1.5">
+                  <h3 id="ai-assistant-title" className="text-xs font-bold text-[hsl(var(--foreground))]">
+                    Nexora AI Assistant
+                  </h3>
+                  <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-1.5 py-0.2 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400">
+                    Online
                   </span>
-                </h3>
-                <p className="mt-1 text-[10px] text-[hsl(var(--muted-foreground))]">
-                  Instant notes & subject navigator
+                </div>
+                <p className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  Study companion & verified resource finder
                 </p>
               </div>
             </div>
@@ -1017,25 +439,8 @@ export function AiAssistantModal() {
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => {
-                  setMessages([
-                    {
-                      id: "welcome-reset",
-                      sender: "bot",
-                      text: "Chat cleared! What subject or study material can I help you find?",
-                      timestamp: "Just now",
-                      quickReplies: [
-                        { label: "📐 Maths Notes", value: "i need maths notes" },
-                        { label: "📋 3rd Sem IA Papers", value: "i need 3rd sem ia papers" },
-                        { label: "⚡ DSDCO Notes", value: "dsdco notes" },
-                        { label: "📊 BITM Results Link", value: "bitm result link" },
-                      ],
-                    },
-                  ]);
-                  setPendingClarification(null);
-                  setPendingIaClarification(false);
-                }}
-                className="focus-ring rounded-lg p-1.5 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
+                onClick={handleResetConversation}
+                className="focus-ring rounded-lg p-1.5 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] transition-colors"
                 title="Reset conversation"
                 aria-label="Reset conversation"
               >
@@ -1044,18 +449,24 @@ export function AiAssistantModal() {
 
               <button
                 type="button"
-                onClick={() => setIsMinimized(!isMinimized)}
-                className="focus-ring rounded-lg p-1.5 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
-                title={isMinimized ? "Expand" : "Minimize"}
-                aria-label={isMinimized ? "Expand" : "Minimize"}
+                onClick={() => {
+                  if (isMinimized) {
+                    setIsMinimized(false);
+                  } else {
+                    setIsMaximized(!isMaximized);
+                  }
+                }}
+                className="focus-ring rounded-lg p-1.5 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] transition-colors"
+                title={isMaximized ? "Restore standard size" : "Expand view"}
+                aria-label={isMaximized ? "Restore standard size" : "Expand view"}
               >
-                {isMinimized ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
+                {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
               </button>
 
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="focus-ring rounded-lg p-1.5 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
+                className="focus-ring rounded-lg p-1.5 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] transition-colors"
                 title="Close assistant"
                 aria-label="Close assistant"
               >
@@ -1063,6 +474,29 @@ export function AiAssistantModal() {
               </button>
             </div>
           </div>
+
+          {/* Active Conversation Context Pill (Context Memory) */}
+          {!isMinimized && hasActiveContext && (
+            <div className="flex items-center justify-between border-b border-[hsl(var(--border)/.6)] bg-[hsl(var(--muted)/.25)] px-3.5 py-1.5 text-[10px]">
+              <div className="flex items-center gap-1.5 text-[hsl(var(--muted-foreground))] truncate">
+                <Sparkles size={11} className="text-[hsl(var(--secondary))] shrink-0" />
+                <span className="font-semibold text-[hsl(var(--foreground))]">Active Context:</span>
+                <span className="truncate">
+                  {[contextState.branch, contextState.semester, contextState.subject]
+                    .filter(Boolean)
+                    .join(" • ")}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleClearContext}
+                className="ml-2 text-[10px] font-semibold text-[hsl(var(--secondary))] hover:underline shrink-0"
+                title="Clear current topic filter"
+              >
+                Clear
+              </button>
+            </div>
+          )}
 
           {/* Body when expanded */}
           {!isMinimized && (
@@ -1075,13 +509,29 @@ export function AiAssistantModal() {
                     className={`flex flex-col ${msg.sender === "user" ? "items-end" : "items-start"}`}
                   >
                     <div
-                      className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 leading-relaxed shadow-xs ${
+                      className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 leading-relaxed shadow-xs ${
                         msg.sender === "user"
                           ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] rounded-tr-xs"
+                          : msg.isError
+                          ? "bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/30 rounded-tl-xs"
                           : "bg-[hsl(var(--muted)/.65)] text-[hsl(var(--foreground))] border border-[hsl(var(--border))] rounded-tl-xs"
                       }`}
                     >
-                      <p className="whitespace-pre-line font-medium">{msg.text}</p>
+                      <FormattedMessage content={msg.text} />
+
+                      {/* Manual Retry Action Button on Error */}
+                      {msg.canRetry && msg.failedQuery && (
+                        <div className="mt-2.5 pt-2 border-t border-rose-500/20">
+                          <button
+                            type="button"
+                            onClick={() => handleSendMessage(msg.failedQuery)}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700 cursor-pointer shadow-xs transition-colors"
+                          >
+                            <RefreshCw size={12} />
+                            <span>Retry Question</span>
+                          </button>
+                        </div>
+                      )}
 
                       {/* Action Card inside Bot Message */}
                       {msg.actionCard && (
@@ -1107,21 +557,21 @@ export function AiAssistantModal() {
                             </div>
                           </div>
 
-                          {/* Direct Resources Preview */}
+                          {/* Direct Verified Resources Preview */}
                           {msg.actionCard.resources && msg.actionCard.resources.length > 0 && (
                             <div className="my-2 divide-y divide-[hsl(var(--border)/.6)] rounded-lg border border-[hsl(var(--border)/.6)] bg-[hsl(var(--muted)/.2)] px-2">
                               {msg.actionCard.resources.map((r, idx) => (
                                 <div key={idx} className="flex items-center justify-between py-1.5 text-[10px]">
                                   <span className="truncate pr-2 text-[hsl(var(--foreground))] font-medium flex items-center gap-1">
-                                    <FileText size={11} className="text-[hsl(var(--secondary))]" />
-                                    {r.title}
+                                    <FileText size={11} className="text-[hsl(var(--secondary))] shrink-0" />
+                                    <span className="truncate">{r.title}</span>
                                   </span>
                                   {r.url && (
                                     <a
                                       href={r.url}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="shrink-0 text-[hsl(var(--primary))] font-bold hover:underline"
+                                      className="shrink-0 text-[hsl(var(--primary))] font-bold hover:underline ml-2"
                                     >
                                       Open ↗
                                     </a>
@@ -1160,10 +610,10 @@ export function AiAssistantModal() {
                             key={i}
                             type="button"
                             onClick={() => handleSendMessage(reply.value)}
-                            className="focus-ring inline-flex items-center gap-1 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1 text-[11px] font-semibold text-[hsl(var(--foreground))] hover:border-[hsl(var(--secondary))] hover:bg-[hsl(var(--secondary)/.1)] hover:text-[hsl(var(--secondary))] transition-colors cursor-pointer shadow-xs active:scale-95"
+                            className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-2.5 py-1 text-[10.5px] font-semibold text-[hsl(var(--foreground))] shadow-xs hover:border-[hsl(var(--secondary))] hover:bg-[hsl(var(--secondary)/.08)] hover:text-[hsl(var(--secondary))] transition-colors cursor-pointer"
                           >
                             <span>{reply.label}</span>
-                            <ChevronRight size={11} className="opacity-60" />
+                            <ChevronRight size={10} className="opacity-60" />
                           </button>
                         ))}
                       </div>
@@ -1171,11 +621,19 @@ export function AiAssistantModal() {
                   </div>
                 ))}
 
-                {isTyping && (
-                  <div className="flex items-center gap-1.5 rounded-xl bg-[hsl(var(--muted)/.6)] px-3 py-2 w-fit">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--muted-foreground))] animate-bounce" />
-                    <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--muted-foreground))] animate-bounce [animation-delay:0.2s]" />
-                    <span className="h-1.5 w-1.5 rounded-full bg-[hsl(var(--muted-foreground))] animate-bounce [animation-delay:0.4s]" />
+                {/* Loading indicator with status message */}
+                {chatMutation.isPending && (
+                  <div className="flex flex-col items-start space-y-1">
+                    <div className="flex items-center gap-2 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.65)] px-3.5 py-2 text-xs shadow-xs">
+                      <div className="flex items-center gap-1">
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[hsl(var(--secondary))] [animation-delay:-0.3s]"></span>
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[hsl(var(--secondary))] [animation-delay:-0.15s]"></span>
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[hsl(var(--secondary))]"></span>
+                      </div>
+                      <span className="text-[10px] text-[hsl(var(--muted-foreground))] font-medium">
+                        {loadingStep}
+                      </span>
+                    </div>
                   </div>
                 )}
 
@@ -1183,31 +641,52 @@ export function AiAssistantModal() {
               </div>
 
               {/* Input Bar */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleSendMessage();
-                }}
-                className="border-t border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 flex items-center gap-2"
-              >
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask for notes, sem, or subjects..."
-                  className="flex-1 rounded-xl border border-[hsl(var(--input))] bg-[hsl(var(--background))] px-3.5 py-2 text-xs font-medium text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus:border-[hsl(var(--ring))] focus:outline-hidden"
-                  data-testid="input-ai-chat"
-                />
-                <button
-                  type="submit"
-                  disabled={!input.trim()}
-                  className="focus-ring flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] disabled:opacity-40 hover:opacity-90 transition-opacity cursor-pointer shadow-xs"
-                  aria-label="Send message"
-                  data-testid="button-ai-chat-send"
+              <div className="border-t border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }}
+                  className="flex items-end gap-2"
                 >
-                  <Send size={14} />
-                </button>
-              </form>
+                  <div className="relative flex-1 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)] focus-within:border-[hsl(var(--primary))] transition-colors">
+                    <textarea
+                      ref={textareaRef}
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder={
+                        hasActiveContext
+                          ? `Ask follow-up for ${[contextState.semester, contextState.subject].filter(Boolean).join(" ")}...`
+                          : "Ask for notes, question papers, or explain concepts..."
+                      }
+                      rows={1}
+                      disabled={chatMutation.isPending}
+                      className="w-full resize-none bg-transparent px-3 py-2 text-xs text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus:outline-hidden max-h-24 min-h-[38px]"
+                      style={{ height: "auto" }}
+                      aria-label="Ask study assistant"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={!input.trim() || chatMutation.isPending}
+                    className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-sm hover:opacity-90 disabled:opacity-40 transition-opacity cursor-pointer disabled:cursor-not-allowed"
+                    aria-label="Send message"
+                  >
+                    {chatMutation.isPending ? (
+                      <RefreshCw size={15} className="animate-spin" />
+                    ) : (
+                      <Send size={15} />
+                    )}
+                  </button>
+                </form>
+
+                <div className="mt-1.5 flex items-center justify-between px-1 text-[9px] text-[hsl(var(--muted-foreground))]">
+                  <span>Press ↵ to send • Shift+↵ for new line</span>
+                  <span>BITM Academic Companion</span>
+                </div>
+              </div>
             </>
           )}
         </div>
