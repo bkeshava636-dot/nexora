@@ -23,8 +23,12 @@ import {
   useListBranches,
   useListResources,
   useListQuickLinks,
+  useListIaPapers,
+  useListSemesterQps,
   type Subject,
   type Resource,
+  type IaPaperItem,
+  type SemesterQpItem,
 } from "@workspace/api-client-react";
 
 interface ChatMessage {
@@ -321,6 +325,16 @@ function extractSemesterFromText(rawText: string): number | null {
   return null;
 }
 
+function semNumberToShortLabel(n: number): string {
+  const suffixes = ["", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"];
+  return `${suffixes[n] || n + "th"} Sem`;
+}
+
+function semNumToIaSemesterName(n: number): string {
+  const suffixes = ["", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"];
+  return `${suffixes[n] || n + "th"} Semester`;
+}
+
 export function AiAssistantModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -331,6 +345,8 @@ export function AiAssistantModal() {
   const { data: allSemesters = [] } = useListSemesters();
   const { data: resources = [] } = useListResources();
   const { data: quickLinks = [] } = useListQuickLinks();
+  const { data: iaPapers = [] } = useListIaPapers();
+  const { data: semesterQps = [] } = useListSemesterQps();
 
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -338,12 +354,12 @@ export function AiAssistantModal() {
     {
       id: "welcome",
       sender: "bot",
-      text: "👋 Hi! I'm your **Nexora Study Assistant** for BITM.\n\nAsk me for notes, question papers, or links, for example:\n• *\"I need maths notes\"*\n• *\"DSDCO / DDCO notes\"*\n• *\"Data Structures notes\"*\n• *\"BITM results link\"*\n\nHow can I help you today?",
+      text: "👋 Hi! I'm your **Nexora Study Assistant** for BITM.\n\nAsk me for notes, question papers, or links, for example:\n• *\"I need maths notes\"*\n• *\"3rd sem IA papers\"*\n• *\"DSDCO / DDCO notes\"*\n• *\"BITM results link\"*\n\nHow can I help you today?",
       timestamp: "Just now",
       quickReplies: [
         { label: "📐 Maths Notes", value: "i need maths notes" },
-        { label: "⚡ DSDCO / DDCO Notes", value: "dsdco notes" },
-        { label: "💻 Data Structures", value: "data structures notes" },
+        { label: "📋 3rd Sem IA Papers", value: "i need 3rd sem ia papers" },
+        { label: "⚡ DSDCO Notes", value: "dsdco notes" },
         { label: "📊 BITM Results Link", value: "bitm result link" },
       ],
     },
@@ -355,6 +371,8 @@ export function AiAssistantModal() {
     topicName: string;
     options: Array<{ semNum: number; semLabel: string; subject: Subject; count: number }>;
   } | null>(null);
+
+  const [pendingIaClarification, setPendingIaClarification] = useState<boolean>(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -428,6 +446,15 @@ export function AiAssistantModal() {
           setPendingClarification(null);
           return;
         }
+      }
+    }
+
+    // 1b. Multi-turn Clarification Response for IA Papers
+    if (pendingIaClarification) {
+      if (extractedSem !== null) {
+        serveIaPapers(extractedSem);
+        setPendingIaClarification(false);
+        return;
       }
     }
 
@@ -510,32 +537,97 @@ export function AiAssistantModal() {
       return;
     }
 
-    // 4. PYQ Intent
-    if (
+    // 4. Internal Assessment (IA) Papers Intent
+    const isIaIntent =
+      words.includes("ia") ||
+      words.includes("internals") ||
+      words.includes("internal") ||
+      words.includes("cie") ||
+      words.includes("midterm") ||
+      words.includes("midterms") ||
+      norm.includes("ia paper") ||
+      norm.includes("ia papers") ||
+      norm.includes("internal paper") ||
+      norm.includes("internal papers") ||
+      norm.includes("internals paper") ||
+      norm.includes("internals papers") ||
+      norm.includes("cie paper") ||
+      norm.includes("cie papers") ||
+      norm.includes("ia 1") ||
+      norm.includes("ia 2") ||
+      norm.includes("ia1") ||
+      norm.includes("ia2") ||
+      norm.includes("cie 1") ||
+      norm.includes("cie 2");
+
+    if (isIaIntent) {
+      if (extractedSem !== null) {
+        serveIaPapers(extractedSem);
+        return;
+      }
+
+      setPendingIaClarification(true);
+      const responseMsg: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        sender: "bot",
+        text: "📝 Which semester do you need **Internal Assessment (IA) question papers** for?\n\nSelect your semester below to view official IA-1 and IA-2 test papers with direct Google Drive links:",
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        actionCard: {
+          type: "pyqs",
+          title: "BITM IA Question Papers Archive",
+          subtitle: "Autonomous IA-1 and IA-2 question paper bundles",
+          badge: "IA Papers",
+          targetUrl: "/pyqs?tab=ia",
+          buttonText: "Browse All IA Papers ➔",
+        },
+        quickReplies: [
+          { label: "1st Sem IA", value: "1st sem ia papers" },
+          { label: "2nd Sem IA", value: "2nd sem ia papers" },
+          { label: "3rd Sem IA", value: "3rd sem ia papers" },
+          { label: "4th Sem IA", value: "4th sem ia papers" },
+          { label: "5th Sem IA", value: "5th sem ia papers" },
+          { label: "6th Sem IA", value: "6th sem ia papers" },
+        ],
+      };
+      setMessages((prev) => [...prev, responseMsg]);
+      return;
+    }
+
+    // 5. Previous Year Question Papers (PYQ) Intent
+    const isPyqIntent =
       norm.includes("pyq") ||
       norm.includes("question paper") ||
       norm.includes("previous year") ||
       norm.includes("old paper") ||
-      norm.includes("qp")
-    ) {
-      const semText = extractedSem ? `for **Semester ${extractedSem}**` : "for all departments and semesters";
+      words.includes("qp") ||
+      norm.includes("end sem") ||
+      norm.includes("semester exam");
+
+    if (isPyqIntent) {
+      if (extractedSem !== null) {
+        serveSemesterQps(extractedSem);
+        return;
+      }
+
       const responseMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         sender: "bot",
-        text: `📝 Looking for Previous Year Question Papers? We have BITM Autonomous End-Semester exam papers and Internal Assessment (IA) test archives ${semText}!`,
+        text: "📝 Looking for Previous Year Question Papers? We have BITM Autonomous End-Semester exam papers and Internal Assessment (IA) test archives!\n\nWhich semester do you need?",
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         actionCard: {
           type: "pyqs",
-          title: extractedSem ? `Semester ${extractedSem} Question Papers` : "PYQ & Question Papers Archive",
-          subtitle: "Autonomous End-Sem exam papers & mid-term IA papers",
-          badge: extractedSem ? `Sem ${extractedSem} PYQs` : "Exam Prep",
+          title: "Autonomous Question Papers Archive",
+          subtitle: "End-Sem exam papers & mid-term IA papers",
+          badge: "Exam Prep",
           targetUrl: "/pyqs",
           buttonText: "Open PYQs Section ➔",
         },
         quickReplies: [
-          { label: "📐 Maths PYQs", value: "maths pyq" },
-          { label: "💻 CSE / AIML PYQs", value: "cse pyqs" },
-          { label: "⚡ DSDCO / DDCO Notes", value: "dsdco notes" },
+          { label: "1st Sem PYQs", value: "1st sem pyq" },
+          { label: "2nd Sem PYQs", value: "2nd sem pyq" },
+          { label: "3rd Sem PYQs", value: "3rd sem pyq" },
+          { label: "4th Sem PYQs", value: "4th sem pyq" },
+          { label: "📋 IA Test Papers", value: "ia papers" },
         ],
       };
       setMessages((prev) => [...prev, responseMsg]);
@@ -738,11 +830,130 @@ export function AiAssistantModal() {
     setMessages((prev) => [...prev, responseMsg]);
   };
 
+  const serveIaPapers = (semNum: number) => {
+    const semStr = semNumToIaSemesterName(semNum);
+    const semLabel = semNumberToShortLabel(semNum);
+
+    const matchedIa = iaPapers.filter((p) => {
+      const pSem = (p.semester || "").toLowerCase();
+      return (
+        pSem.includes(`${semNum}rd`) ||
+        pSem.includes(`${semNum}th`) ||
+        pSem.includes(`${semNum}st`) ||
+        pSem.includes(`${semNum}nd`) ||
+        pSem.includes(`sem ${semNum}`) ||
+        pSem.includes(`semester ${semNum}`) ||
+        pSem.includes(`${semNum}`)
+      );
+    });
+
+    const directResources = matchedIa.slice(0, 4).map((p) => ({
+      title: `${p.iaType ? p.iaType + " • " : ""}${p.title} (${p.department || "All Branches"})`,
+      url: p.googleDriveUrl,
+      type: "IA Paper",
+    }));
+
+    const responseMsg: ChatMessage = {
+      id: (Date.now() + 1).toString(),
+      sender: "bot",
+      text:
+        matchedIa.length > 0
+          ? `📋 Here are the official **${semLabel} Internal Assessment (IA) Question Papers** from the BITM archive! Click any paper to view directly on Google Drive, or explore the full IA archive:`
+          : `📋 Here is the **${semLabel} Internal Assessment (IA) Papers** section for BITM. Browse all available question paper sets:`,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      actionCard: {
+        type: "pyqs",
+        title: `${semLabel} Internal Assessment (IA) Papers`,
+        subtitle:
+          matchedIa.length > 0
+            ? `${matchedIa.length} IA paper set${matchedIa.length > 1 ? "s" : ""} available • BITM 2022 Scheme`
+            : "BITM CIE 1 & CIE 2 test archives",
+        badge: `${semLabel} IA`,
+        targetUrl: `/pyqs?tab=ia&semester=${encodeURIComponent(semStr)}`,
+        buttonText: `🎯 Open ${semLabel} IA Papers Archive ➔`,
+        resources: directResources.length > 0 ? directResources : undefined,
+      },
+      quickReplies: [
+        { label: "1st Sem IA", value: "1st sem ia papers" },
+        { label: "2nd Sem IA", value: "2nd sem ia papers" },
+        { label: "3rd Sem IA", value: "3rd sem ia papers" },
+        { label: "4th Sem IA", value: "4th sem ia papers" },
+        { label: "📚 Autonomous PYQs", value: "previous year question papers" },
+      ],
+    };
+
+    setMessages((prev) => [...prev, responseMsg]);
+  };
+
+  const serveSemesterQps = (semNum: number) => {
+    const semStr = semNumToIaSemesterName(semNum);
+    const semLabel = semNumberToShortLabel(semNum);
+
+    const matchedQps = semesterQps.filter((q) => {
+      const qSem = (q.semester || "").toLowerCase();
+      return (
+        qSem.includes(`${semNum}rd`) ||
+        qSem.includes(`${semNum}th`) ||
+        qSem.includes(`${semNum}st`) ||
+        qSem.includes(`${semNum}nd`) ||
+        qSem.includes(`sem ${semNum}`) ||
+        qSem.includes(`semester ${semNum}`) ||
+        qSem.includes(`${semNum}`)
+      );
+    });
+
+    const directResources = matchedQps.slice(0, 4).map((q) => ({
+      title: `${q.examYear ? q.examYear + " • " : ""}${q.title} (${q.department || "All"})`,
+      url: q.downloadUrl,
+      type: "End-Sem PYQ",
+    }));
+
+    const responseMsg: ChatMessage = {
+      id: (Date.now() + 1).toString(),
+      sender: "bot",
+      text:
+        matchedQps.length > 0
+          ? `📝 Here are the **${semLabel} Previous Year Question Papers (PYQs)** from BITM Autonomous Examinations:`
+          : `📝 Looking for Previous Year Question Papers? We have BITM Autonomous End-Semester exam papers for **${semLabel}**!`,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      actionCard: {
+        type: "pyqs",
+        title: `${semLabel} Question Papers (PYQs)`,
+        subtitle:
+          matchedQps.length > 0
+            ? `${matchedQps.length} exam paper set${matchedQps.length > 1 ? "s" : ""} available`
+            : "Autonomous End-Sem exam question paper archive",
+        badge: `${semLabel} PYQs`,
+        targetUrl: `/pyqs?tab=semester&semester=${encodeURIComponent(semStr)}`,
+        buttonText: `🎯 Open ${semLabel} PYQs Section ➔`,
+        resources: directResources.length > 0 ? directResources : undefined,
+      },
+      quickReplies: [
+        { label: `📋 ${semLabel} IA Papers`, value: `${semLabel.toLowerCase()} ia papers` },
+        { label: "1st Sem PYQs", value: "1st sem pyq" },
+        { label: "2nd Sem PYQs", value: "2nd sem pyq" },
+        { label: "3rd Sem PYQs", value: "3rd sem pyq" },
+      ],
+    };
+
+    setMessages((prev) => [...prev, responseMsg]);
+  };
+
   const handleActionNavigate = (targetUrl: string, external?: boolean) => {
     if (external) {
       window.open(targetUrl, "_blank", "noopener,noreferrer");
     } else {
-      setLocation(targetUrl);
+      if (typeof window !== "undefined") {
+        const currentPath = window.location.pathname;
+        const targetPath = targetUrl.split("?")[0];
+        if (currentPath === targetPath) {
+          window.location.href = targetUrl;
+        } else {
+          setLocation(targetUrl);
+        }
+      } else {
+        setLocation(targetUrl);
+      }
       window.scrollTo({ top: 0, behavior: "smooth" });
       setIsMinimized(true);
     }
@@ -815,13 +1026,14 @@ export function AiAssistantModal() {
                       timestamp: "Just now",
                       quickReplies: [
                         { label: "📐 Maths Notes", value: "i need maths notes" },
-                        { label: "⚡ DSDCO / DDCO Notes", value: "dsdco notes" },
-                        { label: "💻 Data Structures", value: "data structures notes" },
+                        { label: "📋 3rd Sem IA Papers", value: "i need 3rd sem ia papers" },
+                        { label: "⚡ DSDCO Notes", value: "dsdco notes" },
                         { label: "📊 BITM Results Link", value: "bitm result link" },
                       ],
                     },
                   ]);
                   setPendingClarification(null);
+                  setPendingIaClarification(false);
                 }}
                 className="focus-ring rounded-lg p-1.5 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
                 title="Reset conversation"
