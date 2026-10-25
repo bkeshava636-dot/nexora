@@ -47,10 +47,30 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'wouter'],
-          'vendor-query': ['@tanstack/react-query'],
-          'vendor-ui': ['lucide-react', '@radix-ui/react-dialog', '@radix-ui/react-toast', '@radix-ui/react-tooltip'],
+        manualChunks(id) {
+          const normalized = id.replace(/\\/g, '/');
+          if (normalized.includes('node_modules')) {
+            if (normalized.includes('node_modules/recharts')) {
+              return 'vendor-charts';
+            }
+            if (
+              normalized.includes('node_modules/react/') ||
+              normalized.includes('node_modules/react-dom/') ||
+              normalized.includes('node_modules/scheduler/') ||
+              normalized.includes('node_modules/wouter/')
+            ) {
+              return 'vendor-react';
+            }
+            if (normalized.includes('@tanstack/react-query')) {
+              return 'vendor-query';
+            }
+            if (normalized.includes('lucide-react')) {
+              return 'vendor-icons';
+            }
+            if (normalized.includes('@radix-ui')) {
+              return 'vendor-radix';
+            }
+          }
         },
       },
     },

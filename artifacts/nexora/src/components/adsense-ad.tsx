@@ -13,6 +13,22 @@ interface AdSenseAdProps {
   className?: string;
 }
 
+let scriptInjected = false;
+function ensureAdSenseScript() {
+  if (typeof window === "undefined" || scriptInjected) return;
+  if (document.querySelector('script[src*="pagead2.googlesyndication.com"]')) {
+    scriptInjected = true;
+    return;
+  }
+  scriptInjected = true;
+  const script = document.createElement("script");
+  script.async = true;
+  script.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2516613029504029";
+  script.crossOrigin = "anonymous";
+  script.dataset.adClient = "ca-pub-2516613029504029";
+  document.head.appendChild(script);
+}
+
 export function AdSenseAd({
   slot = "9231147782",
   format = "auto",
@@ -22,15 +38,34 @@ export function AdSenseAd({
   const insRef = useRef<HTMLModElement | null>(null);
 
   useEffect(() => {
-    // Only request ad if the ins element is available and hasn't already been processed
-    if (insRef.current && !insRef.current.getAttribute("data-adsbygoogle-status")) {
-      try {
-        (window.adsbygoogle = window.adsbygoogle || []).push({});
-      } catch (err) {
-        if (process.env.NODE_ENV !== "production") {
-          console.debug("AdSense init error:", err);
+    const initAd = () => {
+      ensureAdSenseScript();
+      if (insRef.current && !insRef.current.getAttribute("data-adsbygoogle-status")) {
+        try {
+          (window.adsbygoogle = window.adsbygoogle || []).push({});
+        } catch (err) {
+          if (process.env.NODE_ENV !== "production") {
+            console.debug("AdSense init error:", err);
+          }
         }
       }
+    };
+
+    const win = window as unknown as {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+
+    if (typeof win.requestIdleCallback === "function") {
+      const idleId = win.requestIdleCallback(initAd, { timeout: 2000 });
+      return () => {
+        win.cancelIdleCallback?.(idleId);
+      };
+    } else {
+      const timerId = setTimeout(initAd, 1000);
+      return () => {
+        clearTimeout(timerId);
+      };
     }
   }, []);
 

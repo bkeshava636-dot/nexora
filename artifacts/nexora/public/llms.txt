@@ -1,0 +1,9 @@
+# Nexora – BITM College Academic Resources
+
+> Nexora is an unofficial academic repository for BITM students providing organized semester notes, previous year question papers (PYQs), and study materials.
+
+## Sections
+- [/resources](/resources): Curated academic notes, syllabus books, and study materials organized by department, year, and semester.
+- [/pyqs](/pyqs): Previous year question papers for mid-terms and end-semester VTU / autonomous exams.
+- [/quick-links](/quick-links): Official portal links, academic calendar, results portals, and VTU links.
+- [/contribute](/contribute): Community document upload and submission desk for students.

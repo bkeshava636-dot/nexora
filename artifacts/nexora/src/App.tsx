@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, memo, useCallback, useEffect, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, memo, useCallback, useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { Link, Redirect, Route, Switch, Router as WouterRouter, useLocation, useParams } from "wouter";
 import {
   AlertTriangle, ArrowLeft, ArrowRight, BarChart3, Bug, MessageSquare, MessageSquarePlus, BadgeCheck, BookOpen, Calendar, Check, CheckCircle2, ChevronDown, ChevronRight,
@@ -11,7 +11,7 @@ import { BuyMePaneerFooter } from "@/components/buy-me-paneer";
 import { FeedbackDialog } from "@/components/feedback-dialog";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { AdSenseAd } from "@/components/adsense-ad";
-import { AdminAnalytics } from "@/components/admin-analytics";
+const AdminAnalytics = lazy(() => import("@/components/admin-analytics").then((m) => ({ default: m.AdminAnalytics })));
 import { AnalyticsTracker } from "@/components/analytics-tracker";
 import {
   Dialog,
@@ -289,7 +289,7 @@ function qOpts(enabled: boolean) {
 }
 
 function Logo({ compact = false }: { compact?: boolean }) {
-  return <Link href="/" className="focus-ring flex items-center gap-2.5" data-testid="link-logo">
+  return <Link href="/" className="focus-ring flex items-center gap-2.5" data-testid="link-logo" aria-label="Nexora home">
     <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] shadow-sm">
       <Layers3 size={19} strokeWidth={2.4} />
     </span>
@@ -12414,7 +12414,7 @@ function AppRouter() {
     <Route path="/forgot-password"><ForgotPasswordPage /></Route>
     <Route path="/reset-password"><ResetPasswordPage /></Route>
     <Route path="/admin"><RequireAdmin><AdminOverview /></RequireAdmin></Route>
-    <Route path="/admin/analytics"><RequireAdmin><AdminLayout><AdminAnalytics /></AdminLayout></RequireAdmin></Route>
+    <Route path="/admin/analytics"><RequireAdmin><AdminLayout><Suspense fallback={<div className="flex h-64 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[hsl(var(--muted-foreground))]" /></div>}><AdminAnalytics /></Suspense></AdminLayout></RequireAdmin></Route>
     <Route path="/admin/catalog"><RequireAdmin><AdminLayout><AdminCatalog /></AdminLayout></RequireAdmin></Route>
     <Route path="/admin/templates"><RequireAdmin><AdminCurriculumTemplates /></RequireAdmin></Route>
     <Route path="/admin/submissions"><RequireAdmin><AdminSubmissions /></RequireAdmin></Route>
