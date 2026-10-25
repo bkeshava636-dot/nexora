@@ -366,7 +366,7 @@ function findAcademicMatch(text: string): AcademicTopic | null {
 }
 
 // ============================================================================
-// 6. EXTERNAL LLM INTEGRATION (Gemini / OpenAI API with safe server-side keys)
+// 6. EXTERNAL LLM INTEGRATION (Google Gemini 1.5 Flash Free-Tier API)
 // ============================================================================
 async function callExternalLlm(
   userMessage: string,
@@ -374,90 +374,67 @@ async function callExternalLlm(
   systemContext: string
 ): Promise<string | null> {
   const geminiKey = process.env["GEMINI_API_KEY"];
-  const openAiKey = process.env["OPENAI_API_KEY"];
+  if (!geminiKey) return null;
 
-  // 1. Try Google Gemini if configured
-  if (geminiKey) {
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
-      const contents = [
-        {
-          role: "user",
+  try {
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+
+    // Build dialogue turns with strict alternating user/model roles required by Gemini API
+    const contents: Array<{ role: "user" | "model"; parts: Array<{ text: string }> }> = [];
+
+    // Keep up to 4 recent turns to stay well within free-tier token budgets
+    let lastRole: "user" | "model" | null = null;
+    for (const h of history.slice(-4)) {
+      const role = h.role === "assistant" ? "model" : "user";
+      const cleanText = h.content?.trim();
+      if (!cleanText) continue;
+
+      if (role !== lastRole) {
+        contents.push({ role, parts: [{ text: cleanText }] });
+        lastRole = role;
+      }
+    }
+
+    // Ensure the terminal turn is always the current user request
+    if (lastRole === "user" && contents.length > 0) {
+      contents[contents.length - 1] = { role: "user", parts: [{ text: userMessage }] };
+    } else {
+      contents.push({ role: "user", parts: [{ text: userMessage }] });
+    }
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": geminiKey,
+      },
+      body: JSON.stringify({
+        system_instruction: {
           parts: [{ text: systemContext }],
         },
-        ...history.slice(-6).map((h) => ({
-          role: h.role === "assistant" ? "model" : "user",
-          parts: [{ text: h.content }],
-        })),
-        {
-          role: "user",
-          parts: [{ text: userMessage }],
-        },
-      ];
-
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents,
-          generationConfig: {
-            temperature: 0.3,
-            maxOutputTokens: 1200,
-          },
-        }),
-        signal: AbortSignal.timeout(9000),
-      });
-
-      if (res.ok) {
-        const data = (await res.json()) as any;
-        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text && typeof text === "string" && text.trim()) {
-          return text.trim();
-        }
-      } else {
-        logger.warn({ status: res.status }, "Gemini API call returned non-200");
-      }
-    } catch (err) {
-      logger.warn({ err }, "Gemini API call failed or timed out");
-    }
-  }
-
-  // 2. Try OpenAI if configured
-  if (openAiKey) {
-    try {
-      const messages = [
-        { role: "system", content: systemContext },
-        ...history.slice(-6).map((h) => ({ role: h.role, content: h.content })),
-        { role: "user", content: userMessage },
-      ];
-
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${openAiKey}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages,
+        contents,
+        generationConfig: {
           temperature: 0.3,
-          max_tokens: 1200,
-        }),
-        signal: AbortSignal.timeout(9000),
-      });
+          maxOutputTokens: 1000,
+        },
+      }),
+      signal: AbortSignal.timeout(8500),
+    });
 
-      if (res.ok) {
-        const data = (await res.json()) as any;
-        const text = data?.choices?.[0]?.message?.content;
-        if (text && typeof text === "string" && text.trim()) {
-          return text.trim();
-        }
+    if (res.ok) {
+      const data = (await res.json()) as any;
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (text && typeof text === "string" && text.trim()) {
+        return text.trim();
       }
-    } catch (err) {
-      logger.warn({ err }, "OpenAI API call failed or timed out");
+    } else {
+      logger.warn({ status: res.status }, "Gemini API call returned non-200");
     }
+  } catch (err) {
+    logger.warn({ err }, "Gemini API call failed or timed out; falling back to local engine");
   }
 
+  // Gracefully fallback to the free built-in academic engine and catalog
   return null;
 }
 
@@ -817,7 +794,7 @@ router.post("/ai/chat", async (req: Request, res: Response) => {
     }
 
     // ------------------------------------------------------------------------
-    // ROUTE 5: Check External LLM (If GEMINI_API_KEY or OPENAI_API_KEY configured)
+    // ROUTE 5: Check Free Google Gemini LLM (If GEMINI_API_KEY configured)
     // ------------------------------------------------------------------------
     const systemPrompt = `You are Nexora AI Study Assistant, a friendly, intelligent academic tutor and guide for college engineering students at Ballari Institute of Technology and Management (BITM).
 Your goal is to explain difficult academic concepts simply, provide clean code snippets with step-by-step explanations, help prepare for semester exams, and guide students to resources.
