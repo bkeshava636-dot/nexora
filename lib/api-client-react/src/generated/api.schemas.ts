@@ -174,6 +174,7 @@ export interface Resource {
   description: string;
   resourceType: ResourceType;
   googleDriveUrl: string;
+  contributorName?: string | null;
   isNew: boolean;
   isFeatured: boolean;
   isVerified: boolean;

@@ -9,6 +9,7 @@ export interface IaPaperItem {
   iaType: string;
   title: string;
   googleDriveUrl: string;
+  contributorName?: string | null;
   isPublished: boolean;
   displayOrder: number;
   createdAt: string;
@@ -22,6 +23,7 @@ export interface CreateIaPaperInput {
   iaType?: string;
   title?: string;
   googleDriveUrl: string;
+  contributorName?: string | null;
   isPublished?: boolean;
   displayOrder?: number;
 }

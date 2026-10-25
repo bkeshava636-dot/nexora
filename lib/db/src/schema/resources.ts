@@ -15,6 +15,7 @@ export const resources = pgTable(
     description: text("description").notNull().default(""),
     resourceType: resourceTypeEnum("resource_type").notNull(),
     googleDriveUrl: text("google_drive_url").notNull(),
+    contributorName: text("contributor_name"),
     isNew: boolean("is_new").notNull().default(true),
     isFeatured: boolean("is_featured").notNull().default(false),
     isVerified: boolean("is_verified").notNull().default(false),

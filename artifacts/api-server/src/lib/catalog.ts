@@ -68,6 +68,7 @@ export function resourceCatalogSelect() {
       description: resources.description,
       resourceType: resources.resourceType,
       googleDriveUrl: resources.googleDriveUrl,
+      contributorName: resources.contributorName,
       isNew: resources.isNew,
       isFeatured: resources.isFeatured,
       isVerified: resources.isVerified,

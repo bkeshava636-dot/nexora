@@ -18,6 +18,7 @@ export const iaPapers = pgTable(
     iaType: text("ia_type").notNull().default("IA-1"),
     title: text("title").notNull().default(""),
     googleDriveUrl: text("google_drive_url").notNull(),
+    contributorName: text("contributor_name"),
     isPublished: boolean("is_published").notNull().default(true),
     displayOrder: integer("display_order").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

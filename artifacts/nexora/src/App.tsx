@@ -4,7 +4,7 @@ import {
   AlertTriangle, ArrowLeft, ArrowRight, BarChart3, Bug, MessageSquare, MessageSquarePlus, BadgeCheck, BookOpen, Calendar, Check, CheckCircle2, ChevronDown, ChevronRight,
   CircleAlert, Clock3, Download, ExternalLink, Eye, EyeOff, FileArchive, FileCheck, FileDown, FileText, FileUp, Filter, Flag, FolderOpen, GitBranch, GraduationCap, KeyRound, Layers3,
   LayoutDashboard, LibraryBig, Link2, Loader2, Lock, LogOut, Menu, MoreHorizontal, Pencil, Plus, RotateCcw, Search, Send, ShieldCheck,
-  SlidersHorizontal, Sparkles, Trash2, Unlink, Upload, Users, X, Zap,
+  SlidersHorizontal, Sparkles, Trash2, Unlink, Upload, Mail, User, Users, X, Zap,
 } from "lucide-react";
 import { ApiWakeOverlay } from "@/components/api-wake-overlay";
 import { BuyMePaneerFooter } from "@/components/buy-me-paneer";
@@ -434,6 +434,13 @@ const ResourceCard = memo(function ResourceCard({
               {resource.description}
             </p>
           )}
+
+          {resource.contributorName && (
+            <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-[hsl(var(--muted-foreground))]">
+              <User size={12} className="shrink-0 text-[hsl(var(--primary))]" />
+              <span className="truncate">Contributed by <strong className="font-semibold text-[hsl(var(--foreground))]">{resource.contributorName}</strong></span>
+            </div>
+          )}
         </div>
       </button>
 
@@ -534,6 +541,15 @@ function ResourceDetailsDialog({
               <div className="col-span-2 sm:col-span-3">
                 <span className="block text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Date added</span>
                 <span className="font-semibold text-[hsl(var(--foreground))]">{formattedDate}</span>
+              </div>
+            )}
+            {resource.contributorName && (
+              <div className="col-span-2 sm:col-span-3">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">Contributed by</span>
+                <span className="font-semibold text-[hsl(var(--foreground))] flex items-center gap-1.5 mt-0.5">
+                  <User size={13} className="text-[hsl(var(--primary))]" />
+                  {resource.contributorName}
+                </span>
               </div>
             )}
             {resource.linkedLocations && resource.linkedLocations.length > 1 && (
@@ -4232,9 +4248,21 @@ function SubmissionRow({
             )}
           </div>
 
-          <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
-            {contributorText} · {formatDate(submission.submittedAt)}
-          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs border-t border-[hsl(var(--border)/.4)] pt-1.5">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[hsl(var(--foreground))]">
+              <User size={12} className="text-[hsl(var(--primary))] shrink-0" />
+              <span className="text-[hsl(var(--muted-foreground))] font-normal">Contributor:</span>
+              <strong className="font-semibold">{submission.studentName || "Anonymous / Not provided"}</strong>
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[hsl(var(--foreground))]">
+              <Mail size={12} className="text-[hsl(var(--primary))] shrink-0" />
+              <span className="text-[hsl(var(--muted-foreground))] font-normal">Contact info:</span>
+              <strong className="font-semibold">{submission.studentEmail || "None provided"}</strong>
+            </span>
+            <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
+              · {formatDate(submission.submittedAt)}
+            </span>
+          </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5">
@@ -4479,6 +4507,32 @@ function AdminEditSubmissionDialog({
             Change the assigned branch, year, semester, subject, and category for this upload before or after review.
           </DialogDescription>
         </DialogHeader>
+
+        <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.3)] p-3.5 text-xs space-y-1.5">
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+            Contributor Details
+          </span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div className="flex items-center gap-2">
+              <User size={14} className="text-[hsl(var(--primary))] shrink-0" />
+              <div className="min-w-0">
+                <span className="block text-[10px] text-[hsl(var(--muted-foreground))]">Name</span>
+                <span className="font-semibold text-[hsl(var(--foreground))] truncate block">
+                  {submission.studentName || "Anonymous / Not provided"}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Mail size={14} className="text-[hsl(var(--primary))] shrink-0" />
+              <div className="min-w-0">
+                <span className="block text-[10px] text-[hsl(var(--muted-foreground))]">Contact Info</span>
+                <span className="font-semibold text-[hsl(var(--foreground))] truncate block">
+                  {submission.studentEmail || "None provided"}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <form
           onSubmit={(e) => {
@@ -9916,12 +9970,18 @@ function PyqsIaSection() {
                         )}
                       </div>
 
-                      <div className="mt-4 flex items-center justify-end pt-2 border-t border-[hsl(var(--border)/.4)]">
+                      <div className="mt-4 flex items-center justify-between gap-2 pt-2 border-t border-[hsl(var(--border)/.4)]">
+                        {item.contributorName ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-[hsl(var(--muted-foreground))] truncate max-w-[55%]">
+                            <User size={11} className="shrink-0 text-[hsl(var(--primary))]" />
+                            <span className="truncate">By <strong className="font-medium text-[hsl(var(--foreground))]">{item.contributorName}</strong></span>
+                          </span>
+                        ) : <span />}
                         <a
                           href={item.googleDriveUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[hsl(var(--primary))] px-3.5 py-2 text-xs font-bold text-[hsl(var(--primary-foreground))] shadow-xs hover:bg-[hsl(var(--primary)/.9)] transition-all cursor-pointer"
+                          className="focus-ring inline-flex items-center gap-1.5 rounded-xl bg-[hsl(var(--primary))] px-3.5 py-2 text-xs font-bold text-[hsl(var(--primary-foreground))] shadow-xs hover:bg-[hsl(var(--primary)/.9)] transition-all cursor-pointer shrink-0"
                           data-testid={`button-view-ia-paper-${item.id}`}
                         >
                           <FolderOpen size={13} />
@@ -12509,8 +12569,20 @@ function AdminIaContributionsSection() {
                   <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
                     {item.iaAcademicYear} • {item.iaSemester} • {item.iaDepartment} • {item.iaType}
                   </div>
-                  <div className="text-[10px] text-[hsl(var(--muted-foreground))] mt-2 border border-[hsl(var(--border))] rounded bg-[hsl(var(--background))] px-2 py-1 inline-block">
-                    By {item.studentName && item.studentEmail ? `${item.studentName} (${item.studentEmail})` : item.studentName || item.studentEmail || "Not provided"} on {new Date(item.submittedAt).toLocaleDateString()}
+                  <div className="mt-2.5 flex flex-wrap items-center gap-3 text-xs border-t border-[hsl(var(--border)/.4)] pt-2">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[hsl(var(--foreground))]">
+                      <User size={12} className="text-[hsl(var(--primary))]" />
+                      <span className="text-[hsl(var(--muted-foreground))] font-normal">Contributor:</span>
+                      <strong className="font-semibold">{item.studentName || "Anonymous"}</strong>
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[hsl(var(--foreground))]">
+                      <Mail size={12} className="text-[hsl(var(--primary))]" />
+                      <span className="text-[hsl(var(--muted-foreground))] font-normal">Contact:</span>
+                      <strong className="font-semibold">{item.studentEmail || "None provided"}</strong>
+                    </span>
+                    <span className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                      · {new Date(item.submittedAt).toLocaleDateString()}
+                    </span>
                   </div>
                 </div>
                 <div className="flex flex-col gap-2">

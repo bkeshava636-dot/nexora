@@ -547,6 +547,7 @@ export const CreateResourceBody = zod.object({
   "description": zod.string().optional(),
   "resourceType": zod.enum(['Lecture notes', 'Previous year paper', 'Lab manual', 'Assignment', 'Reference', 'Internal Assessment']),
   "googleDriveUrl": zod.string(),
+  "contributorName": zod.string().nullish(),
   "isNew": zod.boolean().optional(),
   "isFeatured": zod.boolean().optional(),
   "isVerified": zod.boolean().optional()
@@ -646,6 +647,7 @@ export const UpdateResourceBody = zod.object({
   "description": zod.string().optional(),
   "resourceType": zod.enum(['Lecture notes', 'Previous year paper', 'Lab manual', 'Assignment', 'Reference', 'Internal Assessment']).optional(),
   "googleDriveUrl": zod.string().optional(),
+  "contributorName": zod.string().nullish(),
   "isNew": zod.boolean().optional(),
   "isFeatured": zod.boolean().optional(),
   "isVerified": zod.boolean().optional()
