@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 declare global {
   interface Window {
@@ -35,9 +35,36 @@ export function AdSenseAd({
   responsive = true,
   className = "my-6 mx-auto w-full max-w-5xl rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card)/.5)] p-1.5 sm:p-3 text-center",
 }: AdSenseAdProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const insRef = useRef<HTMLModElement | null>(null);
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
+    if (!containerRef.current || typeof window === "undefined") return;
+
+    if (!("IntersectionObserver" in window)) {
+      setIsVisible(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry?.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "200px" }
+    );
+
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!isVisible || typeof window === "undefined") return;
+
     const initAd = () => {
       ensureAdSenseScript();
       if (insRef.current && !insRef.current.getAttribute("data-adsbygoogle-status")) {
@@ -57,27 +84,27 @@ export function AdSenseAd({
     };
 
     if (typeof win.requestIdleCallback === "function") {
-      const idleId = win.requestIdleCallback(initAd, { timeout: 2000 });
+      const idleId = win.requestIdleCallback(initAd, { timeout: 1500 });
       return () => {
         win.cancelIdleCallback?.(idleId);
       };
     } else {
-      const timerId = setTimeout(initAd, 1000);
+      const timerId = setTimeout(initAd, 200);
       return () => {
         clearTimeout(timerId);
       };
     }
-  }, []);
+  }, [isVisible]);
 
   return (
-    <div className={className} aria-label="Advertisement">
+    <div ref={containerRef} className={className} aria-label="Advertisement">
       <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground)/.7)]">
         Advertisement
       </div>
       <ins
         ref={insRef}
         className="adsbygoogle"
-        style={{ display: "block" }}
+        style={{ display: "block", minHeight: "90px" }}
         data-ad-client="ca-pub-2516613029504029"
         data-ad-slot={slot}
         data-ad-format={format}

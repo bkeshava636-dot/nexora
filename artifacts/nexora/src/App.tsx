@@ -311,7 +311,7 @@ function Shell({ children }: { children: ReactNode }) {
   return <div className="noise nexora-shell min-h-[100dvh] text-[hsl(var(--foreground))]">
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[236px] flex-col bg-[hsl(var(--sidebar))] px-4 py-5 text-[hsl(var(--sidebar-foreground))] md:flex">
       <div className="px-2"><Logo /></div>
-      <div className="mt-12 px-2 micro-label text-[hsl(var(--sidebar-foreground)/.45)]">Your study desk</div>
+      <div className="mt-12 px-2 micro-label text-[hsl(var(--sidebar-foreground)/.75)]">Your study desk</div>
       <nav className="mt-3 space-y-1" aria-label="Main navigation">
         {nav.map(({ href, label, icon: Icon }) => {
           const active = href === "/" ? location === "/" : location.startsWith(href);

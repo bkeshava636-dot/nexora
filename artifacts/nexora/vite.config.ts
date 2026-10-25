@@ -45,12 +45,33 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, 'dist/public'),
     emptyOutDir: true,
+    modulePreload: {
+      resolveDependencies(filename, deps) {
+        return deps.filter(
+          (dep) => !dep.includes('vendor-charts') && !dep.includes('admin-analytics')
+        );
+      },
+    },
     rollupOptions: {
       output: {
         manualChunks(id) {
           const normalized = id.replace(/\\/g, '/');
           if (normalized.includes('node_modules')) {
-            if (normalized.includes('node_modules/recharts')) {
+            if (
+              normalized.includes('node_modules/clsx') ||
+              normalized.includes('node_modules/tailwind-merge') ||
+              normalized.includes('node_modules/class-variance-authority')
+            ) {
+              return 'vendor-ui-utils';
+            }
+            if (
+              normalized.includes('node_modules/recharts') ||
+              normalized.includes('node_modules/victory-vendor') ||
+              normalized.includes('node_modules/d3-') ||
+              normalized.includes('node_modules/react-smooth') ||
+              normalized.includes('node_modules/internmap') ||
+              normalized.includes('node_modules/decimal.js-light')
+            ) {
               return 'vendor-charts';
             }
             if (
