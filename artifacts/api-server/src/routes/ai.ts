@@ -4,6 +4,7 @@ import { eq, ilike, or, and, asc } from "drizzle-orm";
 import {
   db,
   branches,
+  years,
   semesters,
   subjects,
   resources,
@@ -11,6 +12,7 @@ import {
   iaPapers,
   importantLinks,
   type Branch,
+  type Year,
   type Semester,
   type Subject,
   type Resource,
@@ -99,11 +101,21 @@ export interface ChatResponsePayload {
 // ============================================================================
 // 3. CATALOG CACHING (Cached for 60 seconds for ultra-fast response times)
 // ============================================================================
+export interface EnrichedSubject extends Subject {
+  semesterNum: number;
+  semesterName: string;
+  branchId: number | null;
+  branchShortName: string;
+  branchName: string;
+  verifiedResourcesCount: number;
+}
+
 interface CatalogCache {
   timestamp: number;
   branches: Branch[];
+  years: Year[];
   semesters: Semester[];
-  subjects: Subject[];
+  subjects: EnrichedSubject[];
   resources: Resource[];
   semesterQps: SemesterQp[];
   iaPapers: IaPaper[];
@@ -120,6 +132,7 @@ async function getCachedCatalog(): Promise<CatalogCache> {
 
   const [
     allBranches,
+    allYears,
     allSemesters,
     allSubjects,
     allResources,
@@ -128,6 +141,7 @@ async function getCachedCatalog(): Promise<CatalogCache> {
     allQuickLinks,
   ] = await Promise.all([
     db.select().from(branches).where(eq(branches.isActive, true)).orderBy(asc(branches.displayOrder)),
+    db.select().from(years).orderBy(asc(years.displayOrder)),
     db.select().from(semesters).orderBy(asc(semesters.displayOrder)),
     db.select().from(subjects).orderBy(asc(subjects.name)),
     db.select().from(resources).orderBy(asc(resources.id)),
@@ -136,11 +150,46 @@ async function getCachedCatalog(): Promise<CatalogCache> {
     db.select().from(importantLinks).where(eq(importantLinks.isActive, true)).orderBy(asc(importantLinks.displayOrder)),
   ]);
 
+  const branchMap = new Map<number, Branch>();
+  for (const b of allBranches) branchMap.set(b.id, b);
+
+  const yearMap = new Map<number, Year>();
+  for (const y of allYears) yearMap.set(y.id, y);
+
+  const semMap = new Map<number, { sem: Semester; semNum: number; branch?: Branch }>();
+  for (const s of allSemesters) {
+    const semNum = extractSemesterNumber(s.name) || 0;
+    const y = yearMap.get(s.yearId);
+    const b = y ? branchMap.get(y.branchId) : undefined;
+    semMap.set(s.id, { sem: s, semNum, branch: b });
+  }
+
+  const resCountMap = new Map<number, number>();
+  for (const r of allResources) {
+    if (r.subjectId) {
+      resCountMap.set(r.subjectId, (resCountMap.get(r.subjectId) || 0) + 1);
+    }
+  }
+
+  const enrichedSubjects: EnrichedSubject[] = allSubjects.map((s) => {
+    const semInfo = semMap.get(s.semesterId);
+    return {
+      ...s,
+      semesterNum: semInfo ? semInfo.semNum : (extractSemesterNumber(s.name) || 0),
+      semesterName: semInfo ? semInfo.sem.name : "Semester",
+      branchId: semInfo?.branch ? semInfo.branch.id : null,
+      branchShortName: semInfo?.branch?.shortName || "",
+      branchName: semInfo?.branch?.name || "",
+      verifiedResourcesCount: resCountMap.get(s.id) || 0,
+    };
+  });
+
   catalogCache = {
     timestamp: now,
     branches: allBranches,
+    years: allYears,
     semesters: allSemesters,
-    subjects: allSubjects,
+    subjects: enrichedSubjects,
     resources: allResources,
     semesterQps: allSemesterQps as unknown as SemesterQp[],
     iaPapers: allIaPapers as unknown as IaPaper[],
@@ -151,28 +200,29 @@ async function getCachedCatalog(): Promise<CatalogCache> {
 }
 
 // ============================================================================
-// 4. NATURAL LANGUAGE CONTEXT EXTRACTORS
+// 4. NATURAL LANGUAGE CONTEXT EXTRACTORS & TOPIC HELPERS
 // ============================================================================
 function extractSemesterNumber(text: string): number | null {
   const norm = text.toLowerCase();
   if (norm.includes("c cycle") || norm.includes("c-cycle") || norm.includes("chem")) return 1;
   if (norm.includes("p cycle") || norm.includes("p-cycle") || norm.includes("phy")) return 2;
 
+  // Handles: "3 rd sem", "3rd sem", "sem 3", "semester 3", "3 sem", "3rd semester", "3 rd semester"
   const m =
     norm.match(/\b(?:sem|semester|s)\s*([1-8])\b/) ||
-    norm.match(/\b([1-8])(?:st|nd|rd|th)?\s*(?:sem|semester)\b/) ||
-    norm.match(/\bsem([1-8])\b/) ||
-    norm.match(/\bs([1-8])\b/);
+    norm.match(/\b([1-8])\s*(?:st|nd|rd|th)?\s*(?:sem|semester)\b/) ||
+    norm.match(/\bsem([1-8])\b/i) ||
+    norm.match(/\bs([1-8])\b/i);
   if (m) return parseInt(m[1], 10);
 
-  if (norm.includes("1st") || norm.includes("first")) return 1;
-  if (norm.includes("2nd") || norm.includes("second")) return 2;
-  if (norm.includes("3rd") || norm.includes("third")) return 3;
-  if (norm.includes("4th") || norm.includes("fourth")) return 4;
-  if (norm.includes("5th") || norm.includes("fifth")) return 5;
-  if (norm.includes("6th") || norm.includes("sixth")) return 6;
-  if (norm.includes("7th") || norm.includes("seventh")) return 7;
-  if (norm.includes("8th") || norm.includes("eighth")) return 8;
+  if (/\b(?:1\s*st|first)\b/.test(norm)) return 1;
+  if (/\b(?:2\s*nd|second)\b/.test(norm)) return 2;
+  if (/\b(?:3\s*rd|third)\b/.test(norm)) return 3;
+  if (/\b(?:4\s*th|fourth)\b/.test(norm)) return 4;
+  if (/\b(?:5\s*th|fifth)\b/.test(norm)) return 5;
+  if (/\b(?:6\s*th|sixth)\b/.test(norm)) return 6;
+  if (/\b(?:7\s*th|seventh)\b/.test(norm)) return 7;
+  if (/\b(?:8\s*th|eighth)\b/.test(norm)) return 8;
 
   const digit = norm.match(/^\s*([1-8])\s*$/);
   if (digit) return parseInt(digit[1], 10);
@@ -191,6 +241,136 @@ function extractBranchName(text: string): string | null {
   if (norm.includes("civil")) return "CIVIL";
   if (norm.includes("data science") || norm.includes("ds")) return "DS";
   return null;
+}
+
+function detectSubjectTopic(normQuery: string, words: string[]): string | null {
+  if (
+    normQuery.includes("math") ||
+    words.includes("m1") ||
+    words.includes("m2") ||
+    words.includes("m3") ||
+    words.includes("m4") ||
+    normQuery.includes("calculus") ||
+    normQuery.includes("algebra")
+  ) {
+    return "math";
+  }
+  if (
+    words.includes("dsa") ||
+    normQuery.includes("data structure") ||
+    normQuery.includes("data structures")
+  ) {
+    return "dsa";
+  }
+  if (
+    normQuery.includes("ddco") ||
+    normQuery.includes("dsdco") ||
+    normQuery.includes("digital design") ||
+    normQuery.includes("computer organization")
+  ) {
+    return "ddco";
+  }
+  if (
+    words.includes("java") ||
+    normQuery.includes("oops java") ||
+    normQuery.includes("object oriented")
+  ) {
+    return "java";
+  }
+  if (
+    words.includes("os") ||
+    normQuery.includes("operating system") ||
+    normQuery.includes("operating systems")
+  ) {
+    return "os";
+  }
+  if (words.includes("dbms") || normQuery.includes("database")) return "dbms";
+  if (words.includes("cn") || normQuery.includes("computer network") || normQuery.includes("networking")) return "networks";
+  if (normQuery.includes("microcontroller") || normQuery.includes("microprocessor") || normQuery.includes("mpmc")) return "microcontroller";
+  if (normQuery.includes("python")) return "python";
+  if (normQuery.includes("cloud")) return "cloud";
+  if (normQuery.includes("iot") || normQuery.includes("internet of things")) return "iot";
+  if (normQuery.includes("ai") || normQuery.includes("artificial intelligence") || normQuery.includes("machine learning") || words.includes("ml")) return "ai";
+  if (normQuery.includes("physics") || normQuery.includes("phy")) return "physics";
+  if (normQuery.includes("chemistry") || normQuery.includes("chem")) return "chemistry";
+  if (normQuery.includes("biology")) return "biology";
+  if (normQuery.includes("constitution") || normQuery.includes("cip")) return "constitution";
+  return null;
+}
+
+function subjectMatchesTopic(s: EnrichedSubject, topic: string): boolean {
+  const sName = s.name.toLowerCase();
+  switch (topic) {
+    case "math":
+      return sName.includes("math") || sName.includes("calculus") || sName.includes("algebra");
+    case "dsa":
+      return sName.includes("data structure") || sName.includes("dsa");
+    case "ddco":
+      return sName.includes("digital design") || sName.includes("ddco") || sName.includes("dsdco") || sName.includes("computer organization");
+    case "java":
+      return sName.includes("java");
+    case "os":
+      return sName.includes("operating system");
+    case "dbms":
+      return sName.includes("database") || sName.includes("dbms");
+    case "networks":
+      return sName.includes("network");
+    case "microcontroller":
+      return sName.includes("microcontroller") || sName.includes("microprocessor") || sName.includes("mpmc");
+    case "python":
+      return sName.includes("python");
+    case "cloud":
+      return sName.includes("cloud");
+    case "iot":
+      return sName.includes("internet of things") || sName.includes("iot");
+    case "ai":
+      return sName.includes("artificial intelligence") || sName.includes("machine learning") || sName.includes("neural");
+    case "physics":
+      return sName.includes("physics");
+    case "chemistry":
+      return sName.includes("chemistry");
+    case "biology":
+      return sName.includes("biology");
+    case "constitution":
+      return sName.includes("constitution") || sName.includes("cip");
+    default:
+      return sName.includes(topic);
+  }
+}
+
+function formatTopicName(topic: string): string {
+  switch (topic) {
+    case "math":
+      return "Mathematics";
+    case "dsa":
+      return "Data Structures & Applications";
+    case "ddco":
+      return "Digital Design & Computer Organization";
+    case "java":
+      return "Object-Oriented Programming with Java";
+    case "os":
+      return "Operating Systems";
+    case "dbms":
+      return "Database Management Systems";
+    case "networks":
+      return "Computer Networks";
+    case "microcontroller":
+      return "Microcontrollers";
+    case "python":
+      return "Python Programming";
+    case "cloud":
+      return "Cloud Computing";
+    case "iot":
+      return "Internet of Things";
+    case "ai":
+      return "Artificial Intelligence & Machine Learning";
+    case "physics":
+      return "Engineering Physics";
+    case "chemistry":
+      return "Engineering Chemistry";
+    default:
+      return topic.charAt(0).toUpperCase() + topic.slice(1);
+  }
 }
 
 function semNumToLabel(n: number): string {
@@ -562,24 +742,44 @@ router.post("/ai/chat", async (req: Request, res: Response) => {
       activeBranch = contextState.branch;
     }
 
-    // Try finding matching subject in catalog
-    const matchedSubject = catalog.subjects.find((s) => {
-      const sName = s.name.toLowerCase();
-      return (
-        normQuery.includes(sName) ||
-        (normQuery.includes("dsdco") && sName.includes("digital design")) ||
-        (normQuery.includes("ddco") && sName.includes("digital design")) ||
-        (words.includes("dsa") && sName.includes("data structure")) ||
-        (words.includes("maths") && sName.includes("math")) ||
-        (words.includes("java") && sName.includes("java")) ||
-        (words.includes("os") && sName.includes("operating system"))
-      );
-    });
+    // Detect subject topic
+    const detectedTopic = detectSubjectTopic(normQuery, words);
 
-    if (matchedSubject) {
-      activeSubject = matchedSubject.name;
-      activeSubjectId = matchedSubject.id;
-    }
+    // Differentiate between resource search queries vs academic conceptual explanations
+    const isResourceIntent =
+      normQuery.includes("note") ||
+      normQuery.includes("notes") ||
+      normQuery.includes("pdf") ||
+      normQuery.includes("material") ||
+      normQuery.includes("materials") ||
+      normQuery.includes("study") ||
+      normQuery.includes("syllabus") ||
+      normQuery.includes("module") ||
+      normQuery.includes("textbook") ||
+      normQuery.includes("ppt") ||
+      normQuery.includes("drive") ||
+      normQuery.includes("link") ||
+      normQuery.includes("shelf") ||
+      normQuery.includes("resource") ||
+      normQuery.includes("download") ||
+      normQuery.includes("where can i") ||
+      normQuery.includes("give me") ||
+      normQuery.includes("i need") ||
+      normQuery.includes("find") ||
+      normQuery.includes("search");
+
+    const isExplanationIntent =
+      normQuery.includes("explain") ||
+      normQuery.includes("what is") ||
+      normQuery.includes("what are") ||
+      normQuery.includes("how does") ||
+      normQuery.includes("how to") ||
+      normQuery.includes("difference between") ||
+      normQuery.includes("compare") ||
+      normQuery.includes("code for") ||
+      normQuery.includes("write a program") ||
+      normQuery.includes("program for") ||
+      normQuery.includes("algorithm for");
 
     // ------------------------------------------------------------------------
     // ROUTE 1: BITM Autonomous Examination Results Portal (Contineo)
@@ -762,16 +962,28 @@ router.post("/ai/chat", async (req: Request, res: Response) => {
           );
         });
 
+        // If user also specified a topic, find if there is a matching subject in this semester
+        const semTopicSubject = detectedTopic
+          ? catalog.subjects.find((s) => s.semesterNum === activeSem && subjectMatchesTopic(s, detectedTopic))
+          : undefined;
+
+        if (semTopicSubject) {
+          activeSubject = semTopicSubject.name;
+          activeSubjectId = semTopicSubject.id;
+        }
+
         const directResources = matchedQps.slice(0, 4).map((q) => ({
           title: `${q.examYear ? q.examYear + " • " : ""}${q.title} (${q.department || "All"})`,
           url: q.downloadUrl,
           type: "End-Sem PYQ",
         }));
 
+        const topicNotice = semTopicSubject ? ` (including **${semTopicSubject.name}**)` : "";
+
         const payload: ChatResponsePayload = {
           reply:
             matchedQps.length > 0
-              ? `📝 Here are the **${semShort} Previous Year Question Papers (PYQs)** from BITM Autonomous Examinations:`
+              ? `📝 Here are the **${semShort} Previous Year Question Papers (PYQs)** from BITM Autonomous Examinations${topicNotice}:`
               : `📝 Looking for Previous Year Question Papers? We have BITM Autonomous End-Semester exam papers for **${semShort}**!`,
           actionCard: {
             type: "pyqs",
@@ -786,6 +998,7 @@ router.post("/ai/chat", async (req: Request, res: Response) => {
             resources: directResources.length > 0 ? directResources : undefined,
           },
           quickReplies: [
+            ...(semTopicSubject ? [{ label: `📐 ${semShort} ${formatTopicName(detectedTopic || "")} Notes`, value: `${semShort.toLowerCase()} ${detectedTopic} notes` }] : []),
             { label: `📋 ${semShort} IA Papers`, value: `${semShort.toLowerCase()} ia papers` },
             { label: "1st Sem PYQs", value: "1st sem pyq" },
             { label: "2nd Sem PYQs", value: "2nd sem pyq" },
@@ -830,46 +1043,198 @@ router.post("/ai/chat", async (req: Request, res: Response) => {
     }
 
     // ------------------------------------------------------------------------
-    // ROUTE 4: Subject Notes & Resource Lookup
+    // ROUTE 4: Subject Notes & Resource Lookup (Strict Semester Constraints)
     // ------------------------------------------------------------------------
-    if (matchedSubject) {
-      const subjResources = catalog.resources.filter((r) => r.subjectId === matchedSubject.id);
-      const semObj = catalog.semesters.find((s) => s.id === matchedSubject.semesterId);
-      const semLabel = semObj ? semObj.name : "Semester";
+    // Do not intercept if user is clearly asking for a conceptual explanation (handled by LLM/Academic Engine)
+    if (!(isExplanationIntent && !isResourceIntent)) {
+      let matchingSubjects: EnrichedSubject[] = [];
 
-      const payload: ChatResponsePayload = {
-        reply: `🎯 Found **${matchedSubject.name}** (${semLabel}) in our library!${
-          subjResources.length > 0
-            ? ` There are **${subjResources.length} verified notes & study resources** available.`
-            : " You can explore this subject shelf below."
-        }`,
-        actionCard: {
-          type: "subject",
-          title: matchedSubject.name,
-          subtitle: `${semLabel} • ${subjResources.length} verified materials`,
-          badge: semLabel,
-          targetUrl: `/subject/${matchedSubject.id}`,
-          buttonText: `🎯 Open ${matchedSubject.name.slice(0, 22)} Shelf ➔`,
-          resources: subjResources.slice(0, 4).map((r) => ({
-            title: r.title,
-            url: r.googleDriveUrl,
-            type: r.resourceType || "Notes",
-          })),
-        },
-        quickReplies: [
-          { label: `📄 ${semLabel} PYQs`, value: `pyqs for ${semLabel}` },
-          { label: `📋 ${semLabel} IA Papers`, value: `ia papers for ${semLabel}` },
-          { label: "🔍 Search another subject", value: "search another subject" },
-        ],
-        updatedContextState: {
-          semester: semLabel,
-          branch: activeBranch || contextState?.branch,
-          subject: matchedSubject.name,
-          subjectId: matchedSubject.id,
-        },
-        source: "catalog_search",
-      };
-      return res.json(payload);
+      if (detectedTopic) {
+        matchingSubjects = catalog.subjects.filter((s) => subjectMatchesTopic(s, detectedTopic));
+      } else {
+        // Direct matching of subject name in query
+        matchingSubjects = catalog.subjects.filter((s) => {
+          const sName = s.name.toLowerCase();
+          return sName.length > 3 && (normQuery.includes(sName) || sName.includes(normQuery));
+        });
+      }
+
+      // Fallback to activeSubject from conversation context if student asks for notes
+      if (matchingSubjects.length === 0 && activeSubject && isResourceIntent) {
+        matchingSubjects = catalog.subjects.filter((s) => s.name.toLowerCase() === activeSubject!.toLowerCase());
+      }
+
+      if (matchingSubjects.length > 0) {
+        // CASE 4A: User explicitly specified a semester (Strict Constraint)
+        if (activeSem !== null) {
+          const semCandidates = matchingSubjects.filter((s) => s.semesterNum === activeSem);
+
+          if (semCandidates.length > 0) {
+            // Rank: prioritize requested branch, then highest verified resources count
+            let selectedSubject: EnrichedSubject | null = null;
+            if (activeBranch) {
+              const branchMatches = semCandidates.filter(
+                (s) =>
+                  s.branchShortName.toLowerCase() === activeBranch!.toLowerCase() ||
+                  s.branchName.toLowerCase().includes(activeBranch!.toLowerCase())
+              );
+              if (branchMatches.length > 0) {
+                branchMatches.sort((a, b) => b.verifiedResourcesCount - a.verifiedResourcesCount);
+                selectedSubject = branchMatches[0];
+              }
+            }
+
+            if (!selectedSubject) {
+              semCandidates.sort((a, b) => b.verifiedResourcesCount - a.verifiedResourcesCount);
+              selectedSubject = semCandidates[0];
+            }
+
+            const subjResources = catalog.resources.filter((r) => r.subjectId === selectedSubject.id);
+            const semLabel = selectedSubject.semesterName || semNumToLabel(selectedSubject.semesterNum);
+            const branchLabel = selectedSubject.branchShortName ? ` • ${selectedSubject.branchShortName}` : "";
+
+            const payload: ChatResponsePayload = {
+              reply: `🎯 Found **${selectedSubject.name}** (${semLabel}${branchLabel}) in our library!${
+                subjResources.length > 0
+                  ? ` There are **${subjResources.length} verified notes & study resources** available.`
+                  : " You can explore this subject shelf below."
+              }`,
+              actionCard: {
+                type: "subject",
+                title: selectedSubject.name,
+                subtitle: `${semLabel}${branchLabel} • ${subjResources.length} verified materials`,
+                badge: semLabel,
+                targetUrl: `/subject/${selectedSubject.id}`,
+                buttonText: `🎯 Open ${selectedSubject.name.slice(0, 22)} Shelf ➔`,
+                resources: subjResources.slice(0, 4).map((r) => ({
+                  title: r.title,
+                  url: r.googleDriveUrl,
+                  type: r.resourceType || "Notes",
+                })),
+              },
+              quickReplies: [
+                { label: `📄 ${semLabel} PYQs`, value: `${semLabel.toLowerCase()} pyq` },
+                { label: `📋 ${semLabel} IA Papers`, value: `${semLabel.toLowerCase()} ia papers` },
+                { label: "🔍 Search another subject", value: "search another subject" },
+              ],
+              updatedContextState: {
+                semester: semLabel,
+                branch: selectedSubject.branchShortName || activeBranch || contextState?.branch,
+                subject: selectedSubject.name,
+                subjectId: selectedSubject.id,
+              },
+              source: "catalog_search",
+            };
+            return res.json(payload);
+          } else {
+            // Requested semester has NO matching subjects for this topic.
+            // NEVER silently substitute another semester! List where it is available.
+            const availableSems = [...new Set(matchingSubjects.map((s) => s.semesterNum))]
+              .filter((n) => n > 0)
+              .sort();
+
+            const topicDisplay = detectedTopic ? formatTopicName(detectedTopic) : rawQuery;
+            const requestedSemLabel = semNumToFullLabel(activeSem);
+
+            if (availableSems.length > 0) {
+              const payload: ChatResponsePayload = {
+                reply: `🔍 We couldn't find any **${topicDisplay}** study notes for **${requestedSemLabel}** in our library.\n\nHowever, we have ${topicDisplay} study materials available for:\n${availableSems
+                  .map((n) => `• **${semNumToFullLabel(n)}**`)
+                  .join("\n")}\n\nWould you like to explore notes for one of these semesters instead?`,
+                actionCard: {
+                  type: "subject",
+                  title: `${topicDisplay} Materials`,
+                  subtitle: `Available in ${availableSems.map((n) => semNumToLabel(n)).join(", ")}`,
+                  badge: "Other Semesters",
+                  targetUrl: `/search?q=${encodeURIComponent(topicDisplay)}`,
+                  buttonText: `Browse ${topicDisplay} in Library ➔`,
+                },
+                quickReplies: availableSems.slice(0, 4).map((n) => ({
+                  label: `${semNumToLabel(n)} ${topicDisplay}`,
+                  value: `${semNumToLabel(n).toLowerCase()} ${topicDisplay.toLowerCase()} notes`,
+                })),
+                updatedContextState: {
+                  branch: activeBranch || contextState?.branch,
+                },
+                source: "catalog_search",
+              };
+              return res.json(payload);
+            }
+          }
+        } else {
+          // CASE 4B: No semester specified
+          const availableSems = [...new Set(matchingSubjects.map((s) => s.semesterNum))]
+            .filter((n) => n > 0)
+            .sort();
+
+          if (availableSems.length === 1) {
+            // Subject is only taught in 1 semester
+            const semCandidates = matchingSubjects.filter((s) => s.semesterNum === availableSems[0]);
+            semCandidates.sort((a, b) => b.verifiedResourcesCount - a.verifiedResourcesCount);
+            const selectedSubject = semCandidates[0];
+            const subjResources = catalog.resources.filter((r) => r.subjectId === selectedSubject.id);
+            const semLabel = selectedSubject.semesterName || semNumToLabel(selectedSubject.semesterNum);
+            const branchLabel = selectedSubject.branchShortName ? ` • ${selectedSubject.branchShortName}` : "";
+
+            const payload: ChatResponsePayload = {
+              reply: `🎯 Found **${selectedSubject.name}** in **${semLabel}**${branchLabel}!${
+                subjResources.length > 0
+                  ? ` There are **${subjResources.length} verified notes & study resources** available.`
+                  : " You can explore this subject shelf below."
+              }`,
+              actionCard: {
+                type: "subject",
+                title: selectedSubject.name,
+                subtitle: `${semLabel}${branchLabel} • ${subjResources.length} verified materials`,
+                badge: semLabel,
+                targetUrl: `/subject/${selectedSubject.id}`,
+                buttonText: `🎯 Open ${selectedSubject.name.slice(0, 22)} Shelf ➔`,
+                resources: subjResources.slice(0, 4).map((r) => ({
+                  title: r.title,
+                  url: r.googleDriveUrl,
+                  type: r.resourceType || "Notes",
+                })),
+              },
+              quickReplies: [
+                { label: `📄 ${semLabel} PYQs`, value: `${semLabel.toLowerCase()} pyq` },
+                { label: `📋 ${semLabel} IA Papers`, value: `${semLabel.toLowerCase()} ia papers` },
+                { label: "🔍 Search another subject", value: "search another subject" },
+              ],
+              updatedContextState: {
+                semester: semLabel,
+                branch: selectedSubject.branchShortName || activeBranch || contextState?.branch,
+                subject: selectedSubject.name,
+                subjectId: selectedSubject.id,
+              },
+              source: "catalog_search",
+            };
+            return res.json(payload);
+          } else if (availableSems.length > 1) {
+            const topicDisplay = detectedTopic ? formatTopicName(detectedTopic) : "This subject";
+            const payload: ChatResponsePayload = {
+              reply: `📚 **${topicDisplay}** is taught across multiple semesters at BITM.\n\nWhich semester do you need study notes for?`,
+              actionCard: {
+                type: "subject",
+                title: `${topicDisplay} Study Materials`,
+                subtitle: `Available across ${availableSems.map((n) => semNumToLabel(n)).join(", ")} • Autonomous Scheme`,
+                badge: "Multiple Semesters",
+                targetUrl: `/search?q=${encodeURIComponent(topicDisplay)}`,
+                buttonText: `Browse All ${topicDisplay} Subjects ➔`,
+              },
+              quickReplies: availableSems.slice(0, 4).map((n) => ({
+                label: `${semNumToLabel(n)} ${topicDisplay}`,
+                value: `${semNumToLabel(n).toLowerCase()} ${topicDisplay.toLowerCase()} notes`,
+              })),
+              updatedContextState: {
+                branch: activeBranch || contextState?.branch,
+                subject: topicDisplay,
+              },
+              source: "catalog_search",
+            };
+            return res.json(payload);
+          }
+        }
+      }
     }
 
     // ------------------------------------------------------------------------
