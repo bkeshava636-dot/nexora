@@ -138,7 +138,7 @@ export function AdminAnalytics() {
       {/* Loading state */}
       {isLoading && (
         <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
@@ -259,13 +259,13 @@ export function AdminAnalytics() {
             </div>
 
             {/* All-Time Visits */}
-            <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 shadow-xs transition-transform hover:-translate-y-0.5">
+            <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 shadow-xs transition-transform hover:-translate-y-0.5" data-testid="admin-kpi-total-visits">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-[hsl(var(--muted-foreground))]">
                   Total All-Time Visits
                 </span>
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]">
-                  <Eye size={18} />
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <Globe size={18} />
                 </span>
               </div>
               <div className="mt-3 flex items-baseline gap-2">
@@ -273,11 +273,34 @@ export function AdminAnalytics() {
                   {data.totalVisits.toLocaleString()}
                 </span>
                 <span className="text-xs text-[hsl(var(--muted-foreground))] font-medium">
-                  all-time
+                  visits
                 </span>
               </div>
               <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">
-                Verified public counter tally
+                Total browser sessions recorded
+              </p>
+            </div>
+
+            {/* Total Page Views */}
+            <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 shadow-xs transition-transform hover:-translate-y-0.5" data-testid="admin-kpi-total-views">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-[hsl(var(--muted-foreground))]">
+                  Total Page Views
+                </span>
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                  <Eye size={18} />
+                </span>
+              </div>
+              <div className="mt-3 flex items-baseline gap-2">
+                <span className="display-font text-3xl font-extrabold tracking-tight">
+                  {(data.totalViews ?? 0).toLocaleString()}
+                </span>
+                <span className="text-xs text-[hsl(var(--muted-foreground))] font-medium">
+                  views
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">
+                {typeof data.todayViews === "number" ? `${data.todayViews.toLocaleString()} views logged today` : "Total catalog & page views"}
               </p>
             </div>
           </div>

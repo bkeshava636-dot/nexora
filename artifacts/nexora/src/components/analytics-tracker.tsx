@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { useRecordVisit } from "@workspace/api-client-react";
+import { useRecordVisit, useRecordPageView } from "@workspace/api-client-react";
 
 function getOrSetVisitorId(): string {
   try {
@@ -45,18 +45,24 @@ function getDeviceType(): "mobile" | "desktop" | "tablet" {
 export function AnalyticsTracker() {
   const [location] = useLocation();
   const recordVisit = useRecordVisit();
+  const recordPageView = useRecordPageView();
   const lastRecordedPath = useRef<string | null>(null);
   const lastRecordTime = useRef<number>(0);
 
   useEffect(() => {
-    // Avoid tracking admin editing actions to keep student visitor metrics authentic
-    if (location.startsWith("/admin") || location.startsWith("/login")) {
+    // Avoid tracking admin editing actions and auth to keep student visitor metrics authentic
+    if (
+      location.startsWith("/admin") ||
+      location.startsWith("/login") ||
+      location.startsWith("/__vite") ||
+      location.startsWith("/_")
+    ) {
       return;
     }
 
     const now = Date.now();
-    // Debounce duplicate pings within 2 seconds on same path
-    if (lastRecordedPath.current === location && now - lastRecordTime.current < 2000) {
+    // Debounce duplicate pings within 1.5 seconds on same path (e.g. StrictMode, rapid re-renders)
+    if (lastRecordedPath.current === location && now - lastRecordTime.current < 1500) {
       return;
     }
 
@@ -67,9 +73,10 @@ export function AnalyticsTracker() {
       const visitorId = getOrSetVisitorId();
       const sessionId = getOrSetSessionId();
       const deviceType = getDeviceType();
-      const referrer = document.referrer ? new URL(document.referrer, window.location.origin).hostname : "direct";
+      const referrer = typeof document !== "undefined" && document.referrer ? new URL(document.referrer, window.location.origin).hostname : "direct";
 
-      recordVisit.mutate({
+      // 1. Record Page View on every route change
+      recordPageView.mutate({
         visitorId,
         sessionId,
         path: location,
@@ -77,12 +84,23 @@ export function AnalyticsTracker() {
         referrer,
       });
 
-      // Maintain backwards-compatibility flag for legacy footer counter
-      sessionStorage.setItem("nexora_visit_recorded", "1");
+      // 2. Record Visit once per session
+      const sessionVisited = sessionStorage.getItem("nexora_session_visited");
+      if (!sessionVisited) {
+        recordVisit.mutate({
+          visitorId,
+          sessionId,
+          path: location,
+          deviceType,
+          referrer,
+        });
+        sessionStorage.setItem("nexora_session_visited", "1");
+        sessionStorage.setItem("nexora_visit_recorded", "1");
+      }
     } catch {
       // Non-fatal if tracking is blocked by browser privacy settings
     }
-  }, [location, recordVisit]);
+  }, [location, recordPageView, recordVisit]);
 
   return null;
 }

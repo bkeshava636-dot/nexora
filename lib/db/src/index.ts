@@ -177,7 +177,22 @@ export async function ensureTables(): Promise<void> {
       `CREATE INDEX IF NOT EXISTS "site_visits_created_at_idx" ON "site_visits" ("created_at");`,
       `CREATE INDEX IF NOT EXISTS "site_visits_path_idx" ON "site_visits" ("path");`,
       `CREATE INDEX IF NOT EXISTS "site_visits_visitor_id_idx" ON "site_visits" ("visitor_id");`,
-      `CREATE INDEX IF NOT EXISTS "site_visits_device_type_idx" ON "site_visits" ("device_type");`
+      `CREATE INDEX IF NOT EXISTS "site_visits_device_type_idx" ON "site_visits" ("device_type");`,
+      `CREATE TABLE IF NOT EXISTS "page_views" (
+        "id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        "visitor_id" text,
+        "session_id" text,
+        "path" text NOT NULL DEFAULT '/',
+        "device_type" text NOT NULL DEFAULT 'desktop',
+        "referrer" text,
+        "ip_hash" text,
+        "user_agent" text,
+        "created_at" timestamp with time zone NOT NULL DEFAULT now()
+      );`,
+      `CREATE INDEX IF NOT EXISTS "page_views_created_at_idx" ON "page_views" ("created_at");`,
+      `CREATE INDEX IF NOT EXISTS "page_views_path_idx" ON "page_views" ("path");`,
+      `CREATE INDEX IF NOT EXISTS "page_views_session_id_idx" ON "page_views" ("session_id");`,
+      `CREATE INDEX IF NOT EXISTS "page_views_visitor_id_idx" ON "page_views" ("visitor_id");`
     ];
 
     for (const q of ddlQueries) {

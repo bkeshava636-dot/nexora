@@ -1,14 +1,25 @@
 import { Router, type IRouter } from "express";
 import crypto from "crypto";
 import { eq } from "drizzle-orm";
-import { db, appSettings, siteVisits, ensureTables, pool } from "@workspace/db";
+import { db, appSettings, siteVisits, pageViews, ensureTables, pool } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { requireAdmin } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
 const TOTAL_VISITS_KEY = "total_site_visits";
+const TOTAL_VIEWS_KEY = "total_page_views";
 const BASELINE_SEED_VISITS = 0;
+
+// Rate-limiting / deduplication map for rapid duplicate pings on same path
+const recentViewsMap = new Map<string, number>();
+const CLEANUP_INTERVAL = 1000 * 60 * 10;
+setInterval(() => {
+  const cutoff = Date.now() - 5000;
+  for (const [key, time] of recentViewsMap.entries()) {
+    if (time < cutoff) recentViewsMap.delete(key);
+  }
+}, CLEANUP_INTERVAL);
 
 async function getStoredTotalVisits(): Promise<number> {
   try {
@@ -42,18 +53,179 @@ async function getStoredTotalVisits(): Promise<number> {
   return BASELINE_SEED_VISITS;
 }
 
-// 1. GET /api/analytics/total-visits (Public read-only)
+async function getStoredTotalViews(): Promise<number> {
+  try {
+    const [record] = await db
+      .select()
+      .from(appSettings)
+      .where(eq(appSettings.key, TOTAL_VIEWS_KEY));
+
+    if (record && record.value) {
+      const parsed = parseInt(record.value, 10);
+      if (!isNaN(parsed) && parsed >= 0) {
+        return parsed;
+      }
+    }
+
+    // If no counter exists yet, check page_views table count
+    const client = await pool.connect();
+    try {
+      const res = await client.query(`SELECT COUNT(*)::int AS count FROM page_views`);
+      const rowCount = res.rows[0]?.count || 0;
+      if (rowCount > 0) {
+        await client.query(
+          `INSERT INTO app_settings (key, value, updated_at)
+           VALUES ($1, $2, now())
+           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+          [TOTAL_VIEWS_KEY, rowCount.toString()]
+        );
+        return rowCount;
+      }
+      // If page_views is empty, seed from total visits baseline if available
+      const visits = await getStoredTotalVisits();
+      if (visits > 0) {
+        await client.query(
+          `INSERT INTO app_settings (key, value, updated_at)
+           VALUES ($1, $2, now())
+           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+          [TOTAL_VIEWS_KEY, visits.toString()]
+        );
+        return visits;
+      }
+    } finally {
+      client.release();
+    }
+  } catch (err: unknown) {
+    const pgErr = (err as { cause?: { code?: string }; code?: string })?.cause || (err as { code?: string });
+    if (pgErr?.code === "42P01") {
+      await ensureTables();
+    } else {
+      logger.warn({ err }, "Could not fetch total_page_views from DB");
+    }
+  }
+  return 0;
+}
+
+// 1. GET /api/analytics/stats (Public metrics: Total Views & Total Visits)
+router.get("/analytics/stats", async (_req, res) => {
+  try {
+    const [totalVisits, totalViews] = await Promise.all([
+      getStoredTotalVisits(),
+      getStoredTotalViews(),
+    ]);
+    res.json({ totalViews, totalVisits });
+  } catch (err) {
+    logger.error({ err }, "Error getting analytics stats");
+    res.status(500).json({ error: "internal_error", message: "Failed to get analytics statistics." });
+  }
+});
+
+// 2. GET /api/analytics/total-visits (Backwards-compatibility for existing consumers)
 router.get("/analytics/total-visits", async (_req, res) => {
   try {
-    const totalVisits = await getStoredTotalVisits();
-    res.json({ totalVisits });
+    const [totalVisits, totalViews] = await Promise.all([
+      getStoredTotalVisits(),
+      getStoredTotalViews(),
+    ]);
+    res.json({ totalVisits, totalViews });
   } catch (err) {
     logger.error({ err }, "Error getting total visits");
     res.status(500).json({ error: "internal_error", message: "Failed to get visit statistics." });
   }
 });
 
-// 2. POST /api/analytics/visit (Public visit ping with rich visitor info)
+// 3. POST /api/analytics/page-view (Public page view event tracking)
+router.post("/analytics/page-view", async (req, res) => {
+  try {
+    const { visitorId, sessionId, path = "/", deviceType = "desktop", referrer } = req.body || {};
+    const normalizedPath = String(path || "/").trim().slice(0, 255);
+
+    // Filter out internal and non-student routes
+    if (
+      normalizedPath.startsWith("/api") ||
+      normalizedPath.startsWith("/admin") ||
+      normalizedPath.startsWith("/login") ||
+      normalizedPath.startsWith("/__vite") ||
+      normalizedPath.startsWith("/_")
+    ) {
+      const [totalViews, totalVisits] = await Promise.all([getStoredTotalViews(), getStoredTotalVisits()]);
+      res.json({ totalViews, totalVisits, recorded: false });
+      return;
+    }
+
+    const rawIp = req.ip || req.headers["x-forwarded-for"] || "";
+    const ipHash = rawIp ? crypto.createHash("sha256").update(String(rawIp)).digest("hex").slice(0, 16) : null;
+    const userAgent = req.headers["user-agent"] ? String(req.headers["user-agent"]).slice(0, 255) : null;
+    const validDevice = (deviceType === "mobile" || deviceType === "tablet") ? deviceType : "desktop";
+
+    // Deduplicate rapid requests on same path within 1.5 seconds (e.g. React Strict Mode)
+    const clientKey = `${visitorId || ipHash || "anon"}:${normalizedPath}`;
+    const now = Date.now();
+    const lastHit = recentViewsMap.get(clientKey) || 0;
+    if (now - lastHit < 1500) {
+      const [totalViews, totalVisits] = await Promise.all([getStoredTotalViews(), getStoredTotalVisits()]);
+      res.json({ totalViews, totalVisits, recorded: false });
+      return;
+    }
+    recentViewsMap.set(clientKey, now);
+
+    // 1. Insert into page_views
+    try {
+      await db.insert(pageViews).values({
+        visitorId: visitorId ? String(visitorId).slice(0, 64) : null,
+        sessionId: sessionId ? String(sessionId).slice(0, 64) : null,
+        path: normalizedPath,
+        deviceType: validDevice,
+        referrer: referrer ? String(referrer).slice(0, 255) : null,
+        ipHash,
+        userAgent,
+      });
+    } catch (insertErr: unknown) {
+      const pgErr = (insertErr as { cause?: { code?: string }; code?: string })?.cause || (insertErr as { code?: string });
+      if (pgErr?.code === "42P01") {
+        await ensureTables();
+        await db.insert(pageViews).values({
+          visitorId: visitorId ? String(visitorId).slice(0, 64) : null,
+          sessionId: sessionId ? String(sessionId).slice(0, 64) : null,
+          path: normalizedPath,
+          deviceType: validDevice,
+          referrer: referrer ? String(referrer).slice(0, 255) : null,
+          ipHash,
+          userAgent,
+        }).catch(() => {});
+      } else {
+        logger.warn({ err: insertErr }, "Non-fatal: failed to insert page view row");
+      }
+    }
+
+    // 2. Increment total_page_views counter atomically
+    const client = await pool.connect();
+    let totalViews = 0;
+    try {
+      const resQuery = await client.query(
+        `INSERT INTO app_settings (key, value, updated_at)
+         VALUES ($1, '1', now())
+         ON CONFLICT (key) DO UPDATE
+         SET value = (COALESCE(NULLIF(app_settings.value, ''), '0')::bigint + 1)::text,
+             updated_at = now()
+         RETURNING value`,
+        [TOTAL_VIEWS_KEY]
+      );
+      totalViews = parseInt(resQuery.rows[0]?.value || "1", 10);
+    } finally {
+      client.release();
+    }
+
+    const totalVisits = await getStoredTotalVisits();
+    res.json({ totalViews, totalVisits, recorded: true });
+  } catch (err: unknown) {
+    logger.warn({ err }, "Error recording page view");
+    const [totalViews, totalVisits] = await Promise.all([getStoredTotalViews(), getStoredTotalVisits()]);
+    res.json({ totalViews, totalVisits, recorded: false });
+  }
+});
+
+// 4. POST /api/analytics/visit (Public visit ping with session recording)
 router.post("/analytics/visit", async (req, res) => {
   try {
     const { visitorId, sessionId, path = "/", deviceType = "desktop", referrer } = req.body || {};
@@ -95,6 +267,7 @@ router.post("/analytics/visit", async (req, res) => {
 
     // 2. Increment aggregate counter atomically
     const client = await pool.connect();
+    let totalVisits = 0;
     try {
       const current = await getStoredTotalVisits();
       const nextVal = (current + 1).toString();
@@ -116,24 +289,26 @@ router.post("/analytics/visit", async (req, res) => {
         .from(appSettings)
         .where(eq(appSettings.key, TOTAL_VISITS_KEY));
 
-      const totalVisits = updated?.value ? parseInt(updated.value, 10) : current + 1;
-      res.json({ totalVisits, recorded: true });
+      totalVisits = updated?.value ? parseInt(updated.value, 10) : current + 1;
     } finally {
       client.release();
     }
+
+    const totalViews = await getStoredTotalViews();
+    res.json({ totalVisits, totalViews, recorded: true });
   } catch (err: unknown) {
     const pgErr = (err as { cause?: { code?: string }; code?: string })?.cause || (err as { code?: string });
     if (pgErr?.code === "42P01") {
       await ensureTables();
-      res.json({ totalVisits: 1, recorded: true });
+      res.json({ totalVisits: 1, totalViews: 1, recorded: true });
       return;
     }
     logger.warn({ err }, "Error recording visit ping");
-    res.json({ totalVisits: 1, recorded: false });
+    res.json({ totalVisits: 1, totalViews: 1, recorded: false });
   }
 });
 
-// 3. GET /api/admin/analytics/stats (Admin analytics dashboard data)
+// 5. GET /api/admin/analytics/stats (Admin analytics dashboard data)
 router.get("/admin/analytics/stats", requireAdmin, async (req, res) => {
   try {
     const daysParam = parseInt(String(req.query.days || "30"), 10);
@@ -141,7 +316,10 @@ router.get("/admin/analytics/stats", requireAdmin, async (req, res) => {
 
     const client = await pool.connect();
     try {
-      const totalVisitsStored = await getStoredTotalVisits();
+      const [totalVisitsStored, totalViewsStored] = await Promise.all([
+        getStoredTotalVisits(),
+        getStoredTotalViews(),
+      ]);
 
       // Summary KPIs
       const summaryResult = await client.query(`
@@ -157,8 +335,22 @@ router.get("/admin/analytics/stats", requireAdmin, async (req, res) => {
         FROM site_visits;
       `);
 
+      // Page views summary
+      let todayViews = 0;
+      try {
+        const viewsResult = await client.query(`
+          SELECT
+            COUNT(CASE WHEN created_at >= (date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata') THEN 1 END)::int AS "todayViews"
+          FROM page_views;
+        `);
+        todayViews = Number(viewsResult.rows[0]?.todayViews || 0);
+      } catch {
+        // Table might be initializing
+      }
+
       const summary = summaryResult.rows[0] || {};
       const totalVisits = Math.max(totalVisitsStored, summary.totalLoggedVisits || 0);
+      const totalViews = Math.max(totalViewsStored, totalVisits);
 
       // Daily breakdown
       const dailyResult = await client.query(`
@@ -182,7 +374,6 @@ router.get("/admin/analytics/stats", requireAdmin, async (req, res) => {
 
       const dailyBreakdown: { date: string; label: string; visits: number; uniqueVisitors: number }[] = [];
       const now = new Date();
-      // IST offset (UTC+5.5)
       const istTime = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
 
       for (let i = days - 1; i >= 0; i--) {
@@ -308,7 +499,9 @@ router.get("/admin/analytics/stats", requireAdmin, async (req, res) => {
       res.json({
         days,
         totalVisits,
+        totalViews,
         todayVisits,
+        todayViews,
         yesterdayVisits,
         todayGrowth,
         todayUniqueVisitors: Number(summary.todayUniqueVisitors || 0),
@@ -329,10 +522,13 @@ router.get("/admin/analytics/stats", requireAdmin, async (req, res) => {
     const pgErr = (err as { cause?: { code?: string }; code?: string })?.cause || (err as { code?: string });
     if (pgErr?.code === "42P01") {
       await ensureTables();
+      const [totalVisits, totalViews] = await Promise.all([getStoredTotalVisits(), getStoredTotalViews()]);
       res.json({
         days: 30,
-        totalVisits: await getStoredTotalVisits(),
+        totalVisits,
+        totalViews,
         todayVisits: 0,
+        todayViews: 0,
         yesterdayVisits: 0,
         todayGrowth: 0,
         todayUniqueVisitors: 0,

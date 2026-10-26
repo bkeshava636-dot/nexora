@@ -1,12 +1,28 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import { customFetch } from "./custom-fetch";
 
+export interface AnalyticsStatsResponse {
+  totalViews: number;
+  totalVisits: number;
+  uniqueVisitors?: number;
+}
+
 export interface TotalVisitsResponse {
   totalVisits: number;
+  totalViews?: number;
+  uniqueVisitors?: number;
   recorded?: boolean;
 }
 
 export interface RecordVisitPayload {
+  visitorId?: string;
+  sessionId?: string;
+  path?: string;
+  deviceType?: "mobile" | "desktop" | "tablet";
+  referrer?: string;
+}
+
+export interface RecordPageViewPayload {
   visitorId?: string;
   sessionId?: string;
   path?: string;
@@ -49,7 +65,9 @@ export interface TopReferrerItem {
 export interface AdminAnalyticsStats {
   days: number;
   totalVisits: number;
+  totalViews: number;
   todayVisits: number;
+  todayViews?: number;
   yesterdayVisits: number;
   todayGrowth: number;
   todayUniqueVisitors: number;
@@ -65,6 +83,7 @@ export interface AdminAnalyticsStats {
 }
 
 export const getTotalVisitsQueryKey = () => ["/api/analytics/total-visits"];
+export const getAnalyticsStatsQueryKey = () => ["/api/analytics/stats"];
 export const getAdminAnalyticsStatsQueryKey = (days: number = 30) => [
   "/api/admin/analytics/stats",
   { days },
@@ -76,8 +95,20 @@ export function useGetTotalVisits(
   return useQuery<TotalVisitsResponse, Error>({
     queryKey: getTotalVisitsQueryKey(),
     queryFn: () => customFetch<TotalVisitsResponse>("/api/analytics/total-visits"),
-    staleTime: 1000 * 60 * 5, // 5 minutes fresh
-    retry: false,
+    staleTime: 1000 * 60 * 3, // 3 minutes fresh
+    retry: 2,
+    ...options,
+  });
+}
+
+export function useGetAnalyticsStats(
+  options?: Omit<UseQueryOptions<AnalyticsStatsResponse, Error>, "queryKey" | "queryFn">,
+) {
+  return useQuery<AnalyticsStatsResponse, Error>({
+    queryKey: getAnalyticsStatsQueryKey(),
+    queryFn: () => customFetch<AnalyticsStatsResponse>("/api/analytics/stats"),
+    staleTime: 1000 * 60 * 2, // 2 minutes fresh
+    retry: 2,
     ...options,
   });
 }
@@ -93,6 +124,31 @@ export function useRecordVisit() {
       }),
     onSuccess: (data) => {
       queryClient.setQueryData(getTotalVisitsQueryKey(), data);
+      queryClient.setQueryData(getAnalyticsStatsQueryKey(), (prev?: AnalyticsStatsResponse) => ({
+        totalViews: data.totalViews ?? prev?.totalViews ?? 0,
+        totalVisits: data.totalVisits ?? prev?.totalVisits ?? 0,
+        uniqueVisitors: data.uniqueVisitors ?? prev?.uniqueVisitors,
+      }));
+    },
+  });
+}
+
+export function useRecordPageView() {
+  const queryClient = useQueryClient();
+  return useMutation<TotalVisitsResponse, Error, RecordPageViewPayload>({
+    mutationFn: (payload) =>
+      customFetch<TotalVisitsResponse>("/api/analytics/page-view", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(getTotalVisitsQueryKey(), data);
+      queryClient.setQueryData(getAnalyticsStatsQueryKey(), (prev?: AnalyticsStatsResponse) => ({
+        totalViews: data.totalViews ?? prev?.totalViews ?? 0,
+        totalVisits: data.totalVisits ?? prev?.totalVisits ?? 0,
+        uniqueVisitors: data.uniqueVisitors ?? prev?.uniqueVisitors,
+      }));
     },
   });
 }
@@ -104,7 +160,7 @@ export function useGetAdminAnalyticsStats(
   return useQuery<AdminAnalyticsStats, Error>({
     queryKey: getAdminAnalyticsStatsQueryKey(days),
     queryFn: () => customFetch<AdminAnalyticsStats>(`/api/admin/analytics/stats?days=${days}`),
-    staleTime: 1000 * 30, // 30 seconds fresh
+    staleTime: 1000 * 60 * 2,
     ...options,
   });
 }

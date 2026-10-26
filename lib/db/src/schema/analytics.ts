@@ -29,3 +29,32 @@ export const selectSiteVisitSchema = createSelectSchema(siteVisits);
 
 export type SiteVisit = typeof siteVisits.$inferSelect;
 export type InsertSiteVisit = typeof siteVisits.$inferInsert;
+
+export const pageViews = pgTable(
+  "page_views",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    visitorId: text("visitor_id"),
+    sessionId: text("session_id"),
+    path: text("path").notNull().default("/"),
+    deviceType: text("device_type").notNull().default("desktop"),
+    referrer: text("referrer"),
+    ipHash: text("ip_hash"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("page_views_created_at_idx").on(table.createdAt),
+    index("page_views_path_idx").on(table.path),
+    index("page_views_session_id_idx").on(table.sessionId),
+    index("page_views_visitor_id_idx").on(table.visitorId),
+  ],
+);
+
+export const insertPageViewSchema = createInsertSchema(pageViews).omit({
+  createdAt: true,
+});
+export const selectPageViewSchema = createSelectSchema(pageViews);
+
+export type PageView = typeof pageViews.$inferSelect;
+export type InsertPageView = typeof pageViews.$inferInsert;
