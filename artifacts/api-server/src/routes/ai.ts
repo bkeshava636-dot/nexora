@@ -459,7 +459,7 @@ function detectSubjectTopic(normQuery: string, words: string[]): string | null {
   if (normQuery.includes("python")) return "python";
   if (normQuery.includes("cloud")) return "cloud";
   if (normQuery.includes("iot") || normQuery.includes("internet of things")) return "iot";
-  if (normQuery.includes("ai") || normQuery.includes("artificial intelligence") || normQuery.includes("machine learning") || words.includes("ml")) return "ai";
+  if (words.includes("ai") || normQuery.includes("artificial intelligence") || normQuery.includes("machine learning") || words.includes("ml")) return "ai";
   if (normQuery.includes("physics") || normQuery.includes("phy")) return "physics";
   if (normQuery.includes("chemistry") || normQuery.includes("chem")) return "chemistry";
   if (normQuery.includes("biology")) return "biology";
@@ -1127,7 +1127,7 @@ router.post("/ai/chat", async (req: Request, res: Response) => {
     }
 
     // Detect subject topic and resource type
-    let detectedTopic = detectSubjectTopic(normQuery, words);
+    let detectedTopic = branchOnly ? null : detectSubjectTopic(normQuery, words);
     if (!detectedTopic && branchOnly && activeSubject) {
       detectedTopic = detectSubjectTopic(activeSubject.toLowerCase(), activeSubject.toLowerCase().split(/\s+/));
     }
