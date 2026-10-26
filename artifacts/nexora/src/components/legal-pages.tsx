@@ -94,7 +94,7 @@ export function PrivacyPage() {
               <Mail size={14} className="text-[hsl(var(--secondary))]" /> Contact the Developer
             </h3>
             <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              For any data removal requests or privacy inquiries, submit a message via the in-app Feedback dialog on the site or send an email to <strong className="text-[hsl(var(--foreground))]">privacy@nexora.app</strong>. Requests are reviewed and handled directly by the developer.
+              For any data removal requests or privacy inquiries, submit a message via the in-app Feedback dialog on the site or send an email to <a href="mailto:bkeshava636@gmail.com" className="font-semibold text-[hsl(var(--primary))] hover:underline">bkeshava636@gmail.com</a>. Requests are reviewed and handled directly by the developer.
             </p>
           </section>
         </div>
@@ -161,7 +161,7 @@ export function TermsPage() {
             <div className="mt-3 rounded-2xl bg-[hsl(var(--muted)/.4)] p-4 border border-[hsl(var(--border)/.5)] text-xs space-y-2">
               <p className="font-semibold text-[hsl(var(--foreground))]">How to request removal:</p>
               <ol className="list-decimal pl-5 space-y-1">
-                <li>Submit a request using the in-app <strong>Report Resource</strong> button on the resource card, or send a note via the Feedback dialog.</li>
+                <li>Submit a request using the in-app <strong>Report Resource</strong> button, send a note via the Feedback dialog, or email <a href="mailto:bkeshava636@gmail.com" className="font-semibold text-[hsl(var(--primary))] hover:underline">bkeshava636@gmail.com</a>.</li>
                 <li>Specify the exact resource title or page path.</li>
                 <li>Include verifiable information showing ownership or authorship.</li>
               </ol>
