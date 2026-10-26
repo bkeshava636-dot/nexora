@@ -369,6 +369,7 @@ function findAcademicMatch(text: string): AcademicTopic | null {
 // 6. EXTERNAL LLM INTEGRATION (Google Gemini 1.5 Flash Free-Tier API)
 // ============================================================================
 let cachedWorkingModel: string | null = null;
+let lastAvailableModels = "";
 
 async function getWorkingModelName(geminiKey: string): Promise<string> {
   if (cachedWorkingModel) return cachedWorkingModel;
@@ -382,13 +383,21 @@ async function getWorkingModelName(geminiKey: string): Promise<string> {
       const list = (data?.models || []) as Array<{ name: string; supportedGenerationMethods?: string[] }>;
       const usable = list.filter((m) => m.supportedGenerationMethods?.includes("generateContent"));
 
+      const namesList = usable.map((m) => m.name.replace(/^models\//, ''));
+      lastAvailableModels = namesList.join(',');
+
+      // Exclude retired / non-available models
+      const activeCandidates = usable.filter((m) => !m.name.includes("2.5-flash"));
+
       const picked =
-        usable.find((m) => m.name.endsWith("/gemini-1.5-flash-latest")) ||
-        usable.find((m) => m.name.endsWith("/gemini-1.5-flash")) ||
-        usable.find((m) => m.name.endsWith("/gemini-2.0-flash")) ||
-        usable.find((m) => m.name.includes("flash")) ||
-        usable.find((m) => m.name.includes("gemini")) ||
-        usable[0];
+        activeCandidates.find((m) => m.name.endsWith("/gemini-2.0-flash")) ||
+        activeCandidates.find((m) => m.name.endsWith("/gemini-2.0-flash-exp")) ||
+        activeCandidates.find((m) => m.name.endsWith("/gemini-1.5-flash-8b")) ||
+        activeCandidates.find((m) => m.name.endsWith("/gemini-1.5-flash")) ||
+        activeCandidates.find((m) => m.name.endsWith("/gemini-1.5-pro")) ||
+        activeCandidates.find((m) => m.name.includes("flash")) ||
+        activeCandidates.find((m) => m.name.includes("gemini")) ||
+        activeCandidates[0];
 
       if (picked) {
         const id = picked.name.replace(/^models\//, "");
@@ -863,6 +872,7 @@ Rules:
 
     const llmResult = await callExternalLlm(rawQuery, history, systemPrompt);
     res.setHeader("X-AI-Provider-Status", llmResult.status);
+    if (lastAvailableModels) res.setHeader("X-AI-Available-Models", Buffer.from(lastAvailableModels.slice(0, 300)).toString("base64"));
     if (llmResult.errorDetail) res.setHeader("X-AI-Provider-Msg", Buffer.from(llmResult.errorDetail.slice(0, 200)).toString("base64"));
     if (llmResult.text) {
       const payload: ChatResponsePayload = {
