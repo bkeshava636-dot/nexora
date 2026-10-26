@@ -291,23 +291,12 @@ function qOpts(enabled: boolean) {
 }
 
 function Logo({ compact = false }: { compact?: boolean }) {
-  return (
-    <Link
-      href="/"
-      className="focus-ring group flex items-center gap-2.5"
-      data-testid="link-logo"
-      aria-label="Nexora home"
-    >
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#FF4D1A] to-[#E63000] text-white shadow-md shadow-[#FF4D1A]/25 border border-white/10 transition-transform duration-200 group-hover:scale-105">
-        <Layers3 size={19} strokeWidth={2.4} />
-      </span>
-      {!compact && (
-        <span className="display-font text-[1.35rem] font-bold tracking-[-.04em] text-white">
-          nexora<span className="text-[#FF4D1A]">.</span>
-        </span>
-      )}
-    </Link>
-  );
+  return <Link href="/" className="focus-ring flex items-center gap-2.5" data-testid="link-logo" aria-label="Nexora home">
+    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] shadow-sm">
+      <Layers3 size={19} strokeWidth={2.4} />
+    </span>
+    {!compact && <span className="display-font text-[1.35rem] font-bold tracking-[-.04em]">nexora<span className="text-[hsl(var(--secondary))]">.</span></span>}
+  </Link>;
 }
 
 function Shell({ children }: { children: ReactNode }) {
