@@ -962,10 +962,12 @@ router.post("/ai/chat", async (req: Request, res: Response) => {
           );
         });
 
-        // If user also specified a topic, find if there is a matching subject in this semester
-        const semTopicSubject = detectedTopic
-          ? catalog.subjects.find((s) => s.semesterNum === activeSem && subjectMatchesTopic(s, detectedTopic))
-          : undefined;
+        // If user also specified a topic, find the best matching subject in this semester
+        const semTopicCandidates = detectedTopic
+          ? catalog.subjects.filter((s) => s.semesterNum === activeSem && subjectMatchesTopic(s, detectedTopic))
+          : [];
+        semTopicCandidates.sort((a, b) => b.verifiedResourcesCount - a.verifiedResourcesCount);
+        const semTopicSubject = semTopicCandidates[0];
 
         if (semTopicSubject) {
           activeSubject = semTopicSubject.name;
