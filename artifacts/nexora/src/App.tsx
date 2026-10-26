@@ -68,7 +68,6 @@ import {
   useGetSubject,
   useGetSubmissionMode,
   useGetTotalVisits,
-  useGetAnalyticsStats,
   useGetYear,
   useListBranches,
   useListCurriculumTemplates,
@@ -994,60 +993,32 @@ function Home() {
 }
 
 function TotalVisitsCounter() {
-  const { data, isError, isLoading, refetch } = useGetAnalyticsStats();
+  const { data, isError } = useGetTotalVisits();
+  const recordVisit = useRecordVisit();
 
-  if (isLoading) {
-    return (
-      <div
-        className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3.5 py-1.5 text-xs sm:text-sm shadow-xs animate-pulse"
-        data-testid="stat-analytics-loading"
-        aria-label="Loading site statistics"
-      >
-        <span className="h-2 w-12 rounded bg-[hsl(var(--muted))]" />
-        <span className="text-[hsl(var(--muted-foreground))] opacity-30 select-none">•</span>
-        <span className="h-2 w-12 rounded bg-[hsl(var(--muted))]" />
-      </div>
-    );
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined" && !sessionStorage.getItem("nexora_visit_recorded")) {
+        sessionStorage.setItem("nexora_visit_recorded", "1");
+        recordVisit.mutate();
+      }
+    } catch {
+      // Storage unavailable / blocked
+    }
+  }, [recordVisit]);
+
+  if (isError || data?.totalVisits === undefined || data?.totalVisits === null) {
+    return null;
   }
-
-  if (isError) {
-    return (
-      <div
-        className="inline-flex items-center gap-1.5 rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1 text-xs font-medium text-red-600 dark:text-red-400 shadow-xs"
-        data-testid="stat-analytics-error"
-      >
-        <span>Stats unavailable</span>
-        <button
-          onClick={() => refetch()}
-          className="ml-1 underline hover:no-underline font-semibold cursor-pointer"
-          type="button"
-          aria-label="Retry loading statistics"
-        >
-          Retry
-        </button>
-      </div>
-    );
-  }
-
-  const totalViews = data?.totalViews ?? 0;
-  const totalVisits = data?.totalVisits ?? 0;
 
   return (
     <div
-      className="inline-flex flex-wrap items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-[hsl(var(--muted-foreground))] shadow-xs transition-colors hover:border-[hsl(var(--secondary)/.5)]"
-      data-testid="stat-analytics-container"
+      className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-[hsl(var(--muted-foreground))] shadow-xs transition-colors hover:border-[hsl(var(--secondary)/.5)]"
+      data-testid="stat-total-visits"
     >
-      <span className="inline-flex items-center gap-1.5" data-testid="stat-total-views" title="Total Page Views">
-        <Eye className="h-3.5 w-3.5 text-indigo-500 shrink-0" aria-hidden="true" />
-        <span className="font-bold text-[hsl(var(--foreground))]">{totalViews.toLocaleString()}</span>
-        <span>views</span>
-      </span>
-      <span className="text-[hsl(var(--border))] select-none" aria-hidden="true">•</span>
-      <span className="inline-flex items-center gap-1.5" data-testid="stat-total-visits" title="Total Site Visits">
-        <Users className="h-3.5 w-3.5 text-emerald-500 shrink-0" aria-hidden="true" />
-        <span className="font-bold text-[hsl(var(--foreground))]">{totalVisits.toLocaleString()}</span>
-        <span>visits</span>
-      </span>
+      <span aria-hidden="true">👀</span>
+      <span className="font-bold text-[hsl(var(--foreground))]">{data.totalVisits.toLocaleString()}</span>
+      <span>visits</span>
     </div>
   );
 }
