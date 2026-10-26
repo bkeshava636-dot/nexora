@@ -372,7 +372,7 @@ async function callExternalLlm(
   userMessage: string,
   history: Array<{ role: "user" | "assistant"; content: string }>,
   systemContext: string
-): Promise<{ text: string | null; status: string }> {
+): Promise<{ text: string | null; status: string; errorDetail?: string }> {
   const rawKey = process.env["GEMINI_API_KEY"];
   const geminiKey = rawKey?.trim().replace(/^["']|["']$/g, "");
   if (!geminiKey) return { text: null, status: "missing_key" };
@@ -432,6 +432,14 @@ async function callExternalLlm(
     }
 
     const errBody = await res.text().catch(() => "");
+    let safeMessage = "";
+    try {
+      const parsed = JSON.parse(errBody);
+      safeMessage = (parsed?.error?.message || "").replace(/key=[^&\s]+/gi, "key=REDACTED");
+    } catch {
+      safeMessage = `HTTP_${res.status}`;
+    }
+
     const errReason = errBody.includes("API_KEY_INVALID")
       ? "api_key_invalid"
       : errBody.includes("RESOURCE_EXHAUSTED")
@@ -440,8 +448,8 @@ async function callExternalLlm(
       ? "permission_denied"
       : `status_${res.status}`;
 
-    logger.warn({ status: res.status, reason: errReason }, "Gemini API call returned non-200");
-    return { text: null, status: `upstream_${errReason}` };
+    logger.warn({ status: res.status, reason: errReason, detail: safeMessage }, "Gemini API call returned non-200");
+    return { text: null, status: `upstream_${errReason}`, errorDetail: safeMessage };
   } catch (err) {
     logger.warn({ err }, "Gemini API call failed or timed out; falling back to local engine");
     return { text: null, status: "upstream_exception" };
@@ -816,6 +824,7 @@ Rules:
 
     const llmResult = await callExternalLlm(rawQuery, history, systemPrompt);
     res.setHeader("X-AI-Provider-Status", llmResult.status);
+    if (llmResult.errorDetail) res.setHeader("X-AI-Provider-Msg", Buffer.from(llmResult.errorDetail.slice(0, 200)).toString("base64"));
     if (llmResult.text) {
       const payload: ChatResponsePayload = {
         reply: llmResult.text,
