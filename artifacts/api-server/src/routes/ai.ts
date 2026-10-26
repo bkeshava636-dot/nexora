@@ -372,12 +372,13 @@ async function callExternalLlm(
   userMessage: string,
   history: Array<{ role: "user" | "assistant"; content: string }>,
   systemContext: string
-): Promise<string | null> {
-  const geminiKey = process.env["GEMINI_API_KEY"];
-  if (!geminiKey) return null;
+): Promise<{ text: string | null; status: string }> {
+  const rawKey = process.env["GEMINI_API_KEY"];
+  const geminiKey = rawKey?.trim().replace(/^["']|["']$/g, "");
+  if (!geminiKey) return { text: null, status: "missing_key" };
 
   try {
-    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(geminiKey)}`;
 
     // Build dialogue turns with strict alternating user/model roles required by Gemini API
     const contents: Array<{ role: "user" | "model"; parts: Array<{ text: string }> }> = [];
@@ -425,17 +426,26 @@ async function callExternalLlm(
       const data = (await res.json()) as any;
       const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (text && typeof text === "string" && text.trim()) {
-        return text.trim();
+        return { text: text.trim(), status: "success" };
       }
-    } else {
-      logger.warn({ status: res.status }, "Gemini API call returned non-200");
+      return { text: null, status: "empty_generation" };
     }
+
+    const errBody = await res.text().catch(() => "");
+    const errReason = errBody.includes("API_KEY_INVALID")
+      ? "api_key_invalid"
+      : errBody.includes("RESOURCE_EXHAUSTED")
+      ? "rate_limit_exceeded"
+      : errBody.includes("PERMISSION_DENIED")
+      ? "permission_denied"
+      : `status_${res.status}`;
+
+    logger.warn({ status: res.status, reason: errReason }, "Gemini API call returned non-200");
+    return { text: null, status: `upstream_${errReason}` };
   } catch (err) {
     logger.warn({ err }, "Gemini API call failed or timed out; falling back to local engine");
+    return { text: null, status: "upstream_exception" };
   }
-
-  // Gracefully fallback to the free built-in academic engine and catalog
-  return null;
 }
 
 // ============================================================================
@@ -804,10 +814,11 @@ Rules:
 - If asked for code, provide clean, idiomatic code with brief explanation and edge cases.
 - Never invent fake URLs or fake exam dates. Mention that official syllabus notes are in the Nexora Library.`;
 
-    const llmAnswer = await callExternalLlm(rawQuery, history, systemPrompt);
-    if (llmAnswer) {
+    const llmResult = await callExternalLlm(rawQuery, history, systemPrompt);
+    res.setHeader("X-AI-Provider-Status", llmResult.status);
+    if (llmResult.text) {
       const payload: ChatResponsePayload = {
-        reply: llmAnswer,
+        reply: llmResult.text,
         quickReplies: [
           { label: "📋 3rd Sem IA Papers", value: "3rd sem ia papers" },
           { label: "📐 Maths Notes", value: "i need maths notes" },
