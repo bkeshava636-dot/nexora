@@ -29,13 +29,13 @@ export function PrivacyPage() {
         <div className="prose dark:prose-invert max-w-none text-sm leading-relaxed text-[hsl(var(--muted-foreground))] space-y-6">
           <section className="rounded-2xl bg-[hsl(var(--muted)/.4)] p-4 text-xs text-[hsl(var(--foreground))] border border-[hsl(var(--border)/.5)]">
             <p className="font-semibold text-[hsl(var(--foreground))] mb-1">Overview</p>
-            Nexora is an unofficial academic repository developed and maintained by an individual developer for fellow students. Personal data is never sold, browsing notes requires no account creation, and AI assistant conversations are ephemeral (never stored in the database).
+            Nexora is an unofficial academic repository maintained by the developer for students. Personal data is never sold, browsing notes requires no account creation, and AI assistant conversations are ephemeral (never stored in the database).
           </section>
 
           <section>
             <h2 className="text-base font-bold text-[hsl(var(--foreground))] mb-2">1. Scope and Administration</h2>
             <p>
-              Nexora is operated and maintained by a single developer. This Privacy Policy outlines the standards applied for handling and protecting information in accordance with the <strong>Digital Personal Data Protection Act (DPDP Act 2023)</strong> and the <strong>Information Technology Rules, 2011</strong>.
+              Nexora is operated and maintained by the developer. This Privacy Policy outlines the standards applied for handling and protecting information in accordance with the <strong>Digital Personal Data Protection Act (DPDP Act 2023)</strong> and the <strong>Information Technology Rules, 2011</strong>.
             </p>
           </section>
 
@@ -131,7 +131,7 @@ export function TermsPage() {
         <div className="prose dark:prose-invert max-w-none text-sm leading-relaxed text-[hsl(var(--muted-foreground))] space-y-6">
           <section className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-xs text-amber-900 dark:text-amber-200">
             <p className="font-bold mb-1">Non-Affiliation Notice</p>
-            Nexora is an unofficial academic study repository maintained by a single student developer. It is <strong>NOT</strong> an official portal of, affiliated with, endorsed by, or operated by Ballari Institute of Technology and Management (BITM) or Visvesvaraya Technological University (VTU). All institutional names and curriculum codes are used strictly for reference and identification.
+            Nexora is an unofficial academic study repository maintained by the developer. It is <strong>NOT</strong> an official portal of, affiliated with, endorsed by, or operated by Ballari Institute of Technology and Management (BITM) or Visvesvaraya Technological University (VTU). All institutional names and curriculum codes are used strictly for reference and identification.
           </section>
 
           <section>
