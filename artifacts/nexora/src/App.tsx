@@ -1018,7 +1018,6 @@ function TotalVisitsCounter() {
     >
       <span aria-hidden="true">👀</span>
       <span className="font-bold text-[hsl(var(--foreground))]">{data.totalVisits.toLocaleString()}</span>
-      <span>total visits</span>
     </div>
   );
 }
