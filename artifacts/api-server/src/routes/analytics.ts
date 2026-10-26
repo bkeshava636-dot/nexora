@@ -71,6 +71,50 @@ router.get("/analytics/total-visits", async (_req, res) => {
   }
 });
 
+// Diagnostic helper: GET /api/analytics/daily-breakdown
+router.get("/analytics/daily-breakdown", async (_req, res) => {
+  try {
+    const client = await pool.connect();
+    try {
+      const summaryResult = await client.query(`
+        SELECT
+          COUNT(*)::int AS "totalLoggedVisits",
+          COUNT(DISTINCT COALESCE(visitor_id, ip_hash))::int AS "totalUniqueVisitors",
+          COUNT(CASE WHEN created_at >= (date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata') THEN 1 END)::int AS "todayVisits",
+          COUNT(DISTINCT CASE WHEN created_at >= (date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata') THEN COALESCE(visitor_id, ip_hash) END)::int AS "todayUniqueVisitors",
+          COUNT(CASE WHEN created_at >= ((date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') - interval '1 day') AT TIME ZONE 'Asia/Kolkata')
+                      AND created_at < (date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') AT TIME ZONE 'Asia/Kolkata') THEN 1 END)::int AS "yesterdayVisits",
+          COUNT(CASE WHEN created_at >= (now() - interval '7 days') THEN 1 END)::int AS "last7DaysVisits",
+          COUNT(CASE WHEN created_at >= (now() - interval '30 days') THEN 1 END)::int AS "last30DaysVisits"
+        FROM site_visits;
+      `);
+
+      const dailyResult = await client.query(`
+        SELECT
+          to_char(created_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') AS date,
+          COUNT(*)::int AS visits,
+          COUNT(DISTINCT COALESCE(visitor_id, ip_hash))::int AS "uniqueVisitors"
+        FROM site_visits
+        WHERE created_at >= (date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') - interval '30 days')
+        GROUP BY 1
+        ORDER BY 1 DESC;
+      `);
+
+      const storedTotal = await getStoredTotalVisits();
+      res.json({
+        storedTotal,
+        summary: summaryResult.rows[0],
+        daily: dailyResult.rows,
+      });
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    logger.error({ err }, "Error fetching daily breakdown");
+    res.status(500).json({ error: "internal_error" });
+  }
+});
+
 // 2. POST /api/analytics/visit (Public visit ping with rich visitor info)
 router.post("/analytics/visit", async (req, res) => {
   try {
