@@ -8,6 +8,7 @@ import {
   semesters,
   subjects,
   resources,
+  resourceSubjects,
   semesterQps,
   iaPapers,
   importantLinks,
@@ -108,6 +109,7 @@ export interface EnrichedSubject extends Subject {
   branchShortName: string;
   branchName: string;
   verifiedResourcesCount: number;
+  resources: Resource[];
 }
 
 interface CatalogCache {
@@ -136,6 +138,7 @@ async function getCachedCatalog(): Promise<CatalogCache> {
     allSemesters,
     allSubjects,
     allResources,
+    allResourceSubjects,
     allSemesterQps,
     allIaPapers,
     allQuickLinks,
@@ -144,7 +147,8 @@ async function getCachedCatalog(): Promise<CatalogCache> {
     db.select().from(years).orderBy(asc(years.displayOrder)),
     db.select().from(semesters).orderBy(asc(semesters.displayOrder)),
     db.select().from(subjects).orderBy(asc(subjects.name)),
-    db.select().from(resources).orderBy(asc(resources.id)),
+    db.select().from(resources).where(eq(resources.isVerified, true)).orderBy(asc(resources.id)),
+    db.select().from(resourceSubjects),
     db.select().from(semesterQps).where(eq(semesterQps.isPublished, true)).orderBy(asc(semesterQps.id)),
     db.select().from(iaPapers).where(eq(iaPapers.isPublished, true)).orderBy(asc(iaPapers.id)),
     db.select().from(importantLinks).where(eq(importantLinks.isActive, true)).orderBy(asc(importantLinks.displayOrder)),
@@ -164,15 +168,31 @@ async function getCachedCatalog(): Promise<CatalogCache> {
     semMap.set(s.id, { sem: s, semNum, branch: b });
   }
 
-  const resCountMap = new Map<number, number>();
+  // Build subject to resources map from both primary subjectId and multi-linked resource_subjects
+  const resMap = new Map<number, Resource>();
+  for (const r of allResources) resMap.set(r.id, r);
+
+  const subjectToResourcesMap = new Map<number, Resource[]>();
   for (const r of allResources) {
     if (r.subjectId) {
-      resCountMap.set(r.subjectId, (resCountMap.get(r.subjectId) || 0) + 1);
+      const list = subjectToResourcesMap.get(r.subjectId) || [];
+      if (!list.some((item) => item.id === r.id)) list.push(r);
+      subjectToResourcesMap.set(r.subjectId, list);
+    }
+  }
+
+  for (const rs of allResourceSubjects) {
+    const r = resMap.get(rs.resourceId);
+    if (r) {
+      const list = subjectToResourcesMap.get(rs.subjectId) || [];
+      if (!list.some((item) => item.id === r.id)) list.push(r);
+      subjectToResourcesMap.set(rs.subjectId, list);
     }
   }
 
   const enrichedSubjects: EnrichedSubject[] = allSubjects.map((s) => {
     const semInfo = semMap.get(s.semesterId);
+    const sResources = subjectToResourcesMap.get(s.id) || [];
     return {
       ...s,
       semesterNum: semInfo ? semInfo.semNum : (extractSemesterNumber(s.name) || 0),
@@ -180,7 +200,8 @@ async function getCachedCatalog(): Promise<CatalogCache> {
       branchId: semInfo?.branch ? semInfo.branch.id : null,
       branchShortName: semInfo?.branch?.shortName || "",
       branchName: semInfo?.branch?.name || "",
-      verifiedResourcesCount: resCountMap.get(s.id) || 0,
+      verifiedResourcesCount: sResources.length,
+      resources: sResources,
     };
   });
 
@@ -202,27 +223,66 @@ async function getCachedCatalog(): Promise<CatalogCache> {
 // ============================================================================
 // 4. NATURAL LANGUAGE CONTEXT EXTRACTORS & TOPIC HELPERS
 // ============================================================================
+function parseRoman(str: string): number | null {
+  const map: Record<string, number> = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8 };
+  return map[str.toLowerCase()] || null;
+}
+
+function parseSemToken(tok: string): number | null {
+  const t = tok.toLowerCase();
+  const r = parseRoman(t);
+  if (r) return r;
+  const d = t.match(/([1-8])/);
+  return d ? parseInt(d[1], 10) : null;
+}
+
 function extractSemesterNumber(text: string): number | null {
   const norm = text.toLowerCase();
   if (norm.includes("c cycle") || norm.includes("c-cycle") || norm.includes("chem")) return 1;
   if (norm.includes("p cycle") || norm.includes("p-cycle") || norm.includes("phy")) return 2;
 
-  // Handles: "3 rd sem", "3rd sem", "sem 3", "semester 3", "3 sem", "3rd semester", "3 rd semester"
-  const m =
-    norm.match(/\b(?:sem|semester|s)\s*([1-8])\b/) ||
-    norm.match(/\b([1-8])\s*(?:st|nd|rd|th)?\s*(?:sem|semester)\b/) ||
-    norm.match(/\bsem([1-8])\b/i) ||
-    norm.match(/\bs([1-8])\b/i);
-  if (m) return parseInt(m[1], 10);
+  // Check for negation: e.g. "not 4th, 3rd sem" or "meant 3rd, not 4th"
+  const notMatch = norm.match(/\bnot\s+(?:sem|semester\s*)?([1-8]|(?:1st|2nd|3rd|[4-8]th)|i{1,3}|iv|v|vi{0,3}|viii)\b/);
+  const negatedNum = notMatch ? parseSemToken(notMatch[1]) : null;
 
-  if (/\b(?:1\s*st|first)\b/.test(norm)) return 1;
-  if (/\b(?:2\s*nd|second)\b/.test(norm)) return 2;
-  if (/\b(?:3\s*rd|third)\b/.test(norm)) return 3;
-  if (/\b(?:4\s*th|fourth)\b/.test(norm)) return 4;
-  if (/\b(?:5\s*th|fifth)\b/.test(norm)) return 5;
-  if (/\b(?:6\s*th|sixth)\b/.test(norm)) return 6;
-  if (/\b(?:7\s*th|seventh)\b/.test(norm)) return 7;
-  if (/\b(?:8\s*th|eighth)\b/.test(norm)) return 8;
+  // 1. Roman numerals with sem/semester: "sem iii", "semester iv", "sem-iii"
+  const romanMatch = norm.match(/\b(?:sem|semester|s)[-\s]*(i{1,3}|iv|v|vi{0,3}|viii)\b/i);
+  if (romanMatch) {
+    const val = parseRoman(romanMatch[1]);
+    if (val && val !== negatedNum) return val;
+  }
+
+  // 2. "sem-3", "sem 3", "semester-3", "sem 3rd", "semester 4th", "sem3"
+  const m1 = norm.match(/\b(?:sem|semester|s)[-\s]*([1-8])\s*(?:st|nd|rd|th)?\b/);
+  if (m1) {
+    const val = parseInt(m1[1], 10);
+    if (val !== negatedNum) return val;
+  }
+
+  // 3. "3 rd sem", "3rd sem", "3 sem", "3rd semester", "3 rd semester"
+  const m2 = norm.match(/\b([1-8])\s*(?:st|nd|rd|th)?\s*(?:sem|semester)\b/);
+  if (m2) {
+    const val = parseInt(m2[1], 10);
+    if (val !== negatedNum) return val;
+  }
+
+  // 4. Word-based ordinals with sem/semester: "third sem", "third semester", "fourth sem"
+  const wordMatch = norm.match(/\b(first|second|third|fourth|fifth|sixth|seventh|eighth)\s*(?:sem|semester)\b/);
+  if (wordMatch) {
+    const map: Record<string, number> = { first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7, eighth: 8 };
+    const val = map[wordMatch[1]];
+    if (val && val !== negatedNum) return val;
+  }
+
+  // 5. Standalone ordinals: "3rd", "3 rd", "third", "fourth"
+  if (/\b(?:1\s*st|first)\b/.test(norm) && negatedNum !== 1) return 1;
+  if (/\b(?:2\s*nd|second)\b/.test(norm) && negatedNum !== 2) return 2;
+  if (/\b(?:3\s*rd|third)\b/.test(norm) && negatedNum !== 3) return 3;
+  if (/\b(?:4\s*th|fourth)\b/.test(norm) && negatedNum !== 4) return 4;
+  if (/\b(?:5\s*th|fifth)\b/.test(norm) && negatedNum !== 5) return 5;
+  if (/\b(?:6\s*th|sixth)\b/.test(norm) && negatedNum !== 6) return 6;
+  if (/\b(?:7\s*th|seventh)\b/.test(norm) && negatedNum !== 7) return 7;
+  if (/\b(?:8\s*th|eighth)\b/.test(norm) && negatedNum !== 8) return 8;
 
   const digit = norm.match(/^\s*([1-8])\s*$/);
   if (digit) return parseInt(digit[1], 10);
@@ -232,15 +292,80 @@ function extractSemesterNumber(text: string): number | null {
 
 function extractBranchName(text: string): string | null {
   const norm = text.toLowerCase();
-  if (norm.includes("cse") || norm.includes("computer science")) return "CSE";
-  if (norm.includes("aiml") || norm.includes("ai & ml") || norm.includes("ai ml") || norm.includes("artificial intelligence")) return "AIML";
-  if (norm.includes("ise") || norm.includes("information science")) return "ISE";
-  if (norm.includes("ece") || norm.includes("electronics")) return "ECE";
-  if (norm.includes("eee") || norm.includes("electrical")) return "EEE";
-  if (norm.includes("mech") || norm.includes("mechanical")) return "MECH";
-  if (norm.includes("civil")) return "CIVIL";
-  if (norm.includes("data science") || norm.includes("ds")) return "DS";
+  if (/\b(?:cse|computer\s*science|comp\s*sci)\b/.test(norm) || /\bcs\b/.test(norm)) return "CSE";
+  if (/\b(?:aiml|ai\s*[\/&]?\s*ml|artificial\s*intelligence)\b/.test(norm)) return "AIML";
+  if (/\b(?:ise|information\s*science|info\s*sci)\b/.test(norm)) return "ISE";
+  if (/\b(?:ece|electronics(?:\s*and\s*communication)?)\b/.test(norm) || /\bec\b/.test(norm)) return "ECE";
+  if (/\b(?:eee|electrical(?:\s*and\s*electronics)?)\b/.test(norm) || /\bee\b/.test(norm)) return "EEE";
+  if (/\b(?:mech|mechanical(?:\s*engineering)?)\b/.test(norm)) return "MECH";
+  if (/\b(?:civil(?:\s*engineering)?|cv)\b/.test(norm)) return "CIVIL";
+  if (/\b(?:data\s*science)\b/.test(norm)) return "DS";
   return null;
+}
+
+type RequestedResourceType = "notes" | "syllabus" | "textbook" | "lab_manual" | "assignment" | "any";
+
+function detectRequestedResourceType(normQuery: string, words: string[]): RequestedResourceType {
+  if (normQuery.includes("syllabus") || normQuery.includes("curriculum")) return "syllabus";
+  if (normQuery.includes("textbook") || words.includes("book") || words.includes("books") || normQuery.includes("reference book")) return "textbook";
+  if (normQuery.includes("lab") || normQuery.includes("manual") || normQuery.includes("practical") || normQuery.includes("record")) return "lab_manual";
+  if (normQuery.includes("assignment") || normQuery.includes("assignments")) return "assignment";
+  if (normQuery.includes("note") || normQuery.includes("notes") || normQuery.includes("module")) return "notes";
+  return "any";
+}
+
+function filterAndRankResources(
+  resources: Resource[],
+  requestedType: RequestedResourceType
+): { filtered: Resource[]; typeMatched: boolean } {
+  if (resources.length === 0) return { filtered: [], typeMatched: false };
+
+  if (requestedType === "syllabus") {
+    const matches = resources.filter(
+      (r) => r.resourceType === "Reference" && r.title.toLowerCase().includes("syllabus")
+    );
+    if (matches.length > 0) return { filtered: matches, typeMatched: true };
+    const titleMatches = resources.filter((r) => r.title.toLowerCase().includes("syllabus"));
+    if (titleMatches.length > 0) return { filtered: titleMatches, typeMatched: true };
+    return { filtered: resources, typeMatched: false };
+  }
+
+  if (requestedType === "textbook") {
+    const matches = resources.filter(
+      (r) =>
+        r.title.toLowerCase().includes("textbook") ||
+        r.title.toLowerCase().includes("book") ||
+        r.resourceType === "Reference"
+    );
+    if (matches.length > 0) return { filtered: matches, typeMatched: true };
+    return { filtered: resources, typeMatched: false };
+  }
+
+  if (requestedType === "lab_manual") {
+    const matches = resources.filter(
+      (r) => r.resourceType === "Lab manual" || r.title.toLowerCase().includes("lab") || r.title.toLowerCase().includes("manual")
+    );
+    if (matches.length > 0) return { filtered: matches, typeMatched: true };
+    return { filtered: resources, typeMatched: false };
+  }
+
+  if (requestedType === "assignment") {
+    const matches = resources.filter(
+      (r) => r.resourceType === "Assignment" || r.title.toLowerCase().includes("assignment")
+    );
+    if (matches.length > 0) return { filtered: matches, typeMatched: true };
+    return { filtered: resources, typeMatched: false };
+  }
+
+  if (requestedType === "notes") {
+    const matches = resources.filter(
+      (r) => r.resourceType === "Lecture notes" || r.title.toLowerCase().includes("notes") || r.title.toLowerCase().includes("mod")
+    );
+    if (matches.length > 0) return { filtered: matches, typeMatched: true };
+    return { filtered: resources, typeMatched: false };
+  }
+
+  return { filtered: resources, typeMatched: false };
 }
 
 function detectSubjectTopic(normQuery: string, words: string[]): string | null {
@@ -533,6 +658,197 @@ void inorder(struct Node* root) {
     practiceQuestion:
       "**Practice Problem:** Relation $R(A, B, C, D)$ with FDs: $A \\rightarrow B$, $B \\rightarrow C$, $C \\rightarrow D$. Find the candidate keys and the highest normal form.",
   },
+  {
+    id: "dsa_stacks_queues",
+    keywords: ["stack", "queue", "lifo", "fifo", "stack vs queue", "push pop"],
+    title: "Data Structures: Stack vs Queue",
+    explanation:
+      "**Stack (LIFO — Last In First Out):**\n" +
+      "- Insertion and deletion occur only at one end called the **Top**.\n" +
+      "- Operations: `push(x)` ($O(1)$), `pop()` ($O(1)$), `peek()` ($O(1)$).\n" +
+      "- Applications: Function call stack, undo/redo mechanisms, backtracking, parenthesis matching.\n\n" +
+      "**Queue (FIFO — First In First Out):**\n" +
+      "- Insertion happens at the **Rear** and deletion happens at the **Front**.\n" +
+      "- Operations: `enqueue(x)` ($O(1)$), `dequeue()` ($O(1)$).\n" +
+      "- Applications: CPU task scheduling, print spooling, Breadth-First Search (BFS) graph traversal.",
+    codeSnippet: {
+      language: "java",
+      code: `// Stack & Queue Demonstrator in Java
+import java.util.Stack;
+import java.util.LinkedList;
+import java.util.Queue;
+
+public class StackQueueDemo {
+    public static void main(String[] args) {
+        // Stack: LIFO
+        Stack<Integer> stack = new Stack<>();
+        stack.push(10);
+        stack.push(20);
+        System.out.println("Stack Pop (LIFO): " + stack.pop()); // 20
+
+        // Queue: FIFO
+        Queue<Integer> queue = new LinkedList<>();
+        queue.add(10);
+        queue.add(20);
+        System.out.println("Queue Poll (FIFO): " + queue.poll()); // 10
+    }
+}`,
+    },
+    examTips:
+      "💡 **Exam Tip:** Clearly illustrate the pointer positions (`Top` for Stack; `Front` and `Rear` for Queue). On circular queue questions, write the modulo increment formulas: `front = (front + 1) % SIZE` and `rear = (rear + 1) % SIZE`.",
+    practiceQuestion:
+      "**Practice Challenge:** Implement a Queue using two Stacks such that `dequeue()` has an amortized time complexity of $O(1)$.",
+  },
+  {
+    id: "dsa_quicksort",
+    keywords: ["quicksort", "quick sort", "pivot", "partition algorithm"],
+    title: "Algorithms: QuickSort & Complexity Analysis",
+    explanation:
+      "**QuickSort** is a Divide-and-Conquer sorting algorithm that selects a **pivot element** and partitions the array such that all elements smaller than the pivot are placed to its left, and all larger elements are placed to its right.\n\n" +
+      "**Time Complexity Analysis:**\n" +
+      "- **Best Case: $O(n \\log n)$** — Occurs when the pivot consistently divides the array into two equal halves.\n" +
+      "- **Average Case: $O(n \\log n)$** — Standard random distribution of elements.\n" +
+      "- **Worst Case: $O(n^2)$** — Occurs when the array is already sorted (ascending or descending) and the first or last element is chosen as the pivot, producing $n$ unbalanced partitions ($0$ and $n-1$).",
+    codeSnippet: {
+      language: "java",
+      code: `// Partition Step in Java (Lomuto Partition)
+public static int partition(int[] arr, int low, int high) {
+    int pivot = arr[high]; // Pick last element as pivot
+    int i = low - 1;
+    for (int j = low; j < high; j++) {
+        if (arr[j] <= pivot) {
+            i++;
+            int temp = arr[i]; arr[i] = arr[j]; arr[j] = temp;
+        }
+    }
+    int temp = arr[i + 1]; arr[i + 1] = arr[high]; arr[high] = temp;
+    return i + 1;
+}`,
+    },
+    examTips:
+      "💡 **Exam Tip:** To avoid the $O(n^2)$ worst case in practical engineering, explain **Randomized Pivot Selection** or the **Median-of-Three** technique.",
+    practiceQuestion:
+      "**Practice Question:** Trace QuickSort on the array `[50, 30, 10, 90, 70]` using the first element as the pivot, showing the array state after each recursive call.",
+  },
+  {
+    id: "dsa_binary_search",
+    keywords: ["binary search", "binary search time complexity", "log n"],
+    title: "Algorithms: Binary Search & Logarithmic Complexity",
+    explanation:
+      "**Binary Search** is an optimal search algorithm for **sorted arrays** that repeatedly divides the search interval in half.\n\n" +
+      "**Recurrence Relation:**\n" +
+      "$$T(n) = T(n/2) + O(1)$$\n\n" +
+      "By Master Theorem (Case 2), the solution is **$O(\\log_2 n)$** time complexity.\n\n" +
+      "- **Best Case:** $O(1)$ (target found at the middle index on first comparison).\n" +
+      "- **Worst Case:** $O(\\log n)$ (target not present or at the ends).\n" +
+      "- **Space Complexity:** $O(1)$ iterative, $O(\\log n)$ recursive auxiliary stack.",
+    codeSnippet: {
+      language: "java",
+      code: `// Binary Search in Java (Iterative)
+public static int binarySearch(int[] arr, int target) {
+    int low = 0, high = arr.length - 1;
+    while (low <= high) {
+        int mid = low + (high - low) / 2; // Prevents integer overflow
+        if (arr[mid] == target) return mid;
+        else if (arr[mid] < target) low = mid + 1;
+        else high = mid - 1;
+    }
+    return -1; // Not found
+}`,
+    },
+    examTips:
+      "💡 **Exam Tip:** Mention why `mid = low + (high - low) / 2` is preferred over `(low + high) / 2` to prevent potential 32-bit signed integer overflow in Java/C++.",
+    practiceQuestion:
+      "**Practice Problem:** Given a sorted rotated array `[4, 5, 6, 7, 0, 1, 2]`, how can Binary Search be modified to find a target in $O(\\log n)$ time?",
+  },
+  {
+    id: "os_process_threads",
+    keywords: ["process vs thread", "thread", "process and thread", "pcb", "tcb"],
+    title: "Operating Systems: Process vs Thread",
+    explanation:
+      "**Process:** An instance of an executing program with its own dedicated memory address space (Text, Data, Heap, Stack).\n" +
+      "- Heavyweight: Requires high context switching overhead.\n" +
+      "- Managed via Process Control Block (PCB).\n" +
+      "- Inter-Process Communication (IPC) requires OS system calls (Pipes, Sockets, Shared Memory).\n\n" +
+      "**Thread:** A basic unit of CPU execution within a process (often called a lightweight process).\n" +
+      "- Threads of the same process **share Code, Data, and Heap**, but each thread has its own **Stack, Program Counter (PC), and Registers**.\n" +
+      "- Low context switching overhead.\n" +
+      "- Managed via Thread Control Block (TCB).",
+    examTips:
+      "💡 **Exam Answer Tip:** In VTU/BITM semester exams, draw the comparative diagram showing multiple threads inside a single process address space sharing the Heap and Global Data, with separate private Stacks.",
+    practiceQuestion:
+      "**Practice Question:** Explain why thread context switching is significantly faster than process context switching in modern OS kernels.",
+  },
+  {
+    id: "os_cpu_scheduling",
+    keywords: ["cpu scheduling", "round robin", "sjf", "fcfs", "turnaround time", "waiting time"],
+    title: "Operating Systems: CPU Scheduling Algorithms",
+    explanation:
+      "**CPU Scheduling** decides which ready process is allocated the CPU core to maximize CPU utilization and throughput while minimizing turnaround time and waiting time.\n\n" +
+      "**Common Algorithms:**\n" +
+      "1. **FCFS (First-Come First-Served):** Non-preemptive. Simple FIFO queue, but suffers from the **Convoy Effect** (short jobs wait behind large CPU bursts).\n" +
+      "2. **SJF (Shortest Job First):** Optimal minimum average waiting time. Difficult to know burst time in advance. Preemptive version is **SRTF**.\n" +
+      "3. **Round Robin (RR):** Preemptive scheduling using a fixed **Time Quantum ($q$)**. Fair, responsive, ideal for time-sharing systems. If $q$ is too small, context-switch overhead dominates; if $q$ is too large, it degenerates into FCFS.\n" +
+      "4. **Priority Scheduling:** Preemptive or non-preemptive based on priority integer. Suffers from **Starvation** (solved by Aging).",
+    examTips:
+      "💡 **Exam Answer Tip:** On exam numericals, always draw the **Gantt Chart** from $t=0$, and calculate: Turnaround Time ($TAT = \\text{Completion} - \\text{Arrival}$) and Waiting Time ($WT = TAT - \\text{Burst}$).",
+    practiceQuestion:
+      "**Practice Problem:** For 3 processes $P_1(0, 5), P_2(1, 3), P_3(2, 8)$ with Time Quantum = 2ms, draw the Round Robin Gantt chart and compute the average waiting time.",
+  },
+  {
+    id: "ddco_multiplexers",
+    keywords: ["multiplexer", "mux", "data selector", "4:1 mux", "demultiplexer"],
+    title: "Digital Design: Multiplexers (MUX) & Boolean Synthesis",
+    explanation:
+      "A **Multiplexer (MUX)**, or data selector, is a combinational circuit that selects binary information from one of $2^n$ input data lines and directs it to a single output line based on $n$ select lines.\n\n" +
+      "**4-to-1 Multiplexer:**\n" +
+      "- Inputs: $I_0, I_1, I_2, I_3$\n" +
+      "- Select Lines: $S_1, S_0$\n" +
+      "- Output Equation:\n" +
+      "$$Y = \\overline{S_1}\\ \\overline{S_0} I_0 + \\overline{S_1} S_0 I_1 + S_1 \\overline{S_0} I_2 + S_1 S_0 I_3$$\n\n" +
+      "Any Boolean function of $n$ variables can be synthesized using a $2^{n-1}$-to-1 MUX.",
+    examTips:
+      "💡 **Exam Tip:** When asked to implement a 3-variable logic function using a 4:1 MUX, set select lines to two variables ($A, B$) and connect the data inputs ($I_0..I_3$) to $0, 1, C,$ or $\\overline{C}$.",
+    practiceQuestion:
+      "**Practice Problem:** Implement the Boolean function $F(A,B,C) = \\Sigma m(1, 3, 5, 6)$ using an 8-to-1 Multiplexer and using a 4-to-1 Multiplexer.",
+  },
+  {
+    id: "math_relations_functions",
+    keywords: ["relation", "relations", "functions", "equivalence relation", "injective", "surjective", "bijective"],
+    title: "Discrete Mathematics: Relations & Functions",
+    explanation:
+      "**Equivalence Relation:** A binary relation $R$ on a set $A$ is an equivalence relation if and only if it is:\n" +
+      "1. **Reflexive:** $\\forall a \\in A, (a, a) \\in R$.\n" +
+      "2. **Symmetric:** If $(a, b) \\in R$, then $(b, a) \\in R$.\n" +
+      "3. **Transitive:** If $(a, b) \\in R$ and $(b, c) \\in R$, then $(a, c) \\in R$.\n\n" +
+      "**Function Properties:**\n" +
+      "- **Injective (One-to-One):** $f(a) = f(b) \\implies a = b$. Distinct domain elements have distinct images.\n" +
+      "- **Surjective (Onto):** For every $y$ in the codomain, there exists $x$ in the domain such that $f(x) = y$ (Range = Codomain).\n" +
+      "- **Bijective:** Both Injective and Surjective. A bijection has a unique inverse function $f^{-1}$.",
+    examTips:
+      "💡 **Exam Answer Tip:** For equivalence relations, always test all 3 properties sequentially. Mention that an equivalence relation partitions a set into mutually disjoint **Equivalence Classes**.",
+    practiceQuestion:
+      "**Practice Problem:** Let $R$ be a relation on $\\mathbb{Z}$ defined by $a R b \\iff a \\equiv b \\pmod 5$. Prove that $R$ is an equivalence relation and determine the equivalence classes.",
+  },
+  {
+    id: "math_recurrence_relations",
+    keywords: ["recurrence relation", "recurrence", "characteristic equation", "homogeneous recurrence"],
+    title: "Engineering Mathematics: Solving Linear Recurrence Relations",
+    explanation:
+      "A linear homogeneous recurrence relation of degree 2 with constant coefficients has the form:\n" +
+      "$$a_n = c_1 a_{n-1} + c_2 a_{n-2}$$\n\n" +
+      "**Step-by-Step Solution Method:**\n" +
+      "1. **Form the Characteristic Equation:** Substitute $a_n = r^n$, giving $r^2 - c_1 r - c_2 = 0$.\n" +
+      "2. **Find Roots ($r_1, r_2$):**\n" +
+      "   - Case 1 (Real & Distinct): $a_n = A(r_1)^n + B(r_2)^n$\n" +
+      "   - Case 2 (Real & Repeated $r_1 = r_2 = r$): $a_n = (A + Bn) r^n$\n" +
+      "   - Case 3 (Complex Conjugate $r = \\rho e^{\\pm i\\theta}$): $a_n = \\rho^n (A\\cos n\\theta + B\\sin n\\theta)$\n" +
+      "3. **Use Initial Conditions:** Solve for constants $A$ and $B$ using given values for $a_0$ and $a_1$.",
+    examTips:
+      "💡 **Exam Tip:** Check the question carefully for non-homogeneous terms (e.g. $+ 2^n$ or $+ n$). For non-homogeneous relations, the total solution is $a_n = a_n^{(h)} + a_n^{(p)}$ (Homogeneous + Particular solution).",
+    practiceQuestion:
+      "**Practice Problem:** Solve the recurrence relation $a_n - 7a_{n-1} + 12a_{n-2} = 0$ with initial conditions $a_0 = 2, a_1 = 7$.",
+  },
 ];
 
 function findAcademicMatch(text: string): AcademicTopic | null {
@@ -720,6 +1036,12 @@ router.post("/ai/chat", async (req: Request, res: Response) => {
 
   const { message, history, contextState = {} } = parseResult.data;
   const rawQuery = message.trim();
+  if (!rawQuery) {
+    return res.status(400).json({
+      error: "invalid_request",
+      message: "Message cannot be empty or whitespace only.",
+    });
+  }
   const normQuery = rawQuery.toLowerCase();
   const words = normQuery.replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
 
@@ -742,8 +1064,9 @@ router.post("/ai/chat", async (req: Request, res: Response) => {
       activeBranch = contextState.branch;
     }
 
-    // Detect subject topic
+    // Detect subject topic and resource type
     const detectedTopic = detectSubjectTopic(normQuery, words);
+    const requestedResourceType = detectRequestedResourceType(normQuery, words);
 
     // Differentiate between resource search queries vs academic conceptual explanations
     const isResourceIntent =
@@ -1045,6 +1368,68 @@ router.post("/ai/chat", async (req: Request, res: Response) => {
     }
 
     // ------------------------------------------------------------------------
+    // CONVERSATION FLOW B: Changing Semester while retaining conversation context
+    // E.g. Previous turn asked for DSA (3rd sem), now user says "What about 4th semester?"
+    // ------------------------------------------------------------------------
+    const isSemesterShiftQuery =
+      activeSem !== null &&
+      !detectedTopic &&
+      Boolean(contextState?.subject) &&
+      Boolean(contextState?.semester) &&
+      extractSemesterNumber(contextState!.semester!) !== activeSem;
+
+    if (isSemesterShiftQuery) {
+      const prevSubject = contextState!.subject!;
+      const prevSemNum = extractSemesterNumber(contextState!.semester!);
+
+      const existsInNewSem = catalog.subjects.some(
+        (s) =>
+          s.semesterNum === activeSem &&
+          (s.name.toLowerCase() === prevSubject.toLowerCase() ||
+            s.name.toLowerCase().includes(prevSubject.toLowerCase()))
+      );
+
+      if (!existsInNewSem) {
+        const newSemSubjects = catalog.subjects.filter(
+          (s) =>
+            s.semesterNum === activeSem &&
+            (activeBranch ? s.branchShortName.toLowerCase() === activeBranch.toLowerCase() : true)
+        );
+        const uniqueSubjNames = [...new Set(newSemSubjects.map((s) => s.name))].slice(0, 4);
+        const semShort = semNumToLabel(activeSem!);
+        const semFull = semNumToFullLabel(activeSem!);
+        const branchStr = activeBranch ? ` (${activeBranch})` : "";
+
+        const payload: ChatResponsePayload = {
+          reply: `🔍 **${prevSubject}** is a **${prevSemNum ? semNumToLabel(prevSemNum) : "previous semester"}** course. It is not taught in **${semFull}**.\n\nIn **${semFull}**${branchStr}, core subjects include:\n${uniqueSubjNames.map((n) => `• **${n}**`).join("\n")}\n\nWould you like study notes or question papers for any of these subjects?`,
+          actionCard: {
+            type: "subject",
+            title: `${semFull} Subjects`,
+            subtitle: `${newSemSubjects.length} subjects available${branchStr} • Autonomous Scheme`,
+            badge: semShort,
+            targetUrl: `/pyqs?tab=semester&semester=${encodeURIComponent(semFull)}`,
+            buttonText: `Browse ${semShort} Subjects ➔`,
+          },
+          quickReplies: [
+            ...uniqueSubjNames.slice(0, 3).map((name) => ({
+              label: `${semShort} ${name.slice(0, 18)}`,
+              value: `${semShort.toLowerCase()} ${name.toLowerCase()} notes`,
+            })),
+            { label: `📄 ${semShort} PYQs`, value: `${semShort.toLowerCase()} pyq` },
+          ],
+          updatedContextState: {
+            semester: semFull,
+            branch: activeBranch || contextState?.branch,
+            subject: undefined,
+            subjectId: undefined,
+          },
+          source: "catalog_search",
+        };
+        return res.json(payload);
+      }
+    }
+
+    // ------------------------------------------------------------------------
     // ROUTE 4: Subject Notes & Resource Lookup (Strict Semester Constraints)
     // ------------------------------------------------------------------------
     // Do not intercept if user is clearly asking for a conceptual explanation (handled by LLM/Academic Engine)
@@ -1061,8 +1446,8 @@ router.post("/ai/chat", async (req: Request, res: Response) => {
         });
       }
 
-      // Fallback to activeSubject from conversation context if student asks for notes
-      if (matchingSubjects.length === 0 && activeSubject && isResourceIntent) {
+      // Fallback to activeSubject from conversation context if student asks for notes, syllabus, textbook, etc.
+      if (matchingSubjects.length === 0 && activeSubject && (isResourceIntent || requestedResourceType !== "any")) {
         matchingSubjects = catalog.subjects.filter((s) => s.name.toLowerCase() === activeSubject!.toLowerCase());
       }
 
@@ -1091,20 +1476,60 @@ router.post("/ai/chat", async (req: Request, res: Response) => {
               selectedSubject = semCandidates[0];
             }
 
-            const subjResources = catalog.resources.filter((r) => r.subjectId === selectedSubject.id);
             const semLabel = selectedSubject.semesterName || semNumToLabel(selectedSubject.semesterNum);
             const branchLabel = selectedSubject.branchShortName ? ` • ${selectedSubject.branchShortName}` : "";
 
+            // Check if subject exists but has 0 verified materials
+            if (selectedSubject.resources.length === 0) {
+              const payload: ChatResponsePayload = {
+                reply: `📚 **${selectedSubject.name}** (${semLabel}${branchLabel}) is listed in our curriculum catalog, but no verified study notes or materials have been uploaded to Nexora yet.\n\nYou can still view the subject shelf or contribute materials if you have them:`,
+                actionCard: {
+                  type: "subject",
+                  title: selectedSubject.name,
+                  subtitle: `${semLabel}${branchLabel} • No notes uploaded yet`,
+                  badge: semLabel,
+                  targetUrl: `/subject/${selectedSubject.id}`,
+                  buttonText: `Open ${selectedSubject.name.slice(0, 22)} Shelf ➔`,
+                  resources: [],
+                },
+                quickReplies: [
+                  { label: "📤 Contribute Notes", value: "how can i contribute notes" },
+                  { label: `📄 ${semLabel} PYQs`, value: `${semLabel.toLowerCase()} pyq` },
+                  { label: "🔍 Search another subject", value: "search another subject" },
+                ],
+                updatedContextState: {
+                  semester: semLabel,
+                  branch: selectedSubject.branchShortName || activeBranch || contextState?.branch,
+                  subject: selectedSubject.name,
+                  subjectId: selectedSubject.id,
+                },
+                source: "catalog_search",
+              };
+              return res.json(payload);
+            }
+
+            // Filter resources by requested type (notes, syllabus, textbook, lab manual, etc.)
+            const rankResult = filterAndRankResources(selectedSubject.resources, requestedResourceType);
+            const subjResources = rankResult.filtered;
+            const typeMatched = rankResult.typeMatched;
+
+            let replyIntro = `🎯 Found **${selectedSubject.name}** (${semLabel}${branchLabel}) in our library! There are **${selectedSubject.resources.length} verified notes & study resources** available.`;
+            if (requestedResourceType === "syllabus" && typeMatched) {
+              replyIntro = `📄 Here is the official syllabus for **${selectedSubject.name}** (${semLabel}${branchLabel}):`;
+            } else if (requestedResourceType === "textbook" && typeMatched) {
+              replyIntro = `📚 Here is the recommended textbook for **${selectedSubject.name}** (${semLabel}${branchLabel}):`;
+            } else if (requestedResourceType === "lab_manual" && typeMatched) {
+              replyIntro = `🔬 Here is the lab manual for **${selectedSubject.name}** (${semLabel}${branchLabel}):`;
+            } else if (requestedResourceType === "assignment" && typeMatched) {
+              replyIntro = `📝 Here are the assignments for **${selectedSubject.name}** (${semLabel}${branchLabel}):`;
+            }
+
             const payload: ChatResponsePayload = {
-              reply: `🎯 Found **${selectedSubject.name}** (${semLabel}${branchLabel}) in our library!${
-                subjResources.length > 0
-                  ? ` There are **${subjResources.length} verified notes & study resources** available.`
-                  : " You can explore this subject shelf below."
-              }`,
+              reply: replyIntro,
               actionCard: {
                 type: "subject",
                 title: selectedSubject.name,
-                subtitle: `${semLabel}${branchLabel} • ${subjResources.length} verified materials`,
+                subtitle: `${semLabel}${branchLabel} • ${selectedSubject.resources.length} verified materials`,
                 badge: semLabel,
                 targetUrl: `/subject/${selectedSubject.id}`,
                 buttonText: `🎯 Open ${selectedSubject.name.slice(0, 22)} Shelf ➔`,
@@ -1157,6 +1582,8 @@ router.post("/ai/chat", async (req: Request, res: Response) => {
                 })),
                 updatedContextState: {
                   branch: activeBranch || contextState?.branch,
+                  subject: undefined,
+                  subjectId: undefined,
                 },
                 source: "catalog_search",
               };
@@ -1174,20 +1601,22 @@ router.post("/ai/chat", async (req: Request, res: Response) => {
             const semCandidates = matchingSubjects.filter((s) => s.semesterNum === availableSems[0]);
             semCandidates.sort((a, b) => b.verifiedResourcesCount - a.verifiedResourcesCount);
             const selectedSubject = semCandidates[0];
-            const subjResources = catalog.resources.filter((r) => r.subjectId === selectedSubject.id);
             const semLabel = selectedSubject.semesterName || semNumToLabel(selectedSubject.semesterNum);
             const branchLabel = selectedSubject.branchShortName ? ` • ${selectedSubject.branchShortName}` : "";
 
+            const rankResult = filterAndRankResources(selectedSubject.resources, requestedResourceType);
+            const subjResources = rankResult.filtered;
+
             const payload: ChatResponsePayload = {
               reply: `🎯 Found **${selectedSubject.name}** in **${semLabel}**${branchLabel}!${
-                subjResources.length > 0
-                  ? ` There are **${subjResources.length} verified notes & study resources** available.`
+                selectedSubject.resources.length > 0
+                  ? ` There are **${selectedSubject.resources.length} verified notes & study resources** available.`
                   : " You can explore this subject shelf below."
               }`,
               actionCard: {
                 type: "subject",
                 title: selectedSubject.name,
-                subtitle: `${semLabel}${branchLabel} • ${subjResources.length} verified materials`,
+                subtitle: `${semLabel}${branchLabel} • ${selectedSubject.resources.length} verified materials`,
                 badge: semLabel,
                 targetUrl: `/subject/${selectedSubject.id}`,
                 buttonText: `🎯 Open ${selectedSubject.name.slice(0, 22)} Shelf ➔`,
@@ -1254,19 +1683,29 @@ Rules:
     res.setHeader("X-AI-Provider-Status", llmResult.status);
     if (lastAvailableModels) res.setHeader("X-AI-Available-Models", Buffer.from(lastAvailableModels.slice(0, 300)).toString("base64"));
     if (llmResult.errorDetail) res.setHeader("X-AI-Provider-Msg", Buffer.from(llmResult.errorDetail.slice(0, 200)).toString("base64"));
+    const userMentionedPreviousSubject =
+      Boolean(activeSubject) &&
+      (normQuery.includes(activeSubject!.toLowerCase()) ||
+        (detectedTopic ? subjectMatchesTopic({ name: activeSubject! } as any, detectedTopic) : false));
+
+    const contextSubjectToRetain = userMentionedPreviousSubject ? activeSubject : undefined;
+    const contextSubjectIdToRetain = userMentionedPreviousSubject ? activeSubjectId : undefined;
+    const contextSemesterToRetain = activeSem ? semNumToFullLabel(activeSem) : (userMentionedPreviousSubject ? contextState?.semester : undefined);
+
     if (llmResult.text) {
       const payload: ChatResponsePayload = {
         reply: llmResult.text,
         quickReplies: [
-          { label: "📋 3rd Sem IA Papers", value: "3rd sem ia papers" },
+          { label: "💡 Explain another concept", value: "explain another concept" },
           { label: "📐 Maths Notes", value: "i need maths notes" },
+          { label: "💻 DSA Notes", value: "dsa notes" },
           { label: "⚡ DSDCO Notes", value: "dsdco notes" },
         ],
         updatedContextState: {
-          semester: activeSem ? semNumToFullLabel(activeSem) : contextState?.semester,
-          branch: activeBranch || contextState?.branch,
-          subject: activeSubject,
-          subjectId: activeSubjectId,
+          semester: contextSemesterToRetain,
+          branch: activeBranch || (userMentionedPreviousSubject ? contextState?.branch : undefined),
+          subject: contextSubjectToRetain,
+          subjectId: contextSubjectIdToRetain,
         },
         source: "llm",
       };
@@ -1287,16 +1726,16 @@ Rules:
       const payload: ChatResponsePayload = {
         reply: fullReply,
         quickReplies: [
+          { label: "💡 Explain another concept", value: "explain another concept" },
           { label: "📄 Find Related Notes", value: `${academicMatch.keywords[0]} notes` },
           { label: "📋 Practice PYQs", value: `${academicMatch.keywords[0]} pyq` },
-          { label: "💡 Explain another concept", value: "explain another concept" },
         ],
         updatedContextState: {
           topic: academicMatch.id,
-          semester: activeSem ? semNumToFullLabel(activeSem) : contextState?.semester,
-          branch: activeBranch || contextState?.branch,
-          subject: activeSubject,
-          subjectId: activeSubjectId,
+          semester: contextSemesterToRetain,
+          branch: activeBranch || (userMentionedPreviousSubject ? contextState?.branch : undefined),
+          subject: contextSubjectToRetain,
+          subjectId: contextSubjectIdToRetain,
         },
         source: "academic_engine",
       };
