@@ -368,6 +368,43 @@ function findAcademicMatch(text: string): AcademicTopic | null {
 // ============================================================================
 // 6. EXTERNAL LLM INTEGRATION (Google Gemini 1.5 Flash Free-Tier API)
 // ============================================================================
+let cachedWorkingModel: string | null = null;
+
+async function getWorkingModelName(geminiKey: string): Promise<string> {
+  if (cachedWorkingModel) return cachedWorkingModel;
+
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(geminiKey)}`, {
+      signal: AbortSignal.timeout(4500),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as any;
+      const list = (data?.models || []) as Array<{ name: string; supportedGenerationMethods?: string[] }>;
+      const usable = list.filter((m) => m.supportedGenerationMethods?.includes("generateContent"));
+
+      const picked =
+        usable.find((m) => m.name.endsWith("/gemini-1.5-flash-latest")) ||
+        usable.find((m) => m.name.endsWith("/gemini-1.5-flash")) ||
+        usable.find((m) => m.name.endsWith("/gemini-2.0-flash")) ||
+        usable.find((m) => m.name.includes("flash")) ||
+        usable.find((m) => m.name.includes("gemini")) ||
+        usable[0];
+
+      if (picked) {
+        const id = picked.name.replace(/^models\//, "");
+        cachedWorkingModel = id;
+        logger.info({ discoveredModel: id }, "Successfully discovered active Gemini model for project");
+        return id;
+      }
+    }
+  } catch (err) {
+    logger.warn({ err }, "Model discovery check error");
+  }
+
+  // Reliable standard fallback
+  return "gemini-1.5-flash-latest";
+}
+
 async function callExternalLlm(
   userMessage: string,
   history: Array<{ role: "user" | "assistant"; content: string }>,
@@ -378,7 +415,8 @@ async function callExternalLlm(
   if (!geminiKey) return { text: null, status: "missing_key" };
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(geminiKey)}`;
+    const activeModel = await getWorkingModelName(geminiKey);
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent?key=${encodeURIComponent(geminiKey)}`;
 
     // Build dialogue turns with strict alternating user/model roles required by Gemini API
     const contents: Array<{ role: "user" | "model"; parts: Array<{ text: string }> }> = [];
@@ -448,6 +486,7 @@ async function callExternalLlm(
       ? "permission_denied"
       : `status_${res.status}`;
 
+    if (res.status === 404) cachedWorkingModel = null;
     logger.warn({ status: res.status, reason: errReason, detail: safeMessage }, "Gemini API call returned non-200");
     return { text: null, status: `upstream_${errReason}`, errorDetail: safeMessage };
   } catch (err) {
