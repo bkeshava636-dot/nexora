@@ -303,6 +303,19 @@ function extractBranchName(text: string): string | null {
   return null;
 }
 
+function isBranchOnlyQuery(rawQuery: string, words: string[], extractedBranch: string | null): boolean {
+  if (!extractedBranch) return false;
+  const norm = rawQuery.toLowerCase().trim();
+  if (norm.includes("pyq") || norm.includes("question") || norm.includes("explain") || norm.includes("what is")) {
+    return false;
+  }
+  if (words.length <= 4) return true;
+  if (norm.startsWith("for ") || norm.includes("instead") || norm.includes("branch") || norm.includes("switch to")) {
+    return true;
+  }
+  return false;
+}
+
 type RequestedResourceType = "notes" | "syllabus" | "textbook" | "lab_manual" | "assignment" | "any";
 
 function detectRequestedResourceType(normQuery: string, words: string[]): RequestedResourceType {
@@ -316,17 +329,48 @@ function detectRequestedResourceType(normQuery: string, words: string[]): Reques
 
 function filterAndRankResources(
   resources: Resource[],
-  requestedType: RequestedResourceType
-): { filtered: Resource[]; typeMatched: boolean } {
+  requestedType: RequestedResourceType,
+  queryWords: string[] = []
+): { filtered: Resource[]; typeMatched: boolean; matchedTitle?: string } {
   if (resources.length === 0) return { filtered: [], typeMatched: false };
+
+  // Check if specific query keywords match resource titles (e.g. "relation and functions", "graph theory")
+  const stopWords = new Set([
+    "show", "me", "the", "for", "and", "in", "a", "an", "of", "to", "notes",
+    "note", "pls", "please", "can", "you", "give", "i", "need", "want", "find",
+    "search", "material", "materials", "study", "pdf", "what", "is", "about", "all"
+  ]);
+  const contentWords = queryWords.map((w) => w.toLowerCase()).filter((w) => w.length > 2 && !stopWords.has(w));
+
+  if (contentWords.length > 0) {
+    const scored = resources.map((r) => {
+      const titleLower = r.title.toLowerCase();
+      let score = 0;
+      for (const cw of contentWords) {
+        if (titleLower.includes(cw)) score += 2;
+      }
+      return { resource: r, score };
+    });
+
+    const hasMatch = scored.some((s) => s.score > 0);
+    if (hasMatch) {
+      scored.sort((a, b) => b.score - a.score);
+      const topMatch = scored[0];
+      return {
+        filtered: scored.map((s) => s.resource),
+        typeMatched: true,
+        matchedTitle: topMatch.resource.title,
+      };
+    }
+  }
 
   if (requestedType === "syllabus") {
     const matches = resources.filter(
       (r) => r.resourceType === "Reference" && r.title.toLowerCase().includes("syllabus")
     );
-    if (matches.length > 0) return { filtered: matches, typeMatched: true };
+    if (matches.length > 0) return { filtered: matches, typeMatched: true, matchedTitle: "Syllabus" };
     const titleMatches = resources.filter((r) => r.title.toLowerCase().includes("syllabus"));
-    if (titleMatches.length > 0) return { filtered: titleMatches, typeMatched: true };
+    if (titleMatches.length > 0) return { filtered: titleMatches, typeMatched: true, matchedTitle: "Syllabus" };
     return { filtered: resources, typeMatched: false };
   }
 
@@ -337,7 +381,7 @@ function filterAndRankResources(
         r.title.toLowerCase().includes("book") ||
         r.resourceType === "Reference"
     );
-    if (matches.length > 0) return { filtered: matches, typeMatched: true };
+    if (matches.length > 0) return { filtered: matches, typeMatched: true, matchedTitle: "Textbook" };
     return { filtered: resources, typeMatched: false };
   }
 
@@ -345,7 +389,7 @@ function filterAndRankResources(
     const matches = resources.filter(
       (r) => r.resourceType === "Lab manual" || r.title.toLowerCase().includes("lab") || r.title.toLowerCase().includes("manual")
     );
-    if (matches.length > 0) return { filtered: matches, typeMatched: true };
+    if (matches.length > 0) return { filtered: matches, typeMatched: true, matchedTitle: "Lab Manual" };
     return { filtered: resources, typeMatched: false };
   }
 
@@ -353,7 +397,7 @@ function filterAndRankResources(
     const matches = resources.filter(
       (r) => r.resourceType === "Assignment" || r.title.toLowerCase().includes("assignment")
     );
-    if (matches.length > 0) return { filtered: matches, typeMatched: true };
+    if (matches.length > 0) return { filtered: matches, typeMatched: true, matchedTitle: "Assignment" };
     return { filtered: resources, typeMatched: false };
   }
 
@@ -1051,21 +1095,42 @@ router.post("/ai/chat", async (req: Request, res: Response) => {
     // ------------------------------------------------------------------------
     // CONTEXT RESOLUTION ACROSS TURNS
     // ------------------------------------------------------------------------
-    let activeSem = extractSemesterNumber(rawQuery);
-    let activeBranch = extractBranchName(rawQuery);
+    const querySem = extractSemesterNumber(rawQuery);
+    const queryBranch = extractBranchName(rawQuery);
+
+    let activeSem = querySem;
+    let activeBranch = queryBranch;
     let activeSubject = contextState?.subject;
     let activeSubjectId = contextState?.subjectId;
 
-    // Inherit from contextState if user uses pronouns like "it", "same semester", "that"
-    if (activeSem === null && contextState?.semester) {
-      activeSem = extractSemesterNumber(contextState.semester);
-    }
-    if (!activeBranch && contextState?.branch) {
-      activeBranch = contextState.branch;
+    const branchOnly = isBranchOnlyQuery(rawQuery, words, queryBranch);
+
+    if (branchOnly) {
+      activeBranch = queryBranch;
+      if (activeSem === null && contextState?.semester) {
+        activeSem = extractSemesterNumber(contextState.semester);
+      }
+      if (contextState?.subject) {
+        activeSubject = contextState.subject;
+        activeSubjectId = contextState.subjectId;
+      }
+    } else {
+      if (activeSem === null && contextState?.semester) {
+        activeSem = extractSemesterNumber(contextState.semester);
+      }
+      if (!activeBranch && contextState?.branch) {
+        const prevSem = contextState.semester ? extractSemesterNumber(contextState.semester) : null;
+        if (querySem === null || querySem === prevSem) {
+          activeBranch = contextState.branch;
+        }
+      }
     }
 
     // Detect subject topic and resource type
-    const detectedTopic = detectSubjectTopic(normQuery, words);
+    let detectedTopic = detectSubjectTopic(normQuery, words);
+    if (!detectedTopic && branchOnly && activeSubject) {
+      detectedTopic = detectSubjectTopic(activeSubject.toLowerCase(), activeSubject.toLowerCase().split(/\s+/));
+    }
     const requestedResourceType = detectRequestedResourceType(normQuery, words);
 
     // Differentiate between resource search queries vs academic conceptual explanations
@@ -1447,8 +1512,21 @@ router.post("/ai/chat", async (req: Request, res: Response) => {
       }
 
       // Fallback to activeSubject from conversation context if student asks for notes, syllabus, textbook, etc.
-      if (matchingSubjects.length === 0 && activeSubject && (isResourceIntent || requestedResourceType !== "any")) {
-        matchingSubjects = catalog.subjects.filter((s) => s.name.toLowerCase() === activeSubject!.toLowerCase());
+      if (matchingSubjects.length === 0 && activeSubject) {
+        if (activeSubjectId) {
+          const byId = catalog.subjects.find((s) => s.id === activeSubjectId);
+          if (byId) matchingSubjects = [byId];
+        }
+        if (matchingSubjects.length === 0) {
+          const topicFromActive = detectSubjectTopic(activeSubject.toLowerCase(), activeSubject.toLowerCase().split(/\s+/));
+          if (topicFromActive) {
+            matchingSubjects = catalog.subjects.filter((s) => subjectMatchesTopic(s, topicFromActive));
+          } else {
+            matchingSubjects = catalog.subjects.filter(
+              (s) => s.name.toLowerCase() === activeSubject!.toLowerCase() || s.name.toLowerCase().includes(activeSubject!.toLowerCase())
+            );
+          }
+        }
       }
 
       if (matchingSubjects.length > 0) {
@@ -1457,7 +1535,6 @@ router.post("/ai/chat", async (req: Request, res: Response) => {
           const semCandidates = matchingSubjects.filter((s) => s.semesterNum === activeSem);
 
           if (semCandidates.length > 0) {
-            // Rank: prioritize requested branch, then highest verified resources count
             let selectedSubject: EnrichedSubject | null = null;
             if (activeBranch) {
               const branchMatches = semCandidates.filter(
@@ -1468,10 +1545,87 @@ router.post("/ai/chat", async (req: Request, res: Response) => {
               if (branchMatches.length > 0) {
                 branchMatches.sort((a, b) => b.verifiedResourcesCount - a.verifiedResourcesCount);
                 selectedSubject = branchMatches[0];
+              } else {
+                // Requested branch has no matching subject in this semester
+                const semLabel = semNumToLabel(activeSem);
+                const semFull = semNumToFullLabel(activeSem);
+                const topicDisplay = detectedTopic ? formatTopicName(detectedTopic) : (activeSubject || rawQuery);
+                const availableBranches = Array.from(
+                  new Set(semCandidates.map((s) => s.branchShortName || s.branchName).filter(Boolean))
+                );
+                const payload: ChatResponsePayload = {
+                  reply: `🔍 We couldn't find any **${topicDisplay}** study materials for **${activeBranch}** in **${semFull}**.\n\nHowever, this subject is available for: **${availableBranches.join(", ")}**.\n\nWould you like to explore resources for one of these branches instead?`,
+                  actionCard: {
+                    type: "subject",
+                    title: `${topicDisplay} (${semFull})`,
+                    subtitle: `Available in: ${availableBranches.join(", ")}`,
+                    badge: semLabel,
+                    targetUrl: `/resources?query=${encodeURIComponent(topicDisplay)}&semester=${encodeURIComponent(semFull)}`,
+                    buttonText: `Browse ${topicDisplay} in Library ➔`,
+                  },
+                  quickReplies: availableBranches.slice(0, 4).map((b) => ({
+                    label: `${b} ${topicDisplay}`,
+                    value: `${semLabel.toLowerCase()} ${b.toLowerCase()} ${topicDisplay.toLowerCase()} notes`,
+                  })),
+                  updatedContextState: {
+                    semester: semLabel,
+                    subject: topicDisplay,
+                  },
+                  source: "catalog_search",
+                };
+                return res.json(payload);
               }
-            }
+            } else {
+              // NO BRANCH SPECIFIED! Group semCandidates by branch
+              const branchesMap = new Map<string, EnrichedSubject[]>();
+              for (const s of semCandidates) {
+                const bKey = s.branchShortName || s.branchName;
+                if (!bKey) continue;
+                if (!branchesMap.has(bKey)) {
+                  branchesMap.set(bKey, []);
+                }
+                branchesMap.get(bKey)!.push(s);
+              }
 
-            if (!selectedSubject) {
+              const distinctBranchNames = Array.from(branchesMap.keys());
+
+              // If multiple branches have matching subjects/resources, ask the student to select branch!
+              if (distinctBranchNames.length > 1) {
+                const semLabel = semNumToLabel(activeSem);
+                const semFull = semNumToFullLabel(activeSem);
+                const topicDisplay = detectedTopic ? formatTopicName(detectedTopic) : (activeSubject || "Mathematics");
+
+                // Sort branches by highest verified resources count
+                const sortedBranches = [...distinctBranchNames].sort((a, b) => {
+                  const maxA = Math.max(...(branchesMap.get(a)?.map((s) => s.verifiedResourcesCount) || [0]));
+                  const maxB = Math.max(...(branchesMap.get(b)?.map((s) => s.verifiedResourcesCount) || [0]));
+                  return maxB - maxA;
+                });
+
+                const payload: ChatResponsePayload = {
+                  reply: `📚 **${topicDisplay} Notes — ${semFull}**\n\nWhich branch are you studying? Select your branch to see verified study materials:`,
+                  actionCard: {
+                    type: "subject",
+                    title: `${topicDisplay} (${semFull})`,
+                    subtitle: `Available across ${sortedBranches.join(", ")} • Autonomous Scheme`,
+                    badge: semLabel,
+                    targetUrl: `/resources?query=${encodeURIComponent(topicDisplay)}&semester=${encodeURIComponent(semFull)}`,
+                    buttonText: `Browse All ${topicDisplay} Subjects ➔`,
+                  },
+                  quickReplies: sortedBranches.map((b) => ({
+                    label: b,
+                    value: `${semLabel.toLowerCase()} ${b.toLowerCase()} ${topicDisplay.toLowerCase()} notes`,
+                  })),
+                  updatedContextState: {
+                    semester: semLabel,
+                    subject: topicDisplay,
+                  },
+                  source: "catalog_search",
+                };
+                return res.json(payload);
+              }
+
+              // Exactly one branch exists
               semCandidates.sort((a, b) => b.verifiedResourcesCount - a.verifiedResourcesCount);
               selectedSubject = semCandidates[0];
             }
@@ -1508,13 +1662,16 @@ router.post("/ai/chat", async (req: Request, res: Response) => {
               return res.json(payload);
             }
 
-            // Filter resources by requested type (notes, syllabus, textbook, lab manual, etc.)
-            const rankResult = filterAndRankResources(selectedSubject.resources, requestedResourceType);
+            // Filter resources by requested type and query keywords
+            const rankResult = filterAndRankResources(selectedSubject.resources, requestedResourceType, words);
             const subjResources = rankResult.filtered;
             const typeMatched = rankResult.typeMatched;
+            const matchedTitle = rankResult.matchedTitle;
 
             let replyIntro = `🎯 Found **${selectedSubject.name}** (${semLabel}${branchLabel}) in our library! There are **${selectedSubject.resources.length} verified notes & study resources** available.`;
-            if (requestedResourceType === "syllabus" && typeMatched) {
+            if (matchedTitle && matchedTitle !== "Syllabus" && matchedTitle !== "Textbook" && matchedTitle !== "Lab Manual" && matchedTitle !== "Assignment") {
+              replyIntro = `🎯 Found **${matchedTitle}** study notes for **${selectedSubject.name}** (${semLabel}${branchLabel})!`;
+            } else if (requestedResourceType === "syllabus" && typeMatched) {
               replyIntro = `📄 Here is the official syllabus for **${selectedSubject.name}** (${semLabel}${branchLabel}):`;
             } else if (requestedResourceType === "textbook" && typeMatched) {
               replyIntro = `📚 Here is the recommended textbook for **${selectedSubject.name}** (${semLabel}${branchLabel}):`;
@@ -1573,7 +1730,7 @@ router.post("/ai/chat", async (req: Request, res: Response) => {
                   title: `${topicDisplay} Materials`,
                   subtitle: `Available in ${availableSems.map((n) => semNumToLabel(n)).join(", ")}`,
                   badge: "Other Semesters",
-                  targetUrl: `/search?q=${encodeURIComponent(topicDisplay)}`,
+                  targetUrl: `/resources?query=${encodeURIComponent(topicDisplay)}`,
                   buttonText: `Browse ${topicDisplay} in Library ➔`,
                 },
                 quickReplies: availableSems.slice(0, 4).map((n) => ({
@@ -1649,7 +1806,7 @@ router.post("/ai/chat", async (req: Request, res: Response) => {
                 title: `${topicDisplay} Study Materials`,
                 subtitle: `Available across ${availableSems.map((n) => semNumToLabel(n)).join(", ")} • Autonomous Scheme`,
                 badge: "Multiple Semesters",
-                targetUrl: `/search?q=${encodeURIComponent(topicDisplay)}`,
+                targetUrl: `/resources?query=${encodeURIComponent(topicDisplay)}`,
                 buttonText: `Browse All ${topicDisplay} Subjects ➔`,
               },
               quickReplies: availableSems.slice(0, 4).map((n) => ({

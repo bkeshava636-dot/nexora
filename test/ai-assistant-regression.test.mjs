@@ -216,3 +216,120 @@ test("Phase 8 — API Input Validation Rules", () => {
   assert.equal(validateInput("a".repeat(2001)), false);
   assert.equal(validateInput("a".repeat(2000)), true);
 });
+
+test("Phase 5 — Multi-Turn Branch & Subject Continuity", async (t) => {
+  function isBranchOnlyQuery(rawQuery, words, extractedBranch) {
+    if (!extractedBranch) return false;
+    const norm = rawQuery.toLowerCase().trim();
+    if (norm.includes("pyq") || norm.includes("question") || norm.includes("explain") || norm.includes("what is")) {
+      return false;
+    }
+    if (words.length <= 4) return true;
+    if (norm.startsWith("for ") || norm.includes("instead") || norm.includes("branch") || norm.includes("switch to")) {
+      return true;
+    }
+    return false;
+  }
+
+  await t.test("Branch-only queries detected correctly", () => {
+    assert.equal(isBranchOnlyQuery("CSE", ["cse"], "CSE"), true);
+    assert.equal(isBranchOnlyQuery("AIML", ["aiml"], "AIML"), true);
+    assert.equal(isBranchOnlyQuery("for CSE", ["for", "cse"], "CSE"), true);
+    assert.equal(isBranchOnlyQuery("for AIML instead", ["for", "aiml", "instead"], "AIML"), true);
+    assert.equal(isBranchOnlyQuery("switch to ECE", ["switch", "to", "ece"], "ECE"), true);
+  });
+
+  await t.test("Non-branch or complex queries not treated as branch-only", () => {
+    assert.equal(isBranchOnlyQuery("3rd sem mathematics notes", ["3rd", "sem", "mathematics", "notes"], null), false);
+    assert.equal(isBranchOnlyQuery("CSE 3rd sem pyq", ["cse", "3rd", "sem", "pyq"], "CSE"), false);
+    assert.equal(isBranchOnlyQuery("explain photosynthesis", ["explain", "photosynthesis"], null), false);
+  });
+});
+
+test("Phase 4 & 5 — Keyword-based Resource Ranking", async (t) => {
+  function filterAndRankResources(resources, requestedType, queryWords = []) {
+    if (resources.length === 0) return { filtered: [], typeMatched: false };
+    const stopWords = new Set([
+      "show", "me", "the", "for", "and", "in", "a", "an", "of", "to", "notes",
+      "note", "pls", "please", "can", "you", "give", "i", "need", "want", "find",
+      "search", "material", "materials", "study", "pdf", "what", "is", "about", "all"
+    ]);
+    const contentWords = queryWords.map((w) => w.toLowerCase()).filter((w) => w.length > 2 && !stopWords.has(w));
+
+    if (contentWords.length > 0) {
+      const scored = resources.map((r) => {
+        const titleLower = r.title.toLowerCase();
+        let score = 0;
+        for (const cw of contentWords) {
+          if (titleLower.includes(cw)) score += 2;
+        }
+        return { resource: r, score };
+      });
+
+      const hasMatch = scored.some((s) => s.score > 0);
+      if (hasMatch) {
+        scored.sort((a, b) => b.score - a.score);
+        return {
+          filtered: scored.map((s) => s.resource),
+          typeMatched: true,
+          matchedTitle: scored[0].resource.title,
+        };
+      }
+    }
+
+    return { filtered: resources, typeMatched: false };
+  }
+
+  const sampleResources = [
+    { id: 1, title: "recurrence relation" },
+    { id: 2, title: "MATHS SYLLABUS" },
+    { id: 3, title: "GRAPH THEORY" },
+    { id: 4, title: "RELATION AND FUNCTIONS" },
+  ];
+
+  await t.test("Query 'Show me the relation and functions notes' ranks RELATION AND FUNCTIONS first", () => {
+    const res = filterAndRankResources(
+      sampleResources,
+      "notes",
+      ["show", "me", "the", "relation", "and", "functions", "notes"]
+    );
+    assert.equal(res.filtered[0].title, "RELATION AND FUNCTIONS");
+    assert.equal(res.matchedTitle, "RELATION AND FUNCTIONS");
+  });
+
+  await t.test("Query 'graph theory notes' ranks GRAPH THEORY first", () => {
+    const res = filterAndRankResources(
+      sampleResources,
+      "notes",
+      ["graph", "theory", "notes"]
+    );
+    assert.equal(res.filtered[0].title, "GRAPH THEORY");
+  });
+});
+
+test("Phase 5 & 8 — Route Destination Validity", async (t) => {
+  const validAppRoutes = ["/", "/resources", "/search", "/pyqs", "/quick-links", "/branch/:id", "/subject/:id", "/contribute"];
+
+  function isValidNavigation(targetUrl) {
+    const path = targetUrl.split("?")[0];
+    if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) return true;
+    if (path.startsWith("/subject/") && /^\/subject\/\d+$/.test(path)) return true;
+    if (path.startsWith("/branch/") && /^\/branch\/\d+$/.test(path)) return true;
+    return validAppRoutes.includes(path);
+  }
+
+  await t.test("Valid application routes pass", () => {
+    assert.equal(isValidNavigation("/resources?query=Mathematics"), true);
+    assert.equal(isValidNavigation("/resources?query=Mathematics&semester=SEM%203"), true);
+    assert.equal(isValidNavigation("/subject/69"), true);
+    assert.equal(isValidNavigation("/subject/172"), true);
+    assert.equal(isValidNavigation("/pyqs?tab=semester&semester=3rd%20Semester"), true);
+    assert.equal(isValidNavigation("/pyqs?tab=ia"), true);
+  });
+
+  await t.test("Invalid or empty routes fail", () => {
+    assert.equal(isValidNavigation(""), false);
+    assert.equal(isValidNavigation("/nonexistent-page"), false);
+    assert.equal(isValidNavigation("/subject/invalid-id"), false);
+  });
+});

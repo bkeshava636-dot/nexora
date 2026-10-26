@@ -1194,15 +1194,38 @@ function getAllLocationsForResource(r: Resource): Array<{
 }
 
 function ResourcesPage() {
-  const [query, setQuery] = useState(() => new URLSearchParams(window.location.search).get("query") ?? "");
-  const [branch, setBranch] = useState("All branches");
+  const getInitialParams = () => {
+    if (typeof window === "undefined") {
+      return { q: "", b: "All branches", s: "All semesters" };
+    }
+    const sp = new URLSearchParams(window.location.search);
+    const q = sp.get("query") ?? sp.get("q") ?? sp.get("search") ?? "";
+    const b = sp.get("branch") ?? "All branches";
+    const s = sp.get("semester") ?? sp.get("sem") ?? "All semesters";
+    return { q, b, s };
+  };
+
+  const initialParams = getInitialParams();
+  const [query, setQuery] = useState(initialParams.q);
+  const [branch, setBranch] = useState(initialParams.b);
   const [year, setYear] = useState("All years");
-  const [semester, setSemester] = useState("All semesters");
+  const [semester, setSemester] = useState(initialParams.s);
   const [subject, setSubject] = useState("All subjects");
   const [type, setType] = useState("All types");
   const [verified, setVerified] = useState(false);
   const { data: resources = [], isLoading } = useListResources();
   const { data: branches = [] } = useListBranches();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    const q = sp.get("query") ?? sp.get("q") ?? sp.get("search");
+    if (q !== null && q !== undefined) setQuery(q);
+    const s = sp.get("semester") ?? sp.get("sem");
+    if (s) setSemester(s);
+    const b = sp.get("branch");
+    if (b) setBranch(b);
+  }, []);
 
   // Cache mapped locations per resource for performance
   const resourcesWithLocations = useMemo(() => {
@@ -12469,6 +12492,7 @@ function AppRouter() {
   return <RoutedErrorBoundary><Switch>
     <Route path="/"><Home /></Route>
     <Route path="/resources"><ResourcesPage /></Route>
+    <Route path="/search"><ResourcesPage /></Route>
     <Route path="/pyqs"><PyqsPage /></Route>
     <Route path="/quick-links"><QuickLinksPage /></Route>
     <Route path="/branch/:branchId"><BranchPage /></Route>

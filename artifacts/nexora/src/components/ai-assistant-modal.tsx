@@ -322,10 +322,7 @@ export function AiAssistantModal() {
           setMessages((prev) => [...prev, botMsg]);
 
           if (data.updatedContextState) {
-            setContextState((prev) => ({
-              ...prev,
-              ...data.updatedContextState,
-            }));
+            setContextState(data.updatedContextState);
           }
         },
         onError: (err) => {
