@@ -371,9 +371,7 @@ function findAcademicMatch(text: string): AcademicTopic | null {
 let cachedWorkingModel: string | null = null;
 let lastAvailableModels = "";
 
-async function getWorkingModelName(geminiKey: string): Promise<string> {
-  if (cachedWorkingModel) return cachedWorkingModel;
-
+async function getCandidateModels(geminiKey: string): Promise<string[]> {
   try {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(geminiKey)}`, {
       signal: AbortSignal.timeout(4500),
@@ -383,35 +381,44 @@ async function getWorkingModelName(geminiKey: string): Promise<string> {
       const list = (data?.models || []) as Array<{ name: string; supportedGenerationMethods?: string[] }>;
       const usable = list.filter((m) => m.supportedGenerationMethods?.includes("generateContent"));
 
-      const namesList = usable.map((m) => m.name.replace(/^models\//, ''));
-      lastAvailableModels = namesList.join(',');
+      const namesList = usable.map((m) => m.name.replace(/^models\//, ""));
+      lastAvailableModels = namesList.join(",");
 
-      // Exclude retired / non-available models
-      const activeCandidates = usable.filter((m) => !m.name.includes("2.5-flash"));
+      // Exclude models with known migration notices, TTS, or vision-only
+      const active = namesList.filter((n) => !n.includes("2.5-flash") && !n.includes("tts") && !n.includes("image"));
 
-      const picked =
-        activeCandidates.find((m) => m.name.endsWith("/gemini-2.0-flash")) ||
-        activeCandidates.find((m) => m.name.endsWith("/gemini-2.0-flash-exp")) ||
-        activeCandidates.find((m) => m.name.endsWith("/gemini-1.5-flash-8b")) ||
-        activeCandidates.find((m) => m.name.endsWith("/gemini-1.5-flash")) ||
-        activeCandidates.find((m) => m.name.endsWith("/gemini-1.5-pro")) ||
-        activeCandidates.find((m) => m.name.includes("flash")) ||
-        activeCandidates.find((m) => m.name.includes("gemini")) ||
-        activeCandidates[0];
+      // Sort by preference: fast, responsive Flash models first
+      const preferredOrder = [
+        "gemini-flash-latest",
+        "gemini-flash-lite-latest",
+        "gemini-2.5-flash-lite",
+        "gemini-3-flash-preview",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemini-pro-latest",
+        "gemini-2.5-pro",
+        "gemma",
+      ];
 
-      if (picked) {
-        const id = picked.name.replace(/^models\//, "");
-        cachedWorkingModel = id;
-        logger.info({ discoveredModel: id }, "Successfully discovered active Gemini model for project");
-        return id;
+      active.sort((a, b) => {
+        const idxA = preferredOrder.findIndex((p) => a.startsWith(p));
+        const idxB = preferredOrder.findIndex((p) => b.startsWith(p));
+        const rankA = idxA === -1 ? 999 : idxA;
+        const rankB = idxB === -1 ? 999 : idxB;
+        return rankA - rankB;
+      });
+
+      if (cachedWorkingModel && active.includes(cachedWorkingModel)) {
+        return [cachedWorkingModel, ...active.filter((n) => n !== cachedWorkingModel)];
       }
+
+      return active.length > 0 ? active : ["gemini-flash-latest", "gemini-flash-lite-latest"];
     }
   } catch (err) {
     logger.warn({ err }, "Model discovery check error");
   }
 
-  // Reliable standard fallback
-  return "gemini-1.5-flash-latest";
+  return [cachedWorkingModel || "gemini-flash-latest", "gemini-flash-lite-latest", "gemini-2.5-flash-lite"];
 }
 
 async function callExternalLlm(
@@ -423,85 +430,91 @@ async function callExternalLlm(
   const geminiKey = rawKey?.trim().replace(/^["']|["']$/g, "");
   if (!geminiKey) return { text: null, status: "missing_key" };
 
-  try {
-    const activeModel = await getWorkingModelName(geminiKey);
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent?key=${encodeURIComponent(geminiKey)}`;
+  // Build dialogue turns with strict alternating user/model roles required by Gemini API
+  const contents: Array<{ role: "user" | "model"; parts: Array<{ text: string }> }> = [];
 
-    // Build dialogue turns with strict alternating user/model roles required by Gemini API
-    const contents: Array<{ role: "user" | "model"; parts: Array<{ text: string }> }> = [];
+  let lastRole: "user" | "model" | null = null;
+  for (const h of history.slice(-4)) {
+    const role = h.role === "assistant" ? "model" : "user";
+    const cleanText = h.content?.trim();
+    if (!cleanText) continue;
 
-    // Keep up to 4 recent turns to stay well within free-tier token budgets
-    let lastRole: "user" | "model" | null = null;
-    for (const h of history.slice(-4)) {
-      const role = h.role === "assistant" ? "model" : "user";
-      const cleanText = h.content?.trim();
-      if (!cleanText) continue;
-
-      if (role !== lastRole) {
-        contents.push({ role, parts: [{ text: cleanText }] });
-        lastRole = role;
-      }
+    if (role !== lastRole) {
+      contents.push({ role, parts: [{ text: cleanText }] });
+      lastRole = role;
     }
-
-    // Ensure the terminal turn is always the current user request
-    if (lastRole === "user" && contents.length > 0) {
-      contents[contents.length - 1] = { role: "user", parts: [{ text: userMessage }] };
-    } else {
-      contents.push({ role: "user", parts: [{ text: userMessage }] });
-    }
-
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": geminiKey,
-      },
-      body: JSON.stringify({
-        system_instruction: {
-          parts: [{ text: systemContext }],
-        },
-        contents,
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 1000,
-        },
-      }),
-      signal: AbortSignal.timeout(8500),
-    });
-
-    if (res.ok) {
-      const data = (await res.json()) as any;
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (text && typeof text === "string" && text.trim()) {
-        return { text: text.trim(), status: "success" };
-      }
-      return { text: null, status: "empty_generation" };
-    }
-
-    const errBody = await res.text().catch(() => "");
-    let safeMessage = "";
-    try {
-      const parsed = JSON.parse(errBody);
-      safeMessage = (parsed?.error?.message || "").replace(/key=[^&\s]+/gi, "key=REDACTED");
-    } catch {
-      safeMessage = `HTTP_${res.status}`;
-    }
-
-    const errReason = errBody.includes("API_KEY_INVALID")
-      ? "api_key_invalid"
-      : errBody.includes("RESOURCE_EXHAUSTED")
-      ? "rate_limit_exceeded"
-      : errBody.includes("PERMISSION_DENIED")
-      ? "permission_denied"
-      : `status_${res.status}`;
-
-    if (res.status === 404) cachedWorkingModel = null;
-    logger.warn({ status: res.status, reason: errReason, detail: safeMessage }, "Gemini API call returned non-200");
-    return { text: null, status: `upstream_${errReason}`, errorDetail: safeMessage };
-  } catch (err) {
-    logger.warn({ err }, "Gemini API call failed or timed out; falling back to local engine");
-    return { text: null, status: "upstream_exception" };
   }
+
+  if (lastRole === "user" && contents.length > 0) {
+    contents[contents.length - 1] = { role: "user", parts: [{ text: userMessage }] };
+  } else {
+    contents.push({ role: "user", parts: [{ text: userMessage }] });
+  }
+
+  const payloadBody = JSON.stringify({
+    system_instruction: {
+      parts: [{ text: systemContext }],
+    },
+    contents,
+    generationConfig: {
+      temperature: 0.3,
+      maxOutputTokens: 1000,
+    },
+  });
+
+  const candidates = await getCandidateModels(geminiKey);
+  let lastErrorReason = "unknown";
+  let lastErrorMessage = "";
+
+  // Try candidate models in order; if one returns 503 (high demand) or 404, gracefully try next
+  for (const model of candidates.slice(0, 4)) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(geminiKey)}`;
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": geminiKey,
+        },
+        body: payloadBody,
+        signal: AbortSignal.timeout(6500),
+      });
+
+      if (res.ok) {
+        const data = (await res.json()) as any;
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text && typeof text === "string" && text.trim()) {
+          cachedWorkingModel = model;
+          return { text: text.trim(), status: "success" };
+        }
+      } else {
+        const errBody = await res.text().catch(() => "");
+        try {
+          const parsed = JSON.parse(errBody);
+          lastErrorMessage = (parsed?.error?.message || "").replace(/key=[^&\s]+/gi, "key=REDACTED");
+        } catch {
+          lastErrorMessage = `HTTP_${res.status}`;
+        }
+        lastErrorReason = `status_${res.status}`;
+
+        logger.warn({ model, status: res.status, msg: lastErrorMessage }, "Candidate model non-200");
+
+        // If 503 or 404, retry next candidate model
+        if (res.status === 503 || res.status === 404) {
+          continue;
+        }
+        break;
+      }
+    } catch (err: any) {
+      lastErrorReason = "timeout_or_network";
+      lastErrorMessage = err?.message || "fetch timeout";
+      logger.warn({ model, err: lastErrorMessage }, "Candidate model fetch error");
+      continue;
+    }
+  }
+
+  return { text: null, status: `upstream_${lastErrorReason}`, errorDetail: lastErrorMessage };
 }
 
 // ============================================================================
