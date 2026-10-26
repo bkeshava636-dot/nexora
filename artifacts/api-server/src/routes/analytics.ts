@@ -12,19 +12,42 @@ const BASELINE_SEED_VISITS = 0;
 
 async function getStoredTotalVisits(): Promise<number> {
   try {
-    const [record] = await db
-      .select()
-      .from(appSettings)
-      .where(eq(appSettings.key, TOTAL_VISITS_KEY));
+    let storedVal = 0;
+    try {
+      const [record] = await db
+        .select()
+        .from(appSettings)
+        .where(eq(appSettings.key, TOTAL_VISITS_KEY));
 
-    if (record && record.value) {
-      const parsed = parseInt(record.value, 10);
-      if (!isNaN(parsed)) {
-        if (parsed >= 0) {
-          return parsed;
+      if (record && record.value) {
+        const parsed = parseInt(record.value, 10);
+        if (!isNaN(parsed) && parsed >= 0) {
+          storedVal = parsed;
         }
-        return parsed;
       }
+    } catch {
+      // Non-fatal, fallback to site_visits query
+    }
+
+    const client = await pool.connect();
+    try {
+      const countRes = await client.query('SELECT COUNT(*)::int AS count FROM site_visits');
+      const totalLoggedVisits = countRes.rows[0]?.count || 0;
+      const trueTotal = Math.max(storedVal, totalLoggedVisits, BASELINE_SEED_VISITS);
+
+      // Keep app_settings in sync with the real all-time count if it fell behind
+      if (trueTotal > storedVal) {
+        await client.query(
+          `INSERT INTO app_settings (key, value, updated_at)
+           VALUES ($1, $2, now())
+           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+          [TOTAL_VISITS_KEY, trueTotal.toString()]
+        );
+      }
+
+      return trueTotal;
+    } finally {
+      client.release();
     }
   } catch (err: unknown) {
     const pgErr = (err as { cause?: { code?: string }; code?: string })?.cause || (err as { code?: string });
