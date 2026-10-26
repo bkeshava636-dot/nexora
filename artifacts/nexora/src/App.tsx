@@ -2305,62 +2305,6 @@ function ContributePage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.25)] p-4 sm:p-5 text-xs">
-                    <p className="font-bold text-sm text-[hsl(var(--foreground))] mb-3 flex items-center gap-2">
-                      <Link2 size={16} className="text-[hsl(var(--accent-foreground))]" />
-                      Steps to get your Google Drive link
-                    </p>
-                    <div className="grid gap-2.5 sm:grid-cols-2">
-                      <div className="flex items-start gap-2.5 rounded-xl border border-[hsl(var(--border)/.6)] bg-[hsl(var(--card)/.7)] p-3">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--secondary)/.25)] text-[11px] font-bold text-[hsl(var(--secondary-foreground))]">
-                          1
-                        </span>
-                        <div>
-                          <p className="font-bold text-[hsl(var(--foreground))]">Upload to Google Drive</p>
-                          <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">
-                            Go to your Google Drive and upload your notes, syllabus, or paper.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-2.5 rounded-xl border border-[hsl(var(--border)/.6)] bg-[hsl(var(--card)/.7)] p-3">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--secondary)/.25)] text-[11px] font-bold text-[hsl(var(--secondary-foreground))]">
-                          2
-                        </span>
-                        <div>
-                          <p className="font-bold text-[hsl(var(--foreground))]">Click Share &rarr; Share</p>
-                          <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">
-                            Right-click the file in Google Drive and select Share.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-2.5 rounded-xl border border-[hsl(var(--border)/.6)] bg-[hsl(var(--card)/.7)] p-3">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--secondary)/.25)] text-[11px] font-bold text-[hsl(var(--secondary-foreground))]">
-                          3
-                        </span>
-                        <div>
-                          <p className="font-bold text-[hsl(var(--foreground))]">Set "Anyone with the link"</p>
-                          <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">
-                            Under General access, switch from Restricted to Anyone with the link.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-2.5 rounded-xl border border-[hsl(var(--border)/.6)] bg-[hsl(var(--card)/.7)] p-3">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--accent)/.3)] text-[11px] font-bold text-[hsl(var(--accent-foreground))]">
-                          4
-                        </span>
-                        <div>
-                          <p className="font-bold text-[hsl(var(--foreground))]">Copy link & paste below</p>
-                          <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">
-                            Click "Copy link" and paste the share URL in the box below.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
                   <Field label="Google Drive link" required>
                     <div className="relative">
                       <Link2
