@@ -1,3 +1,18 @@
 <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+  <defs>
+    <linearGradient id="nexora-bg" x1="0" y1="0" x2="180" y2="180" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#FF4D1A" />
+      <stop offset="100%" stopColor="#E63000" />
+    </linearGradient>
+  </defs>
+  <!-- Brand rounded squircle -->
+  <rect width="180" height="180" rx="42" fill="url(#nexora-bg)" />
+  <!-- Subtle inner border for crispness across dark & light browser tabs -->
+  <rect x="1" y="1" width="178" height="178" rx="41" stroke="#FFFFFF" stroke-opacity="0.18" stroke-width="2" />
+  <!-- Nexora Layers Brand Icon -->
+  <g transform="translate(35, 41) scale(4.6)" stroke="#FFFFFF" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z" fill="#FFFFFF" fill-opacity="0.18" />
+    <path d="m22 12.5-8.58 3.91a2 2 0 0 1-1.66 0L2 12.5" />
+    <path d="m22 17.5-8.58 3.91a2 2 0 0 1-1.66 0L2 17.5" />
+  </g>
 </svg>
