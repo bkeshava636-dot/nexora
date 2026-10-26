@@ -20,13 +20,8 @@ async function getStoredTotalVisits(): Promise<number> {
     if (record && record.value) {
       const parsed = parseInt(record.value, 10);
       if (!isNaN(parsed)) {
-        // Auto-clean any legacy 12k placeholder seed value from database
-        if (parsed >= 12400) {
-          await db
-            .update(appSettings)
-            .set({ value: "1", updatedAt: new Date() })
-            .where(eq(appSettings.key, TOTAL_VISITS_KEY));
-          return 1;
+        if (parsed >= 0) {
+          return parsed;
         }
         return parsed;
       }
@@ -103,10 +98,7 @@ router.post("/analytics/visit", async (req, res) => {
         `INSERT INTO app_settings (key, value, updated_at)
          VALUES ($1, $2, now())
          ON CONFLICT (key) DO UPDATE
-         SET value = CASE
-           WHEN COALESCE(NULLIF(app_settings.value, ''), '0')::bigint >= 12400 THEN '1'
-           ELSE (COALESCE(NULLIF(app_settings.value, ''), '0')::bigint + 1)::text
-         END,
+         SET value = (COALESCE(NULLIF(app_settings.value, ''), '0')::bigint + 1)::text,
          updated_at = now()`,
         [TOTAL_VISITS_KEY, nextVal],
       );
