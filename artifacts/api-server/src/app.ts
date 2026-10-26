@@ -27,6 +27,18 @@ app.use(
   }),
 );
 
+// Security headers (OWASP Recommended)
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  if (process.env.NODE_ENV === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  next();
+});
+
 // Admin sessions rely on a cookie, so CORS must allow credentials. That means
 // the wildcard "*" origin (the default) can't be used — the origin has to be
 // echoed back explicitly for each allowed origin. CORS_ORIGIN accepts a

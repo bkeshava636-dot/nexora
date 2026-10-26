@@ -1,3 +1,4 @@
+import { PrivacyPage, TermsPage } from "@/components/legal-pages";
 import { type FormEvent, type ReactNode, memo, useCallback, useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { Link, Redirect, Route, Switch, Router as WouterRouter, useLocation, useParams } from "wouter";
 import {
@@ -12497,6 +12498,8 @@ function AppRouter() {
     <Route path="/branch/:branchId"><BranchPage /></Route>
     <Route path="/subject/:subjectId"><SubjectPage /></Route>
     <Route path="/contribute"><ContributePage /></Route>
+    <Route path="/privacy"><PrivacyPage /></Route>
+    <Route path="/terms"><TermsPage /></Route>
     <Route path="/login"><LoginPage /></Route>
     <Route path="/forgot-password"><ForgotPasswordPage /></Route>
     <Route path="/reset-password"><ResetPasswordPage /></Route>

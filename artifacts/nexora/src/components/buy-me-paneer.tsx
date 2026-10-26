@@ -1,3 +1,4 @@
+import { Link } from "wouter";
 import { useRef, useState } from "react";
 import { CheckCircle2, CircleAlert, Heart, Loader2, MessageSquarePlus, X } from "lucide-react";
 import {
@@ -145,6 +146,23 @@ export function BuyMePaneerFooter() {
               </span>
             </a>
           </div>
+
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[11px] text-[hsl(var(--muted-foreground))]">
+            <Link href="/privacy" className="hover:text-[hsl(var(--foreground))] hover:underline transition-colors" data-testid="footer-link-privacy">
+              Privacy Policy
+            </Link>
+            <span aria-hidden="true" className="opacity-40">•</span>
+            <Link href="/terms" className="hover:text-[hsl(var(--foreground))] hover:underline transition-colors" data-testid="footer-link-terms">
+              Terms & Fair Use Disclaimer
+            </Link>
+            <span aria-hidden="true" className="opacity-40">•</span>
+            <Link href="/contribute" className="hover:text-[hsl(var(--foreground))] hover:underline transition-colors">
+              Contribute
+            </Link>
+          </div>
+          <p className="mt-3 text-[10px] text-[hsl(var(--muted-foreground)/.7)]">
+            Unofficial student academic hub • Educational fair-use repository
+          </p>
         </div>
       </footer>
 
