@@ -12,6 +12,9 @@ export interface RecordVisitPayload {
   path?: string;
   deviceType?: "mobile" | "desktop" | "tablet";
   referrer?: string;
+  branch?: string;
+  academicYear?: string;
+  semester?: string;
 }
 
 export interface DailyBreakdownItem {
@@ -46,6 +49,33 @@ export interface TopReferrerItem {
   percentage: number;
 }
 
+export interface BranchBreakdownItem {
+  branch: string;
+  count: number;
+  percentage: number;
+}
+
+export interface YearBreakdownItem {
+  year: string;
+  count: number;
+  percentage: number;
+}
+
+export interface SemesterBreakdownItem {
+  semester: string;
+  count: number;
+  percentage: number;
+}
+
+export interface AcademicCombinationItem {
+  branch: string;
+  year: string;
+  semester: string;
+  label: string;
+  count: number;
+  percentage: number;
+}
+
 export interface AdminAnalyticsStats {
   days: number;
   totalVisits: number;
@@ -62,6 +92,11 @@ export interface AdminAnalyticsStats {
   deviceBreakdown: DeviceBreakdownItem[];
   hourlyBreakdown: HourlyBreakdownItem[];
   topReferrers: TopReferrerItem[];
+  branchBreakdown?: BranchBreakdownItem[];
+  yearBreakdown?: YearBreakdownItem[];
+  semesterBreakdown?: SemesterBreakdownItem[];
+  academicBreakdown?: AcademicCombinationItem[];
+  totalAcademicVisits?: number;
 }
 
 export const getTotalVisitsQueryKey = () => ["/api/analytics/total-visits"];

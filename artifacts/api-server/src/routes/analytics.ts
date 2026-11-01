@@ -118,13 +118,16 @@ router.get("/analytics/daily-breakdown", async (_req, res) => {
 // 2. POST /api/analytics/visit (Public visit ping with rich visitor info)
 router.post("/analytics/visit", async (req, res) => {
   try {
-    const { visitorId, sessionId, path = "/", deviceType = "desktop", referrer } = req.body || {};
+    const { visitorId, sessionId, path = "/", deviceType = "desktop", referrer, branch, academicYear, semester } = req.body || {};
     const rawIp = req.ip || req.headers["x-forwarded-for"] || "";
     const ipHash = rawIp ? crypto.createHash("sha256").update(String(rawIp)).digest("hex").slice(0, 16) : null;
     const userAgent = req.headers["user-agent"] ? String(req.headers["user-agent"]).slice(0, 255) : null;
 
     const normalizedPath = String(path || "/").slice(0, 255);
     const validDevice = (deviceType === "mobile" || deviceType === "tablet") ? deviceType : "desktop";
+    const sanitizedBranch = branch ? String(branch).trim().slice(0, 100) : null;
+    const sanitizedAcademicYear = academicYear ? String(academicYear).trim().slice(0, 100) : null;
+    const sanitizedSemester = semester ? String(semester).trim().slice(0, 100) : null;
 
     // 1. Log site visit record
     try {
@@ -136,10 +139,13 @@ router.post("/analytics/visit", async (req, res) => {
         referrer: referrer ? String(referrer).slice(0, 255) : null,
         ipHash,
         userAgent,
+        branch: sanitizedBranch,
+        academicYear: sanitizedAcademicYear,
+        semester: sanitizedSemester,
       });
     } catch (insertErr: unknown) {
       const pgErr = (insertErr as { cause?: { code?: string }; code?: string })?.cause || (insertErr as { code?: string });
-      if (pgErr?.code === "42P01") {
+      if (pgErr?.code === "42P01" || pgErr?.code === "42703") {
         await ensureTables();
         await db.insert(siteVisits).values({
           visitorId: visitorId ? String(visitorId).slice(0, 64) : null,
@@ -149,6 +155,9 @@ router.post("/analytics/visit", async (req, res) => {
           referrer: referrer ? String(referrer).slice(0, 255) : null,
           ipHash,
           userAgent,
+          branch: sanitizedBranch,
+          academicYear: sanitizedAcademicYear,
+          semester: sanitizedSemester,
         }).catch(() => {});
       } else {
         logger.warn({ err: insertErr }, "Non-fatal: failed to insert site visit row");
@@ -357,6 +366,130 @@ router.get("/admin/analytics/stats", requireAdmin, async (req, res) => {
         percentage: totalPeriodVisits > 0 ? Math.round((Number(r.count) / totalPeriodVisits) * 100) : 0,
       }));
 
+      // Student Academic Engagement Breakdowns (Branch / Year / Semester)
+      // Resolves both direct tracking tags and joined catalog context from historical path patterns
+      await client.query(`
+        ALTER TABLE site_visits ADD COLUMN IF NOT EXISTS branch text;
+        ALTER TABLE site_visits ADD COLUMN IF NOT EXISTS academic_year text;
+        ALTER TABLE site_visits ADD COLUMN IF NOT EXISTS semester text;
+      `).catch(() => {});
+
+      const academicResult = await client.query(`
+        WITH visit_context AS (
+          SELECT
+            sv.id,
+            COALESCE(
+              NULLIF(sv.branch, ''),
+              sub_b.short_name,
+              sub_b.name,
+              dir_b.short_name,
+              dir_b.name
+            ) AS branch,
+            COALESCE(
+              NULLIF(sv.academic_year, ''),
+              sub_y.name
+            ) AS academic_year,
+            COALESCE(
+              NULLIF(sv.semester, ''),
+              sub_s.name
+            ) AS semester
+          FROM site_visits sv
+          LEFT JOIN subjects sub
+            ON sv.path ~ '^/subject/[0-9]+'
+           AND sub.id = (CASE WHEN sv.path ~ '^/subject/[0-9]+' THEN (substring(sv.path from '^/subject/([0-9]+)'))::int ELSE NULL END)
+          LEFT JOIN semesters sub_s ON sub.semester_id = sub_s.id
+          LEFT JOIN years sub_y ON sub_s.year_id = sub_y.id
+          LEFT JOIN branches sub_b ON sub_y.branch_id = sub_b.id
+          LEFT JOIN branches dir_b
+            ON sv.path ~ '^/branch/[0-9]+'
+           AND dir_b.id = (CASE WHEN sv.path ~ '^/branch/[0-9]+' THEN (substring(sv.path from '^/branch/([0-9]+)'))::int ELSE NULL END)
+          WHERE sv.created_at >= (now() - ($1 || ' days')::interval)
+        )
+        SELECT
+          branch,
+          academic_year,
+          semester,
+          COUNT(*)::int AS count
+        FROM visit_context
+        WHERE (branch IS NOT NULL AND branch <> '')
+           OR (academic_year IS NOT NULL AND academic_year <> '')
+           OR (semester IS NOT NULL AND semester <> '')
+        GROUP BY branch, academic_year, semester
+        ORDER BY count DESC;
+      `, [days]);
+
+      let totalAcademicVisits = 0;
+      const branchMap = new Map<string, number>();
+      const yearMap = new Map<string, number>();
+      const semesterMap = new Map<string, number>();
+      const combinationList: { branch: string; year: string; semester: string; label: string; count: number; percentage: number }[] = [];
+
+      for (const row of academicResult.rows) {
+        const count = Number(row.count || 0);
+        totalAcademicVisits += count;
+
+        const b = row.branch ? String(row.branch).trim() : null;
+        const y = row.academic_year ? String(row.academic_year).trim() : null;
+        const s = row.semester ? String(row.semester).trim() : null;
+
+        if (b) {
+          branchMap.set(b, (branchMap.get(b) || 0) + count);
+        }
+        if (y) {
+          yearMap.set(y, (yearMap.get(y) || 0) + count);
+        }
+        if (s) {
+          semesterMap.set(s, (semesterMap.get(s) || 0) + count);
+        }
+
+        if (b || y || s) {
+          const parts = [b, y, s].filter(Boolean);
+          const label = parts.join(" · ");
+          combinationList.push({
+            branch: b || "All Branches",
+            year: y || "All Years",
+            semester: s || "General",
+            label,
+            count,
+            percentage: 0,
+          });
+        }
+      }
+
+      const totalBranchVisits = Array.from(branchMap.values()).reduce((a, b) => a + b, 0);
+      const branchBreakdown = Array.from(branchMap.entries())
+        .map(([branch, count]) => ({
+          branch,
+          count,
+          percentage: totalBranchVisits > 0 ? Math.round((count / totalBranchVisits) * 100) : 0,
+        }))
+        .sort((a, b) => b.count - a.count);
+
+      const totalYearVisits = Array.from(yearMap.values()).reduce((a, b) => a + b, 0);
+      const yearBreakdown = Array.from(yearMap.entries())
+        .map(([year, count]) => ({
+          year,
+          count,
+          percentage: totalYearVisits > 0 ? Math.round((count / totalYearVisits) * 100) : 0,
+        }))
+        .sort((a, b) => b.count - a.count);
+
+      const totalSemesterVisits = Array.from(semesterMap.values()).reduce((a, b) => a + b, 0);
+      const semesterBreakdown = Array.from(semesterMap.entries())
+        .map(([semester, count]) => ({
+          semester,
+          count,
+          percentage: totalSemesterVisits > 0 ? Math.round((count / totalSemesterVisits) * 100) : 0,
+        }))
+        .sort((a, b) => b.count - a.count);
+
+      const academicBreakdown = combinationList
+        .slice(0, 10)
+        .map((item) => ({
+          ...item,
+          percentage: totalAcademicVisits > 0 ? Math.round((item.count / totalAcademicVisits) * 100) : 0,
+        }));
+
       const avgVisitsPerDay = days > 0 ? Math.round(totalPeriodVisits / days) : 0;
       const todayVisits = Number(summary.todayVisits || 0);
       const yesterdayVisits = Number(summary.yesterdayVisits || 0);
@@ -380,6 +513,11 @@ router.get("/admin/analytics/stats", requireAdmin, async (req, res) => {
         deviceBreakdown,
         hourlyBreakdown,
         topReferrers,
+        branchBreakdown,
+        yearBreakdown,
+        semesterBreakdown,
+        academicBreakdown,
+        totalAcademicVisits,
       });
     } finally {
       client.release();
@@ -404,6 +542,11 @@ router.get("/admin/analytics/stats", requireAdmin, async (req, res) => {
         deviceBreakdown: [],
         hourlyBreakdown: [],
         topReferrers: [],
+        branchBreakdown: [],
+        yearBreakdown: [],
+        semesterBreakdown: [],
+        academicBreakdown: [],
+        totalAcademicVisits: 0,
       });
       return;
     }

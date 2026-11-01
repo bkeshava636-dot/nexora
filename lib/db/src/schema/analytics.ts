@@ -12,6 +12,9 @@ export const siteVisits = pgTable(
     referrer: text("referrer"),
     ipHash: text("ip_hash"),
     userAgent: text("user_agent"),
+    branch: text("branch"),
+    academicYear: text("academic_year"),
+    semester: text("semester"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -19,6 +22,9 @@ export const siteVisits = pgTable(
     index("site_visits_path_idx").on(table.path),
     index("site_visits_visitor_id_idx").on(table.visitorId),
     index("site_visits_device_type_idx").on(table.deviceType),
+    index("site_visits_branch_idx").on(table.branch),
+    index("site_visits_academic_year_idx").on(table.academicYear),
+    index("site_visits_semester_idx").on(table.semester),
   ],
 );
 

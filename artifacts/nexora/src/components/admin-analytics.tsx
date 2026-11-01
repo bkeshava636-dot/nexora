@@ -19,10 +19,12 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
+  BookOpen,
   Calendar,
   Clock3,
   Eye,
   Globe,
+  GraduationCap,
   Laptop,
   Loader2,
   RefreshCw,
@@ -70,6 +72,7 @@ function DailyChartTooltip({ active, payload, label }: CustomTooltipProps) {
 
 export function AdminAnalytics() {
   const [selectedDays, setSelectedDays] = useState<number>(30);
+  const [academicTab, setAcademicTab] = useState<"branch" | "year" | "semester" | "combination">("branch");
   const { data, isLoading, isError, refetch, isFetching } =
     useGetAdminAnalyticsStats(selectedDays);
 
@@ -88,6 +91,11 @@ export function AdminAnalytics() {
       "Unique Visitors": item.uniqueVisitors,
     }));
   }, [data]);
+
+  const topBranch = data?.branchBreakdown?.[0];
+  const topYear = data?.yearBreakdown?.[0];
+  const topSemester = data?.semesterBreakdown?.[0];
+  const totalAcademicVisits = data?.totalAcademicVisits || 0;
 
   return (
     <div className="space-y-8 fade-up" data-testid="admin-analytics-view">
@@ -377,6 +385,253 @@ export function AdminAnalytics() {
                 </AreaChart>
               </ResponsiveContainer>
             </div>
+          </div>
+
+          {/* Student Academic Demographics & Paths (Branch / Year / Semester) */}
+          <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-5 sm:p-6 shadow-xs">
+            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[hsl(var(--primary)/.1)] text-[hsl(var(--primary))]">
+                  <GraduationCap size={22} />
+                </span>
+                <div>
+                  <h3 className="text-base font-bold text-[hsl(var(--foreground))] sm:text-lg">
+                    Student Academic Breakdown (Branch · Year · Semester)
+                  </h3>
+                  <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                    See which branches, study years, and semesters students are actively visiting on Nexora
+                  </p>
+                </div>
+              </div>
+
+              {/* Sub-tab pills */}
+              <div className="flex flex-wrap items-center gap-1 rounded-xl bg-[hsl(var(--muted)/.6)] p-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setAcademicTab("branch")}
+                  className={`rounded-lg px-3 py-1.5 font-medium transition-all ${
+                    academicTab === "branch"
+                      ? "bg-[hsl(var(--card))] font-bold text-[hsl(var(--foreground))] shadow-xs"
+                      : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                  }`}
+                >
+                  By Branch
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAcademicTab("year")}
+                  className={`rounded-lg px-3 py-1.5 font-medium transition-all ${
+                    academicTab === "year"
+                      ? "bg-[hsl(var(--card))] font-bold text-[hsl(var(--foreground))] shadow-xs"
+                      : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                  }`}
+                >
+                  By Year
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAcademicTab("semester")}
+                  className={`rounded-lg px-3 py-1.5 font-medium transition-all ${
+                    academicTab === "semester"
+                      ? "bg-[hsl(var(--card))] font-bold text-[hsl(var(--foreground))] shadow-xs"
+                      : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                  }`}
+                >
+                  By Semester
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAcademicTab("combination")}
+                  className={`rounded-lg px-3 py-1.5 font-medium transition-all ${
+                    academicTab === "combination"
+                      ? "bg-[hsl(var(--card))] font-bold text-[hsl(var(--foreground))] shadow-xs"
+                      : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                  }`}
+                >
+                  Top Academic Paths
+                </button>
+              </div>
+            </div>
+
+            {/* Quick KPI stats strip */}
+            <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-xl border border-[hsl(var(--border)/.7)] bg-[hsl(var(--card)/.5)] p-3">
+                <span className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                  Top Branch
+                </span>
+                <div className="mt-1 truncate font-bold text-[hsl(var(--foreground))]">
+                  {topBranch ? topBranch.branch : "—"}
+                </div>
+                <div className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  {topBranch ? `${topBranch.count.toLocaleString()} visits (${topBranch.percentage}%)` : "No data yet"}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-[hsl(var(--border)/.7)] bg-[hsl(var(--card)/.5)] p-3">
+                <span className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                  Top Year
+                </span>
+                <div className="mt-1 truncate font-bold text-[hsl(var(--foreground))]">
+                  {topYear ? topYear.year : "—"}
+                </div>
+                <div className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  {topYear ? `${topYear.count.toLocaleString()} visits (${topYear.percentage}%)` : "No data yet"}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-[hsl(var(--border)/.7)] bg-[hsl(var(--card)/.5)] p-3">
+                <span className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                  Top Semester
+                </span>
+                <div className="mt-1 truncate font-bold text-[hsl(var(--foreground))]">
+                  {topSemester ? topSemester.semester : "—"}
+                </div>
+                <div className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  {topSemester ? `${topSemester.count.toLocaleString()} visits (${topSemester.percentage}%)` : "No data yet"}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-[hsl(var(--border)/.7)] bg-[hsl(var(--card)/.5)] p-3">
+                <span className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">
+                  Academic Visits ({selectedDays}d)
+                </span>
+                <div className="mt-1 font-bold text-[hsl(var(--foreground))]">
+                  {totalAcademicVisits.toLocaleString()}
+                </div>
+                <div className="text-[10px] text-[hsl(var(--muted-foreground))]">
+                  Branch/curriculum engagement
+                </div>
+              </div>
+            </div>
+
+            {/* Tab content list */}
+            {academicTab === "branch" && (
+              <div className="space-y-3">
+                {(!data?.branchBreakdown || data.branchBreakdown.length === 0) ? (
+                  <div className="py-8 text-center text-xs text-[hsl(var(--muted-foreground))]">
+                    No branch engagement visits logged in this period yet. As students browse branches and subjects, insights will appear here.
+                  </div>
+                ) : (
+                  data.branchBreakdown.map((item, idx) => (
+                    <div key={item.branch} className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs font-semibold">
+                        <span className="flex items-center gap-2 truncate text-[hsl(var(--foreground))]">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-[hsl(var(--muted))] text-[10px] font-bold text-[hsl(var(--muted-foreground))]">
+                            #{idx + 1}
+                          </span>
+                          <span className="truncate">{item.branch}</span>
+                        </span>
+                        <span className="shrink-0 text-[hsl(var(--muted-foreground))] font-normal">
+                          <span className="font-bold text-[hsl(var(--foreground))]">{item.count.toLocaleString()}</span> visits ({item.percentage}%)
+                        </span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-[hsl(var(--muted)/.6)]">
+                        <div
+                          className="h-full rounded-full bg-[hsl(var(--primary))]"
+                          style={{ width: `${Math.max(item.percentage, 4)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {academicTab === "year" && (
+              <div className="space-y-3">
+                {(!data?.yearBreakdown || data.yearBreakdown.length === 0) ? (
+                  <div className="py-8 text-center text-xs text-[hsl(var(--muted-foreground))]">
+                    No study year visits logged in this period yet. As students browse academic years, insights will appear here.
+                  </div>
+                ) : (
+                  data.yearBreakdown.map((item, idx) => (
+                    <div key={item.year} className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs font-semibold">
+                        <span className="flex items-center gap-2 truncate text-[hsl(var(--foreground))]">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-[hsl(var(--muted))] text-[10px] font-bold text-[hsl(var(--muted-foreground))]">
+                            #{idx + 1}
+                          </span>
+                          <span className="truncate">{item.year}</span>
+                        </span>
+                        <span className="shrink-0 text-[hsl(var(--muted-foreground))] font-normal">
+                          <span className="font-bold text-[hsl(var(--foreground))]">{item.count.toLocaleString()}</span> visits ({item.percentage}%)
+                        </span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-[hsl(var(--muted)/.6)]">
+                        <div
+                          className="h-full rounded-full bg-[hsl(var(--secondary))]"
+                          style={{ width: `${Math.max(item.percentage, 4)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {academicTab === "semester" && (
+              <div className="space-y-3">
+                {(!data?.semesterBreakdown || data.semesterBreakdown.length === 0) ? (
+                  <div className="py-8 text-center text-xs text-[hsl(var(--muted-foreground))]">
+                    No semester visits logged in this period yet. As students explore semesters, insights will appear here.
+                  </div>
+                ) : (
+                  data.semesterBreakdown.map((item, idx) => (
+                    <div key={item.semester} className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs font-semibold">
+                        <span className="flex items-center gap-2 truncate text-[hsl(var(--foreground))]">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-[hsl(var(--muted))] text-[10px] font-bold text-[hsl(var(--muted-foreground))]">
+                            #{idx + 1}
+                          </span>
+                          <span className="truncate">{item.semester}</span>
+                        </span>
+                        <span className="shrink-0 text-[hsl(var(--muted-foreground))] font-normal">
+                          <span className="font-bold text-[hsl(var(--foreground))]">{item.count.toLocaleString()}</span> visits ({item.percentage}%)
+                        </span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-[hsl(var(--muted)/.6)]">
+                        <div
+                          className="h-full rounded-full bg-[hsl(var(--primary))]"
+                          style={{ width: `${Math.max(item.percentage, 4)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {academicTab === "combination" && (
+              <div className="space-y-3">
+                {(!data?.academicBreakdown || data.academicBreakdown.length === 0) ? (
+                  <div className="py-8 text-center text-xs text-[hsl(var(--muted-foreground))]">
+                    No combined academic paths logged in this period yet.
+                  </div>
+                ) : (
+                  data.academicBreakdown.map((item, idx) => (
+                    <div key={`${item.label}-${idx}`} className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs font-semibold">
+                        <span className="flex items-center gap-2 truncate text-[hsl(var(--foreground))]">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-[hsl(var(--muted))] text-[10px] font-bold text-[hsl(var(--muted-foreground))]">
+                            #{idx + 1}
+                          </span>
+                          <span className="truncate font-semibold">{item.label}</span>
+                        </span>
+                        <span className="shrink-0 text-[hsl(var(--muted-foreground))] font-normal">
+                          <span className="font-bold text-[hsl(var(--foreground))]">{item.count.toLocaleString()}</span> visits ({item.percentage}%)
+                        </span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-[hsl(var(--muted)/.6)]">
+                        <div
+                          className="h-full rounded-full bg-[hsl(var(--accent-foreground))]"
+                          style={{ width: `${Math.max(item.percentage, 4)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
 
           {/* Breakdown Grid: Top Pages & Device Distribution */}

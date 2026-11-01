@@ -14,7 +14,7 @@ import { AiAssistantModal } from "@/components/ai-assistant-modal";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { AdSenseAd } from "@/components/adsense-ad";
 const AdminAnalytics = lazy(() => import("@/components/admin-analytics").then((m) => ({ default: m.AdminAnalytics })));
-import { AnalyticsTracker } from "@/components/analytics-tracker";
+import { AnalyticsTracker, setStudentAcademicContext } from "@/components/analytics-tracker";
 import {
   Dialog,
   DialogClose,
@@ -1545,6 +1545,14 @@ function BranchPage() {
   } as any);
   const activeBranch = branch ?? branches.find((b) => b.id === id);
 
+  useEffect(() => {
+    if (activeBranch) {
+      setStudentAcademicContext({
+        branch: activeBranch.shortName || activeBranch.name,
+      });
+    }
+  }, [activeBranch]);
+
   const { data: years = [], isLoading: yearsLoading } = useListYears({ branchId: id }, qOpts(validId));
   const { data: allSemesters = [] } = useListSemesters();
   const { data: allSubjects = [] } = useListSubjects();
@@ -1643,6 +1651,17 @@ function SubjectPage() {
   } as any);
 
   const activeBranch = branch ?? branches.find((b) => b.id === branchId);
+
+  useEffect(() => {
+    if (activeBranch || activeYear || activeSemester) {
+      setStudentAcademicContext({
+        branch: activeBranch?.shortName || activeBranch?.name,
+        academicYear: activeYear?.name,
+        semester: activeSemester?.name,
+      });
+    }
+  }, [activeBranch, activeYear, activeSemester]);
+
   const { data: resources = [], isLoading: resourcesLoading } = useListResources({ subjectId: id }, qOpts(validId));
 
   if (!validId || (subjectError && !activeSubject)) return <NotFound />;

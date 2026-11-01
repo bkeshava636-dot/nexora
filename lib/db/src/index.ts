@@ -177,7 +177,13 @@ export async function ensureTables(): Promise<void> {
       `CREATE INDEX IF NOT EXISTS "site_visits_created_at_idx" ON "site_visits" ("created_at");`,
       `CREATE INDEX IF NOT EXISTS "site_visits_path_idx" ON "site_visits" ("path");`,
       `CREATE INDEX IF NOT EXISTS "site_visits_visitor_id_idx" ON "site_visits" ("visitor_id");`,
-      `CREATE INDEX IF NOT EXISTS "site_visits_device_type_idx" ON "site_visits" ("device_type");`
+      `CREATE INDEX IF NOT EXISTS "site_visits_device_type_idx" ON "site_visits" ("device_type");`,
+      `ALTER TABLE "site_visits" ADD COLUMN IF NOT EXISTS "branch" text;`,
+      `ALTER TABLE "site_visits" ADD COLUMN IF NOT EXISTS "academic_year" text;`,
+      `ALTER TABLE "site_visits" ADD COLUMN IF NOT EXISTS "semester" text;`,
+      `CREATE INDEX IF NOT EXISTS "site_visits_branch_idx" ON "site_visits" ("branch");`,
+      `CREATE INDEX IF NOT EXISTS "site_visits_academic_year_idx" ON "site_visits" ("academic_year");`,
+      `CREATE INDEX IF NOT EXISTS "site_visits_semester_idx" ON "site_visits" ("semester");`
     ];
 
     for (const q of ddlQueries) {
