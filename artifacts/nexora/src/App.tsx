@@ -1708,13 +1708,21 @@ function ContributePage() {
   const [iaForm, setIaForm] = useState({
     iaAcademicYear: "1st Year",
     iaSemester: "1st Semester • Odd",
-    iaDepartment: "",
+    iaDepartment: "CSE",
     iaType: "IA-1",
     title: "",
     googleDriveUrl: "",
     studentName: "",
     studentEmail: "",
   });
+
+  // IA specific selection states
+  const [iaBranchId, setIaBranchId] = useState<number | undefined>(undefined);
+  const [iaSubjectMode, setIaSubjectMode] = useState<"all" | "individual">("all");
+  const [iaSubjectId, setIaSubjectId] = useState<number | undefined>(undefined);
+  const [iaSubjectName, setIaSubjectName] = useState<string>("");
+  const [iaSubjectCustom, setIaSubjectCustom] = useState(false);
+  const [iaCustomSubjectText, setIaCustomSubjectText] = useState("");
 
   const [error, setError] = useState("");
   const update = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }));
@@ -1746,12 +1754,186 @@ function ContributePage() {
     if (iaDepartments.length && !iaForm.iaDepartment) updateIa("iaDepartment", iaDepartments[0]?.name);
   }, [iaDepartments, iaForm.iaDepartment]);
 
+  // Initialize iaBranchId and iaDepartment when branches/departments load
+  useEffect(() => {
+    if (branches.length && iaBranchId === undefined) {
+      const cse = branches.find((b) => b.shortName === "CSE") || branches[0];
+      if (cse) {
+        setIaBranchId(cse.id);
+        if (!iaForm.iaDepartment) updateIa("iaDepartment", cse.shortName);
+      }
+    }
+  }, [branches, iaBranchId, iaForm.iaDepartment]);
+
+  const isFirstYearIa = iaForm.iaAcademicYear === "1st Year";
+  const commonFirstYearBranch = useMemo(
+    () => branches.find((b) => b.shortName.toLowerCase().includes("1st year") || b.name.toLowerCase().includes("common")),
+    [branches]
+  );
+
+  const targetIaBranchId = isFirstYearIa
+    ? (commonFirstYearBranch?.id ?? 4)
+    : (iaBranchId ?? branches.find((b) => b.shortName === "CSE")?.id ?? branches[0]?.id);
+
+  const { data: iaYears = [] } = useListYears(
+    { branchId: targetIaBranchId as number },
+    qOpts(contributionMode === "ia" && !!targetIaBranchId)
+  );
+
+  const matchedIaYear = useMemo(() => {
+    if (!iaYears.length) return undefined;
+    const yr = iaForm.iaAcademicYear.toLowerCase();
+    return iaYears.find((y) => y.name.toLowerCase().includes(yr.slice(0, 3))) || iaYears[0];
+  }, [iaYears, iaForm.iaAcademicYear]);
+
+  const { data: iaSemesters = [] } = useListSemesters(
+    { yearId: matchedIaYear?.id as number },
+    qOpts(contributionMode === "ia" && !!matchedIaYear?.id)
+  );
+
+  const matchedIaSemester = useMemo(() => {
+    if (!iaSemesters.length) return undefined;
+    const sem = iaForm.iaSemester.toLowerCase();
+    if (isFirstYearIa) {
+      if (sem.includes("1st") || sem.includes("odd") || sem.includes("p-cycle")) {
+        return iaSemesters.find((s) => s.name.toLowerCase().includes("p-cycle") || s.name.includes("1")) || iaSemesters[0];
+      }
+      return iaSemesters.find((s) => s.name.toLowerCase().includes("c-cycle") || s.name.includes("2")) || iaSemesters[1] || iaSemesters[0];
+    }
+    const numMatch = sem.match(/\d/);
+    if (numMatch) {
+      return iaSemesters.find((s) => s.name.toLowerCase().includes(numMatch[0])) || iaSemesters[0];
+    }
+    return iaSemesters[0];
+  }, [iaSemesters, iaForm.iaSemester, isFirstYearIa]);
+
+  // Query subjects for matched semester
+  const { data: iaSubjects = [], isLoading: isLoadingIaSubjects } = useListSubjects(
+    { semesterId: matchedIaSemester?.id as number },
+    qOpts(contributionMode === "ia" && !!matchedIaSemester?.id)
+  );
+
+  // For 1st Year: also fetch both cycles so any 1st year subject can be selected
+  const { data: pCycleSubs = [] } = useListSubjects(
+    { semesterId: 8 },
+    qOpts(contributionMode === "ia" && isFirstYearIa)
+  );
+  const { data: cCycleSubs = [] } = useListSubjects(
+    { semesterId: 9 },
+    qOpts(contributionMode === "ia" && isFirstYearIa)
+  );
+
+  const displayIaSubjects = useMemo(() => {
+    if (isFirstYearIa) {
+      const merged = [
+        ...pCycleSubs.map((s) => ({ ...s, name: `${s.name} (P-Cycle)` })),
+        ...cCycleSubs.map((s) => ({ ...s, name: `${s.name} (C-Cycle)` })),
+      ];
+      return merged.length > 0 ? merged : iaSubjects;
+    }
+    return iaSubjects;
+  }, [isFirstYearIa, pCycleSubs, cCycleSubs, iaSubjects]);
+
+  // Sync selected subject when subjects list changes
+  useEffect(() => {
+    if (contributionMode === "ia" && iaSubjectMode === "individual" && !iaSubjectCustom) {
+      if (displayIaSubjects.length > 0) {
+        const found = displayIaSubjects.find((s) => s.id === iaSubjectId);
+        if (!found) {
+          setIaSubjectId(displayIaSubjects[0].id);
+          setIaSubjectName(displayIaSubjects[0].name.replace(/\s*\([PC]-Cycle\)$/i, ""));
+        }
+      } else {
+        setIaSubjectId(undefined);
+        setIaSubjectName("");
+      }
+    }
+  }, [displayIaSubjects, contributionMode, iaSubjectMode, iaSubjectCustom, iaSubjectId]);
+
   // Auto-generate title for IA
   useEffect(() => {
     if (contributionMode === "ia") {
-      updateIa("title", `${iaForm.iaAcademicYear} • ${iaForm.iaSemester} • ${iaForm.iaDepartment} • ${iaForm.iaType}`);
+      const subjectTag = iaSubjectMode === "all" ? "All Subjects" : (iaSubjectName.trim() || "");
+      const titleParts = [
+        iaForm.iaAcademicYear,
+        iaForm.iaSemester,
+        iaForm.iaDepartment,
+        subjectTag,
+        iaForm.iaType,
+      ].filter(Boolean);
+      updateIa("title", titleParts.join(" • "));
     }
-  }, [iaForm.iaAcademicYear, iaForm.iaSemester, iaForm.iaDepartment, iaForm.iaType, contributionMode]);
+  }, [
+    iaForm.iaAcademicYear,
+    iaForm.iaSemester,
+    iaForm.iaDepartment,
+    iaForm.iaType,
+    iaSubjectMode,
+    iaSubjectName,
+    contributionMode,
+  ]);
+
+  const handleIaAcademicYearChange = (newYear: string) => {
+    updateIa("iaAcademicYear", newYear);
+    const allowed = IA_YEAR_SEMESTERS[newYear] ?? [];
+    if (allowed.length > 0) {
+      const defaultSem = newYear === "1st Year" ? "1st Semester • Odd" : allowed[0];
+      updateIa("iaSemester", defaultSem);
+    }
+  };
+
+  const handleIaBranchChange = (newDept: string) => {
+    updateIa("iaDepartment", newDept);
+    const matched = branches.find(
+      (b) => b.shortName.toUpperCase() === newDept.toUpperCase() || b.name.toUpperCase() === newDept.toUpperCase()
+    );
+    if (matched) {
+      setIaBranchId(matched.id);
+    } else if (newDept === "AI/AIML/DS/CSE") {
+      const cse = branches.find((b) => b.shortName === "CSE");
+      if (cse) setIaBranchId(cse.id);
+    }
+  };
+
+  const iaSemesterOptions = useMemo(() => {
+    if (iaForm.iaAcademicYear === "1st Year") {
+      return ["1st Semester • Odd", "2nd Semester • Even"];
+    }
+    return IA_YEAR_SEMESTERS[iaForm.iaAcademicYear] ?? ["1st Semester", "2nd Semester"];
+  }, [iaForm.iaAcademicYear]);
+
+  const iaBranchOptions = useMemo(() => {
+    const branchDisplayNames: Record<string, string> = {
+      CSE: "CSE — Computer Science & Engineering",
+      AIML: "AIML — AI & Machine Learning",
+      AI: "AI — Artificial Intelligence",
+      DS: "DS — Data Science",
+      ECE: "ECE — Electronics & Communication",
+      EEE: "EEE — Electrical & Electronics",
+      CV: "CV — Civil Engineering",
+      ME: "ME — Mechanical Engineering",
+      "AI/AIML/DS/CSE": "AI/AIML/DS/CSE — Combined Branches",
+    };
+
+    const options: { code: string; label: string }[] = [];
+    const addedCodes = new Set<string>();
+
+    for (const d of iaDepartments) {
+      if (!addedCodes.has(d.name)) {
+        addedCodes.add(d.name);
+        options.push({ code: d.name, label: branchDisplayNames[d.name] || d.name });
+      }
+    }
+
+    for (const b of branches) {
+      if (b.shortName && !addedCodes.has(b.shortName) && !b.shortName.toLowerCase().includes("1st year")) {
+        addedCodes.add(b.shortName);
+        options.push({ code: b.shortName, label: branchDisplayNames[b.shortName] || `${b.shortName} — ${b.name}` });
+      }
+    }
+
+    return options;
+  }, [iaDepartments, branches]);
 
   const handleFileSelect = (file: File) => {
     if (!file) return;
@@ -1917,6 +2099,11 @@ function ContributePage() {
           return;
         }
 
+        if (iaSubjectMode === "individual" && !iaSubjectName.trim()) {
+          setError("Please select an individual subject or choose 'All subjects in one doc'.");
+          return;
+        }
+
         let driveUrl = iaForm.googleDriveUrl.trim();
 
         if (uploadMethod === "file") {
@@ -1948,7 +2135,9 @@ function ContributePage() {
             data: {
               resourceType: "Internal Assessment" as ResourceType,
               title: iaForm.title.trim(),
-              description: "Internal Assessment submission",
+              description: iaSubjectMode === "all"
+                ? "Internal Assessment submission • All subjects combined in one document"
+                : `Internal Assessment submission • ${iaSubjectName.trim()}`,
               googleDriveUrl: driveUrl,
               studentName: iaForm.studentName.trim() || undefined,
               studentEmail: iaForm.studentEmail.trim() || undefined,
@@ -1956,6 +2145,10 @@ function ContributePage() {
               iaSemester: iaForm.iaSemester,
               iaDepartment: iaForm.iaDepartment,
               iaType: iaForm.iaType,
+              branchId: targetIaBranchId,
+              yearId: matchedIaYear?.id,
+              semesterId: matchedIaSemester?.id,
+              subjectId: iaSubjectMode === "individual" ? iaSubjectId : undefined,
             },
           },
           {
@@ -1970,7 +2163,9 @@ function ContributePage() {
               setError("");
               toast({
                 title: "IA paper submitted successfully!",
-                description: "It will appear after admin review.",
+                description: iaSubjectMode === "all"
+                  ? "All subjects booklet will appear after admin review."
+                  : `${iaSubjectName} paper will appear after admin review.`,
               });
             },
             onError: (err) => setError(getErrorMessage(err) || "Unable to submit the paper. Please try again."),
@@ -2042,6 +2237,11 @@ function ContributePage() {
                 setSelectedFile(null);
                 setForm({ ...form, title: "", description: "", googleDriveUrl: "" });
                 setIaForm({ ...iaForm, title: "", googleDriveUrl: "" });
+                setIaSubjectMode("all");
+                setIaSubjectId(undefined);
+                setIaSubjectName("");
+                setIaSubjectCustom(false);
+                setIaCustomSubjectText("");
                 setError("");
               }}
               className="focus-ring rounded-xl border border-[hsl(var(--border))] px-5 py-3 text-sm font-bold hover:bg-[hsl(var(--muted)/.5)] transition-colors"
@@ -2454,52 +2654,27 @@ function ContributePage() {
               <>
                 <FormSection title="2. Internal Assessment Details">
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Academic Year" required>
-                      <select
-                        value={iaForm.iaAcademicYear}
-                        onChange={(e) => updateIa("iaAcademicYear", e.target.value)}
-                        className="input-style"
-                      >
-                        <option>1st Year</option>
-                        <option>2nd Year</option>
-                        <option>3rd Year</option>
-                        <option>4th Year</option>
-                      </select>
-                    </Field>
-                    <Field label="Semester" required>
-                      <select
-                        value={iaForm.iaSemester}
-                        onChange={(e) => updateIa("iaSemester", e.target.value)}
-                        className="input-style"
-                      >
-                        <option>1st Semester • Odd</option>
-                        <option>2nd Semester • Even</option>
-                        <option>3rd Semester</option>
-                        <option>4th Semester</option>
-                        <option>5th Semester</option>
-                        <option>6th Semester</option>
-                        <option>7th Semester</option>
-                        <option>8th Semester</option>
-                      </select>
-                    </Field>
-                    <Field label="Department / Stream" required>
+                    <Field label="Branch / Department" required>
                       <select
                         value={iaForm.iaDepartment}
-                        onChange={(e) => updateIa("iaDepartment", e.target.value)}
+                        onChange={(e) => handleIaBranchChange(e.target.value)}
                         className="input-style"
+                        data-testid="select-ia-branch"
                       >
-                        {iaDepartments.map((d) => (
-                          <option key={d.id} value={d.name}>
-                            {d.name}
+                        {iaBranchOptions.map((opt) => (
+                          <option key={opt.code} value={opt.code}>
+                            {opt.label}
                           </option>
                         ))}
                       </select>
                     </Field>
+
                     <Field label="IA Type" required>
                       <select
                         value={iaForm.iaType}
                         onChange={(e) => updateIa("iaType", e.target.value)}
                         className="input-style"
+                        data-testid="select-ia-type"
                       >
                         <option>IA-1</option>
                         <option>IA-2</option>
@@ -2507,12 +2682,191 @@ function ContributePage() {
                         <option>Other</option>
                       </select>
                     </Field>
+
+                    <Field label="Academic Year" required>
+                      <select
+                        value={iaForm.iaAcademicYear}
+                        onChange={(e) => handleIaAcademicYearChange(e.target.value)}
+                        className="input-style"
+                        data-testid="select-ia-year"
+                      >
+                        <option>1st Year</option>
+                        <option>2nd Year</option>
+                        <option>3rd Year</option>
+                        <option>4th Year</option>
+                      </select>
+                    </Field>
+
+                    <Field label="Semester" required>
+                      <select
+                        value={iaForm.iaSemester}
+                        onChange={(e) => updateIa("iaSemester", e.target.value)}
+                        className="input-style"
+                        data-testid="select-ia-semester"
+                      >
+                        {iaSemesterOptions.map((sem) => (
+                          <option key={sem} value={sem}>
+                            {sem}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+
+                    {/* Subject / Paper Scope Selection */}
+                    <div className="sm:col-span-2 mt-2 space-y-3">
+                      <div>
+                        <label className="text-xs font-bold text-[hsl(var(--foreground))] block mb-1">
+                          Subject / Paper Coverage <span className="text-[hsl(var(--destructive))]">*</span>
+                        </label>
+                        <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2.5">
+                          Select whether your document contains question papers for all subjects combined or an individual subject.
+                        </p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIaSubjectMode("all");
+                              setIaSubjectId(undefined);
+                              setIaSubjectName("");
+                              setIaSubjectCustom(false);
+                            }}
+                            className={`focus-ring p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
+                              iaSubjectMode === "all"
+                                ? "border-[hsl(var(--secondary))] bg-[hsl(var(--secondary)/.15)] shadow-xs"
+                                : "border-[hsl(var(--border))] bg-[hsl(var(--card))] hover:bg-[hsl(var(--muted)/.4)]"
+                            }`}
+                            data-testid="button-ia-mode-all"
+                          >
+                            <span
+                              className={`p-2 rounded-lg shrink-0 ${
+                                iaSubjectMode === "all"
+                                  ? "bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))]"
+                                  : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
+                              }`}
+                            >
+                              <FileText size={18} />
+                            </span>
+                            <div>
+                              <p className="text-xs font-bold text-[hsl(var(--foreground))] flex items-center gap-1.5">
+                                All subjects in one doc
+                                {iaSubjectMode === "all" && <Check size={14} className="text-[hsl(var(--secondary-foreground))]" />}
+                              </p>
+                              <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5 leading-snug">
+                                Full IA booklet or PDF containing all subjects for this semester
+                              </p>
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIaSubjectMode("individual");
+                              if (displayIaSubjects.length > 0 && !iaSubjectId) {
+                                setIaSubjectId(displayIaSubjects[0].id);
+                                setIaSubjectName(displayIaSubjects[0].name.replace(/\s*\([PC]-Cycle\)$/i, ""));
+                              }
+                            }}
+                            className={`focus-ring p-3.5 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
+                              iaSubjectMode === "individual"
+                                ? "border-[hsl(var(--secondary))] bg-[hsl(var(--secondary)/.15)] shadow-xs"
+                                : "border-[hsl(var(--border))] bg-[hsl(var(--card))] hover:bg-[hsl(var(--muted)/.4)]"
+                            }`}
+                            data-testid="button-ia-mode-individual"
+                          >
+                            <span
+                              className={`p-2 rounded-lg shrink-0 ${
+                                iaSubjectMode === "individual"
+                                  ? "bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))]"
+                                  : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
+                              }`}
+                            >
+                              <BookOpen size={18} />
+                            </span>
+                            <div>
+                              <p className="text-xs font-bold text-[hsl(var(--foreground))] flex items-center gap-1.5">
+                                Individual subject
+                                {iaSubjectMode === "individual" && <Check size={14} className="text-[hsl(var(--secondary-foreground))]" />}
+                              </p>
+                              <p className="text-[11px] text-[hsl(var(--muted-foreground))] mt-0.5 leading-snug">
+                                Question paper for a specific subject belonging to this branch
+                              </p>
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Individual Subject Picker */}
+                      {iaSubjectMode === "individual" && (
+                        <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.2)] p-4 space-y-3">
+                          <Field
+                            label="Select Individual Subject"
+                            required
+                            hint={`Showing subjects for ${iaForm.iaDepartment} • ${iaForm.iaAcademicYear} • ${iaForm.iaSemester}`}
+                          >
+                            <select
+                              value={iaSubjectCustom ? "__CUSTOM__" : (iaSubjectId ?? "")}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === "__CUSTOM__") {
+                                  setIaSubjectCustom(true);
+                                  setIaSubjectId(undefined);
+                                  setIaSubjectName(iaCustomSubjectText || "Custom Subject");
+                                } else {
+                                  setIaSubjectCustom(false);
+                                  const num = Number(val);
+                                  setIaSubjectId(num);
+                                  const found = displayIaSubjects.find((s) => s.id === num);
+                                  if (found) setIaSubjectName(found.name.replace(/\s*\([PC]-Cycle\)$/i, ""));
+                                }
+                              }}
+                              className="input-style"
+                              data-testid="select-ia-subject"
+                            >
+                              {isLoadingIaSubjects ? (
+                                <option value="">Loading subjects for {iaForm.iaDepartment}...</option>
+                              ) : displayIaSubjects.length === 0 ? (
+                                <option value="">No subjects found for this semester — select Other to enter name</option>
+                              ) : (
+                                displayIaSubjects.map((s) => (
+                                  <option key={s.id} value={s.id}>
+                                    {s.name}
+                                  </option>
+                                ))
+                              )}
+                              <option value="__CUSTOM__">✏️ Other / Elective (Enter custom subject name)</option>
+                            </select>
+                          </Field>
+
+                          {iaSubjectCustom && (
+                            <Field label="Custom Subject Name" required>
+                              <input
+                                value={iaCustomSubjectText}
+                                onChange={(e) => {
+                                  setIaCustomSubjectText(e.target.value);
+                                  setIaSubjectName(e.target.value);
+                                }}
+                                placeholder="e.g. Distributed Operating Systems"
+                                className="input-style"
+                                data-testid="input-ia-custom-subject"
+                              />
+                            </Field>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
                     <div className="sm:col-span-2">
-                      <Field label="Title / Document Name" required>
+                      <Field
+                        label="Title / Document Name"
+                        required
+                        hint="Auto-generated from your selections above, or customize as you prefer."
+                      >
                         <input
                           value={iaForm.title}
                           onChange={(e) => updateIa("title", e.target.value)}
                           className="input-style"
+                          data-testid="input-ia-title"
                         />
                       </Field>
                     </div>
