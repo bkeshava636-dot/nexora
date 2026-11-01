@@ -105,7 +105,7 @@ router.get("/ia-papers/:id", async (req, res) => {
 
 // 3. POST /api/ia-papers (Admin only with duplicate protection)
 router.post("/ia-papers", requireAdmin, async (req, res) => {
-  const { academicYear, semester, department, iaType, title, googleDriveUrl, isPublished, displayOrder, contributorName } = req.body ?? {};
+  const { academicYear, semester, department, iaType, examYear, title, googleDriveUrl, isPublished, displayOrder, contributorName } = req.body ?? {};
 
   if (!academicYear || typeof academicYear !== "string" || !academicYear.trim()) {
     res.status(400).json({ error: "invalid_request", message: "Academic year is required." });
@@ -162,6 +162,7 @@ router.post("/ia-papers", requireAdmin, async (req, res) => {
       semester: cleanSem,
       department: cleanDept,
       iaType: cleanIaType,
+      examYear: typeof examYear === "string" && examYear.trim() ? examYear.trim() : null,
       title: typeof title === "string" ? title.trim() : "",
       googleDriveUrl: cleanUrl,
       contributorName: cleanContributorName,
@@ -206,7 +207,7 @@ router.patch("/ia-papers/:id", requireAdmin, async (req, res) => {
     return;
   }
 
-  const { academicYear, semester, department, iaType, title, googleDriveUrl, isPublished, displayOrder, contributorName } = req.body ?? {};
+  const { academicYear, semester, department, iaType, examYear, title, googleDriveUrl, isPublished, displayOrder, contributorName } = req.body ?? {};
 
   const patch: Record<string, unknown> = {
     updatedAt: new Date(),
@@ -254,6 +255,10 @@ router.patch("/ia-papers/:id", requireAdmin, async (req, res) => {
       return;
     }
     patch.googleDriveUrl = googleDriveUrl.trim();
+  }
+
+  if (examYear !== undefined) {
+    patch.examYear = typeof examYear === "string" && examYear.trim() ? examYear.trim() : null;
   }
 
   if (title !== undefined) {

@@ -15,6 +15,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { AdSenseAd } from "@/components/adsense-ad";
 const AdminAnalytics = lazy(() => import("@/components/admin-analytics").then((m) => ({ default: m.AdminAnalytics })));
 import { AnalyticsTracker, setStudentAcademicContext } from "@/components/analytics-tracker";
+import { getAvailableExamYears, getPopularExamYears } from "@/lib/academic-years";
 import {
   Dialog,
   DialogClose,
@@ -1724,7 +1725,9 @@ function ContributePage() {
     studentEmail: "",
   });
 
+  const availableIaExamYears = useMemo(() => getAvailableExamYears(2023), []);
   const [iaForm, setIaForm] = useState({
+    iaYear: new Date().getFullYear().toString(),
     iaAcademicYear: "1st Year",
     iaSemester: "1st Semester • Odd",
     iaDepartment: "CSE",
@@ -1874,6 +1877,7 @@ function ContributePage() {
     if (contributionMode === "ia") {
       const subjectTag = iaSubjectMode === "all" ? "All Subjects" : (iaSubjectName.trim() || "");
       const titleParts = [
+        iaForm.iaYear,
         iaForm.iaAcademicYear,
         iaForm.iaSemester,
         iaForm.iaDepartment,
@@ -1883,6 +1887,7 @@ function ContributePage() {
       updateIa("title", titleParts.join(" • "));
     }
   }, [
+    iaForm.iaYear,
     iaForm.iaAcademicYear,
     iaForm.iaSemester,
     iaForm.iaDepartment,
@@ -2164,6 +2169,7 @@ function ContributePage() {
               iaSemester: iaForm.iaSemester,
               iaDepartment: iaForm.iaDepartment,
               iaType: iaForm.iaType,
+              iaYear: iaForm.iaYear,
               branchId: targetIaBranchId,
               yearId: matchedIaYear?.id,
               semesterId: matchedIaSemester?.id,
@@ -2688,6 +2694,21 @@ function ContributePage() {
                       </select>
                     </Field>
 
+                    <Field label="Year" required hint="Exam / calendar year of this paper">
+                      <select
+                        value={iaForm.iaYear}
+                        onChange={(e) => updateIa("iaYear", e.target.value)}
+                        className="input-style font-semibold"
+                        data-testid="select-ia-exam-year"
+                      >
+                        {availableIaExamYears.map((yr) => (
+                          <option key={yr} value={yr}>
+                            {yr}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+
                     <Field label="IA Type" required>
                       <select
                         value={iaForm.iaType}
@@ -2702,7 +2723,7 @@ function ContributePage() {
                       </select>
                     </Field>
 
-                    <Field label="Academic Year" required>
+                    <Field label="Academic Class" required hint="Year of study">
                       <select
                         value={iaForm.iaAcademicYear}
                         onChange={(e) => handleIaAcademicYearChange(e.target.value)}
@@ -9124,7 +9145,7 @@ function ApplyTemplateDialog({
   );
 }
 
-const POPULAR_YEARS = ["All", "2026", "2025", "2024", "2023", "2022 & Model Papers"];
+const POPULAR_YEARS = getPopularExamYears();
 const POPULAR_SEMESTERS = [
   "All",
   "8th Semester",
@@ -10296,7 +10317,7 @@ function PyqsIaSection() {
                             {iaType}
                           </span>
                           <span className="text-[10px] font-semibold text-[hsl(var(--muted-foreground))]">
-                            Internal Assessment
+                            {(item.examYear || item.title?.match(/\b(20\d{2})\b/)?.[1]) ? `${item.examYear || item.title?.match(/\b(20\d{2})\b/)?.[1]} • IA` : "Internal Assessment"}
                           </span>
                         </div>
                         {item.title ? (
@@ -11364,7 +11385,7 @@ function CreateSemesterQpDialog({ open, onOpenChange }: { open: boolean; onOpenC
   }, [branches, qps]);
 
   const distinctYears = useMemo(() => {
-    const set = new Set<string>(["2028", "2027", "2026", "2025", "2024", "2023", "2022 & Model Papers"]);
+    const set = new Set<string>([...getAvailableExamYears(), "2022 & Model Papers"]);
     for (const qp of qps) {
       if (qp.examYear) set.add(qp.examYear);
     }
@@ -11745,7 +11766,7 @@ function EditSemesterQpDialog({ item, open, onOpenChange }: { item: SemesterQpIt
   }, [branches, qps]);
 
   const distinctYears = useMemo(() => {
-    const set = new Set<string>(["2028", "2027", "2026", "2025", "2024", "2023", "2022 & Model Papers"]);
+    const set = new Set<string>([...getAvailableExamYears(), "2022 & Model Papers"]);
     for (const q of qps) {
       if (q.examYear) set.add(q.examYear);
     }
@@ -12112,6 +12133,7 @@ function CreateIaPaperDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const { data: branches = [] } = useListBranches();
   const { data: iaPapers = [] } = useListIaPapers({ isPublished: "all" });
 
+  const [examYear, setExamYear] = useState<string>(new Date().getFullYear().toString());
   const [academicYear, setAcademicYear] = useState<string>("1st Year");
   const [semester, setSemester] = useState<string>("1st Semester");
   const [department, setDepartment] = useState("");
@@ -12196,9 +12218,9 @@ function CreateIaPaperDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 
   const handleRegenerateTitle = () => {
     if (department.trim()) {
-      setTitle(`${academicYear} • ${semester} • ${department.trim()} • ${iaType}`);
+      setTitle(`${examYear} • ${academicYear} • ${semester} • ${department.trim()} • ${iaType}`);
     } else {
-      setTitle(`${academicYear} • ${semester} • ${iaType}`);
+      setTitle(`${examYear} • ${academicYear} • ${semester} • ${iaType}`);
     }
     setHasCustomTitle(false);
   };
@@ -12227,6 +12249,7 @@ function CreateIaPaperDialog({ open, onOpenChange }: { open: boolean; onOpenChan
           semester,
           department: department.trim(),
           iaType,
+          examYear: examYear.trim(),
           title: title.trim(),
           googleDriveUrl: googleDriveUrl.trim(),
           isPublished,
@@ -12270,6 +12293,54 @@ function CreateIaPaperDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               <option key={d} value={d} />
             ))}
           </datalist>
+
+          {/* Exam / Paper Year */}
+          <div className="space-y-1">
+            <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+              Exam / Paper Year <span className="text-[hsl(var(--destructive))]">*</span>
+            </label>
+            <select
+              value={examYear}
+              onChange={(e) => {
+                setExamYear(e.target.value);
+                if (!hasCustomTitle) {
+                  const dept = department.trim();
+                  setTitle(`${e.target.value} • ${academicYear} • ${semester}${dept ? ` • ${dept}` : ""} • ${iaType}`);
+                }
+              }}
+              className="input-style h-9 text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+              data-testid="select-create-ia-exam-year"
+            >
+              {getAvailableExamYears().map((yr) => (
+                <option key={yr} value={yr}>
+                  {yr}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Exam / Paper Year */}
+          <div className="space-y-1">
+            <label className="block text-xs font-bold text-[hsl(var(--foreground))]">
+              Exam / Paper Year <span className="text-[hsl(var(--destructive))]">*</span>
+            </label>
+            <select
+              value={examYear}
+              onChange={(e) => {
+                setExamYear(e.target.value);
+                const dept = department.trim();
+                setTitle(`${e.target.value} • ${academicYear} • ${semester}${dept ? ` • ${dept}` : ""} • ${iaType}`);
+              }}
+              className="input-style h-9 text-xs font-semibold rounded-xl bg-[hsl(var(--card))]"
+              data-testid="select-edit-ia-exam-year"
+            >
+              {getAvailableExamYears().map((yr) => (
+                <option key={yr} value={yr}>
+                  {yr}
+                </option>
+              ))}
+            </select>
+          </div>
 
           {/* Row 1: Academic Year Segmented */}
           <div className="space-y-1.5">
@@ -12461,6 +12532,7 @@ function EditIaPaperDialog({ item, open, onOpenChange }: { item: IaPaperItem; op
   const { data: branches = [] } = useListBranches();
   const { data: iaPapers = [] } = useListIaPapers({ isPublished: "all" });
 
+  const [examYear, setExamYear] = useState(item.examYear || item.title?.match(/\b(20\d{2})\b/)?.[1] || new Date().getFullYear().toString());
   const [academicYear, setAcademicYear] = useState(item.academicYear);
   const [semester, setSemester] = useState(item.semester);
   const [department, setDepartment] = useState(item.department);
@@ -12497,9 +12569,9 @@ function EditIaPaperDialog({ item, open, onOpenChange }: { item: IaPaperItem; op
 
   const handleRegenerateTitle = () => {
     if (department.trim()) {
-      setTitle(`${academicYear} • ${semester} • ${department.trim()} • ${iaType}`);
+      setTitle(`${examYear} • ${academicYear} • ${semester} • ${department.trim()} • ${iaType}`);
     } else {
-      setTitle(`${academicYear} • ${semester} • ${iaType}`);
+      setTitle(`${examYear} • ${academicYear} • ${semester} • ${iaType}`);
     }
   };
 
@@ -12528,6 +12600,7 @@ function EditIaPaperDialog({ item, open, onOpenChange }: { item: IaPaperItem; op
           semester,
           department: department.trim(),
           iaType,
+          examYear: examYear.trim(),
           title: title.trim(),
           googleDriveUrl: googleDriveUrl.trim(),
           isPublished,

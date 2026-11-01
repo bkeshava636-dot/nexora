@@ -26,6 +26,7 @@ export const submissions = pgTable(
     iaSemester: text("ia_semester"),
     iaDepartment: text("ia_department"),
     iaType: text("ia_type"),
+    iaYear: text("ia_year"),
     studentName: text("student_name"),
     studentEmail: text("student_email"),
     status: submissionStatusEnum("status").notNull().default("pending"),

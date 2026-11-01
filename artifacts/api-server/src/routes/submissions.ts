@@ -279,6 +279,7 @@ router.post("/submissions/:id/approve", requireAdmin, async (req, res) => {
           semester: submission.iaSemester!,
           department: submission.iaDepartment!,
           iaType: submission.iaType!,
+          examYear: submission.iaYear || undefined,
           title: submission.title,
           googleDriveUrl: submission.googleDriveUrl,
           contributorName: submission.studentName,
