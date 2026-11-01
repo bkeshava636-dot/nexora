@@ -143,6 +143,7 @@ const submissionSelectFields = {
   description: submissions.description,
   googleDriveUrl: submissions.googleDriveUrl,
   iaAcademicYear: submissions.iaAcademicYear,
+  iaYear: submissions.iaYear,
   iaSemester: submissions.iaSemester,
   iaDepartment: submissions.iaDepartment,
   iaType: submissions.iaType,

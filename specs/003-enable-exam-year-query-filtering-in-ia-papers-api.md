@@ -35,7 +35,7 @@ Enable server-side filtering by `examYear` on the `GET /api/ia-papers` endpoint 
 
 ---
 
-## Status: DRAFT
+## Status: COMPLETE
 
 ---
 
@@ -45,15 +45,15 @@ Enable server-side filtering by `examYear` on the `GET /api/ia-papers` endpoint 
 Extract `examYear` from incoming query parameters on `GET /api/ia-papers`.
 
 **Acceptance Criteria:**
-- [ ] Route handler extracts `examYear` from `req.query`.
-- [ ] When `examYear` is provided, the SQL query builder appends an equality condition matching `iaPapers.examYear`.
-- [ ] When `examYear` is omitted, all records matching other criteria are returned without year restriction.
+- [x] Route handler extracts `examYear` from `req.query`.
+- [x] When `examYear` is provided, the SQL query builder appends an equality condition matching `iaPapers.examYear`.
+- [x] When `examYear` is omitted, all records matching other criteria are returned without year restriction.
 
 ### FR-2: Client Query Support
 Support passing `examYear` in client list queries.
 
 **Acceptance Criteria:**
-- [ ] `listIaPapers` in `lib/api-client-react/src/ia-papers.ts` serializes `examYear` onto the request URL if present.
+- [x] `listIaPapers` in `lib/api-client-react/src/ia-papers.ts` serializes `examYear` onto the request URL if present.
 
 ---
 
@@ -67,18 +67,18 @@ Support passing `examYear` in client list queries.
 ## Completion Signal
 
 ### Implementation Checklist
-- [ ] Add `examYear` query parsing and condition to `artifacts/api-server/src/routes/ia-papers.ts`.
-- [ ] Update client query helper in `lib/api-client-react/src/ia-papers.ts`.
-- [ ] Add integration test verifying exam year filtering behavior.
+- [x] Add `examYear` query parsing and condition to `artifacts/api-server/src/routes/ia-papers.ts`.
+- [x] Update client query helper in `lib/api-client-react/src/ia-papers.ts`.
+- [x] Add integration test verifying exam year filtering behavior.
 
 ### Testing Requirements
 The agent MUST complete all checks prior to outputting the completion phrase:
-- [ ] All test cases pass (`pnpm.cmd test`)
-- [ ] Type checks pass (`pnpm.cmd typecheck`)
-- [ ] All functional criteria verified
+- [x] All test cases pass (`pnpm.cmd test`)
+- [x] Type checks pass (`pnpm.cmd typecheck`)
+- [x] All functional criteria verified
 
 ### Completion Output
 When all checks pass and changes are committed:
 `<promise>DONE</promise>`
 
-<!-- NR_OF_TRIES: 0 -->
+<!-- NR_OF_TRIES: 1 -->

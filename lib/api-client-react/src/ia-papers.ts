@@ -1,4 +1,4 @@
-﻿import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import { customFetch } from "./custom-fetch";
 
 export interface IaPaperItem {
@@ -64,6 +64,7 @@ export function useListIaPapers(
     queryFn: () => {
       const sp = new URLSearchParams();
       if (params?.academicYear) sp.set("academicYear", params.academicYear);
+      if (params?.examYear) sp.set("examYear", params.examYear);
       if (params?.semester) sp.set("semester", params.semester);
       if (params?.department) sp.set("department", params.department);
       if (params?.iaType) sp.set("iaType", params.iaType);

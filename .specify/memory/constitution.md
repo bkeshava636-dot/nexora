@@ -21,11 +21,12 @@ When the developer is conversing directly outside of an autonomous loop:
 
 ### 2. Ralph Loop Mode
 When running inside an autonomous loop (fed via stdin or CLI):
-- Be fully autonomous — execute commands, run tests, and complete tasks without human intervention.
+- Execute commands, run tests, and complete tasks with strict safety constraints.
 - Consult `IMPLEMENTATION_PLAN.md` (if present) or inspect `specs/` to identify the highest-priority incomplete spec.
 - Complete all functional requirements and acceptance criteria.
-- Run the test suite (`pnpm.cmd test`).
-- Commit and push changes upon full verification.
+- Run the test suite (`pnpm.cmd test`) and type checks (`pnpm.cmd typecheck`).
+- Do NOT automatically commit or push to Git (Git Autonomy: DISABLED).
+- Do NOT perform destructive operations against databases or external deployments.
 - Output `<promise>DONE</promise>` only when the spec is 100% complete and all acceptance criteria are verified.
 - Output `<promise>ALL_DONE</promise>` when no incomplete items remain.
 
@@ -63,8 +64,8 @@ Verify functionality through automated tests and strict acceptance criteria chec
 
 ## Autonomy Configuration
 
-- **YOLO Mode**: ENABLED
-- **Git Autonomy**: ENABLED
+- **YOLO Mode**: DISABLED (Unrestricted destructive operations disabled; preserve existing code and data)
+- **Git Autonomy**: DISABLED (Automatic Git commits and pushes disabled)
 
 ---
 

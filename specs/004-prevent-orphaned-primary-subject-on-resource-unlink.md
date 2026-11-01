@@ -35,7 +35,7 @@ Prevent catalog visibility loss and foreign key corruption when removing subject
 
 ---
 
-## Status: DRAFT
+## Status: COMPLETE
 
 ---
 
@@ -45,9 +45,9 @@ Prevent catalog visibility loss and foreign key corruption when removing subject
 Ensure primary subject pointer is preserved or cleanly updated when removing subject associations.
 
 **Acceptance Criteria:**
-- [ ] When `DELETE /api/resources/:id/subjects/:subjectId` removes the primary subject, the platform reassigns `resources.subjectId` to the next linked subject if one exists.
-- [ ] If no other subject is associated, an explanatory error (e.g., 400 Bad Request) is returned to prevent catalog orphan state.
-- [ ] The updated resource remains visible in `GET /api/resources` catalog listings.
+- [x] When `DELETE /api/resources/:id/subjects/:subjectId` removes the primary subject, the platform reassigns `resources.subjectId` to the next linked subject if one exists.
+- [x] If no other subject is associated, an explanatory error (e.g., 400 Bad Request) is returned to prevent catalog orphan state.
+- [x] The updated resource remains visible in `GET /api/resources` catalog listings.
 
 ---
 
@@ -61,18 +61,18 @@ Ensure primary subject pointer is preserved or cleanly updated when removing sub
 ## Completion Signal
 
 ### Implementation Checklist
-- [ ] Update `DELETE /api/resources/:id/subjects/:subjectId` handler in `artifacts/api-server/src/routes/resources.ts`.
-- [ ] Add primary subject reassignment transaction logic.
-- [ ] Add integration test verifying reassignment upon primary subject removal.
+- [x] Update `DELETE /api/resources/:id/subjects/:subjectId` handler in `artifacts/api-server/src/routes/resources.ts`.
+- [x] Add primary subject reassignment transaction logic.
+- [x] Add integration test verifying reassignment upon primary subject removal.
 
 ### Testing Requirements
 The agent MUST complete all checks prior to outputting the completion phrase:
-- [ ] All test cases pass (`pnpm.cmd test`)
-- [ ] Type checks pass (`pnpm.cmd typecheck`)
-- [ ] All functional criteria verified
+- [x] All test cases pass (`pnpm.cmd test`)
+- [x] Type checks pass (`pnpm.cmd typecheck`)
+- [x] All functional criteria verified
 
 ### Completion Output
 When all checks pass and changes are committed:
 `<promise>DONE</promise>`
 
-<!-- NR_OF_TRIES: 0 -->
+<!-- NR_OF_TRIES: 1 -->

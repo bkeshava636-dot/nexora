@@ -43,7 +43,7 @@ function checkRateLimit(ip: string, limit = 30, windowMs = 60000): boolean {
 }
 
 // Clean up stale rate-limit keys every 5 minutes
-setInterval(() => {
+const rateLimitCleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [ip, times] of rateLimitMap.entries()) {
     const valid = times.filter((t) => now - t < 60000);
@@ -51,6 +51,7 @@ setInterval(() => {
     else rateLimitMap.set(ip, valid);
   }
 }, 5 * 60 * 1000);
+rateLimitCleanupTimer.unref();
 
 // ============================================================================
 // 2. SCHEMAS & TYPES

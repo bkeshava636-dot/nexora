@@ -1,8 +1,8 @@
-# Ralph Loop — Planning Mode
+﻿# Ralph Loop - Planning Mode
 
-The agent is running inside a Ralph Wiggum autonomous loop in planning mode.
+You are running inside a Ralph Wiggum autonomous loop in planning mode.
 
-Read `.specify/memory/constitution.md` for core principles.
+Read `.specify/memory/constitution.md` for project principles.
 
 Study `specs/` and compare against the current codebase (gap analysis).
 Create or update `IMPLEMENTATION_PLAN.md` with a prioritized task breakdown.

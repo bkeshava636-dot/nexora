@@ -248,6 +248,7 @@ export interface Submission {
   studentName?: string | null;
   studentEmail?: string | null;
   iaAcademicYear?: string | null;
+  iaYear?: string | null;
   iaSemester?: string | null;
   iaDepartment?: string | null;
   iaType?: string | null;
@@ -294,6 +295,7 @@ export interface SubmissionUpdate {
   subjectId?: number | null;
   googleDriveUrl?: string;
   iaAcademicYear?: string | null;
+  iaYear?: string | null;
   iaSemester?: string | null;
   iaDepartment?: string | null;
   iaType?: string | null;

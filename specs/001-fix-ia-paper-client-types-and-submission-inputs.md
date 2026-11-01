@@ -36,7 +36,7 @@ Resolve TypeScript compilation failures in the frontend application caused by mi
 
 ---
 
-## Status: DRAFT
+## Status: COMPLETE
 
 ---
 
@@ -46,17 +46,17 @@ Resolve TypeScript compilation failures in the frontend application caused by mi
 Add `examYear` to IA paper client interfaces in `lib/api-client-react/src/ia-papers.ts`.
 
 **Acceptance Criteria:**
-- [ ] `IaPaperItem` interface includes `examYear?: string | null`.
-- [ ] `CreateIaPaperInput` interface includes `examYear?: string | null`.
-- [ ] `UpdateIaPaperInput` interface includes `examYear?: string | null`.
+- [x] `IaPaperItem` interface includes `examYear?: string | null`.
+- [x] `CreateIaPaperInput` interface includes `examYear?: string | null`.
+- [x] `UpdateIaPaperInput` interface includes `examYear?: string | null`.
 
 ### FR-2: Submission Model Property Alignment
 Add `iaYear` to submission input schemas and types in `lib/api-zod/src/generated/api.ts`.
 
 **Acceptance Criteria:**
-- [ ] `CreateSubmissionBody` schema accepts optional nullable `iaYear`.
-- [ ] `SubmissionInput` interface reflects `iaYear?: string | null`.
-- [ ] `artifacts/nexora/src/App.tsx` compiles cleanly when referencing `paper.examYear` and submitting `submissionData.iaYear`.
+- [x] `CreateSubmissionBody` schema accepts optional nullable `iaYear`.
+- [x] `SubmissionInput` interface reflects `iaYear?: string | null`.
+- [x] `artifacts/nexora/src/App.tsx` compiles cleanly when referencing `paper.examYear` and submitting `submissionData.iaYear`.
 
 ---
 
@@ -70,18 +70,18 @@ Add `iaYear` to submission input schemas and types in `lib/api-zod/src/generated
 ## Completion Signal
 
 ### Implementation Checklist
-- [ ] Update `lib/api-client-react/src/ia-papers.ts` with `examYear` definitions.
-- [ ] Update `lib/api-zod/src/generated/api.ts` with `iaYear` definitions.
-- [ ] Verify `artifacts/nexora/src/App.tsx` compiles with zero diagnostics.
+- [x] Update `lib/api-client-react/src/ia-papers.ts` with `examYear` definitions.
+- [x] Update `lib/api-zod/src/generated/api.ts` with `iaYear` definitions.
+- [x] Verify `artifacts/nexora/src/App.tsx` compiles with zero diagnostics.
 
 ### Testing Requirements
 The agent MUST complete all checks prior to outputting the completion phrase:
-- [ ] All test cases pass (`pnpm.cmd test`)
-- [ ] Type checks pass (`pnpm.cmd typecheck`)
-- [ ] All functional criteria verified
+- [x] All test cases pass (`pnpm.cmd test`)
+- [x] Type checks pass (`pnpm.cmd typecheck`)
+- [x] All functional criteria verified
 
 ### Completion Output
 When all checks pass and changes are committed:
 `<promise>DONE</promise>`
 
-<!-- NR_OF_TRIES: 0 -->
+<!-- NR_OF_TRIES: 1 -->

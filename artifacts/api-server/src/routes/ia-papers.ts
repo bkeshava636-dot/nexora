@@ -10,7 +10,7 @@ const router: IRouter = Router();
 
 // 1. GET /api/ia-papers (Public & Admin)
 router.get("/ia-papers", async (req, res) => {
-  const { academicYear, semester, department, iaType, search, isPublished } = req.query;
+  const { academicYear, examYear, semester, department, iaType, search, isPublished } = req.query;
 
   try {
     const conditions = [];
@@ -20,6 +20,10 @@ router.get("/ia-papers", async (req, res) => {
       conditions.push(eq(iaPapers.isPublished, true));
     } else if (typeof isPublished === "string" && isPublished !== "all") {
       conditions.push(eq(iaPapers.isPublished, isPublished === "true"));
+    }
+
+    if (typeof examYear === "string" && examYear.trim() && examYear.trim().toLowerCase() !== "all") {
+      conditions.push(eq(iaPapers.examYear, examYear.trim()));
     }
 
     if (typeof academicYear === "string" && academicYear.trim() && academicYear.trim().toLowerCase() !== "all") {
@@ -45,6 +49,7 @@ router.get("/ia-papers", async (req, res) => {
           ilike(iaPapers.department, q),
           ilike(iaPapers.title, q),
           ilike(iaPapers.academicYear, q),
+          ilike(iaPapers.examYear, q),
           ilike(iaPapers.semester, q),
           ilike(iaPapers.iaType, q),
         ),

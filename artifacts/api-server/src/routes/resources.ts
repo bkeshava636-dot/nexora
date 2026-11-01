@@ -295,47 +295,68 @@ router.post(["/resources/:id/links", "/admin/resources/:id/links"], requireAdmin
 });
 
 // Admin-only: Remove a link between a resource and a subject
-router.delete(["/resources/:id/links/:subjectId", "/admin/resources/:id/links/:subjectId"], requireAdmin, async (req, res) => {
-  const id = Number(req.params.id);
-  const subjectId = Number(req.params.subjectId);
-  if (!Number.isInteger(id) || !Number.isInteger(subjectId)) {
-    res.status(400).json({ error: "invalid_request", message: "id and subjectId must be integers." });
-    return;
-  }
+router.delete(
+  [
+    "/resources/:id/links/:subjectId",
+    "/admin/resources/:id/links/:subjectId",
+    "/resources/:id/subjects/:subjectId",
+    "/admin/resources/:id/subjects/:subjectId",
+  ],
+  requireAdmin,
+  async (req, res) => {
+    const id = Number(req.params.id);
+    const subjectId = Number(req.params.subjectId);
+    if (!Number.isInteger(id) || !Number.isInteger(subjectId)) {
+      res.status(400).json({ error: "invalid_request", message: "id and subjectId must be integers." });
+      return;
+    }
 
-  const [resource] = await db.select().from(resources).where(eq(resources.id, id));
-  if (!resource) {
-    res.status(404).json({ error: "not_found", message: "Resource not found." });
-    return;
-  }
+    const [resource] = await db.select().from(resources).where(eq(resources.id, id));
+    if (!resource) {
+      res.status(404).json({ error: "not_found", message: "Resource not found." });
+      return;
+    }
 
-  const [deleted] = await db
-    .delete(resourceSubjects)
-    .where(and(eq(resourceSubjects.resourceId, id), eq(resourceSubjects.subjectId, subjectId)))
-    .returning({ id: resourceSubjects.id });
-
-  if (!deleted) {
-    res.status(404).json({ error: "not_found", message: "This resource is not linked to the specified subject." });
-    return;
-  }
-
-  // If this unlinked subject was the primary resource.subjectId, point it to any remaining linked subject
-  if (resource.subjectId === subjectId) {
-    const [remaining] = await db
+    const activeLinks = await db
       .select({ subjectId: resourceSubjects.subjectId })
       .from(resourceSubjects)
-      .where(eq(resourceSubjects.resourceId, id))
-      .limit(1);
-    if (remaining) {
-      await db
-        .update(resources)
-        .set({ subjectId: remaining.subjectId, updatedAt: new Date() })
-        .where(eq(resources.id, id));
-    }
-  }
+      .where(eq(resourceSubjects.resourceId, id));
 
-  res.status(204).end();
-});
+    const isLinked = activeLinks.some((l) => l.subjectId === subjectId);
+    if (!isLinked) {
+      res.status(404).json({ error: "not_found", message: "This resource is not linked to the specified subject." });
+      return;
+    }
+
+    // Guard against orphan state: prevent removing the sole remaining subject link
+    if (activeLinks.length <= 1) {
+      res.status(400).json({
+        error: "invalid_request",
+        message: "Cannot remove the sole subject link for this resource. Link an alternative subject first.",
+      });
+      return;
+    }
+
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(resourceSubjects)
+        .where(and(eq(resourceSubjects.resourceId, id), eq(resourceSubjects.subjectId, subjectId)));
+
+      // If this unlinked subject was the primary resource.subjectId, reassign to next remaining linked subject
+      if (resource.subjectId === subjectId) {
+        const nextSubject = activeLinks.find((l) => l.subjectId !== subjectId);
+        if (nextSubject) {
+          await tx
+            .update(resources)
+            .set({ subjectId: nextSubject.subjectId, updatedAt: new Date() })
+            .where(eq(resources.id, id));
+        }
+      }
+    });
+
+    res.status(204).end();
+  },
+);
 
 // Admin-only: Bulk link multiple resources to multiple subjects
 router.post(["/resources/bulk-links", "/admin/resources/bulk-links"], requireAdmin, async (req, res) => {

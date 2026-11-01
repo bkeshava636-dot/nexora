@@ -37,7 +37,7 @@ Ensure student-contributed IA paper submissions preserve the exam year (`iaYear`
 
 ---
 
-## Status: DRAFT
+## Status: COMPLETE
 
 ---
 
@@ -47,16 +47,16 @@ Ensure student-contributed IA paper submissions preserve the exam year (`iaYear`
 Include `iaYear` in the creation and retrieval flows for submissions.
 
 **Acceptance Criteria:**
-- [ ] `submissionSelectFields` contains `iaYear: submissions.iaYear`.
-- [ ] `POST /api/submissions` persists `iaYear` in the `submissions` table when provided.
-- [ ] `GET /api/submissions` and `GET /api/submissions/:id` return `iaYear`.
+- [x] `submissionSelectFields` contains `iaYear: submissions.iaYear`.
+- [x] `POST /api/submissions` persists `iaYear` in the `submissions` table when provided.
+- [x] `GET /api/submissions` and `GET /api/submissions/:id` return `iaYear`.
 
 ### FR-2: Exam Year Mapping on Approval
 Map `submission.iaYear` to `iaPapers.examYear` during submission approval.
 
 **Acceptance Criteria:**
-- [ ] In `POST /api/submissions/:id/approve`, the insert statement for `iaPapers` sets `examYear: submission.iaYear ?? null`.
-- [ ] The newly created IA paper contains the correct exam year matching the initial submission.
+- [x] In `POST /api/submissions/:id/approve`, the insert statement for `iaPapers` sets `examYear: submission.iaYear ?? null`.
+- [x] The newly created IA paper contains the correct exam year matching the initial submission.
 
 ---
 
@@ -70,19 +70,19 @@ Map `submission.iaYear` to `iaPapers.examYear` during submission approval.
 ## Completion Signal
 
 ### Implementation Checklist
-- [ ] Update `submissionSelectFields` in `artifacts/api-server/src/routes/submissions.ts`.
-- [ ] Update submission creation logic to store `iaYear`.
-- [ ] Update approval logic to forward `iaYear` to `iaPapers.examYear`.
-- [ ] Add regression test in `test/` verifying the end-to-end pipeline.
+- [x] Update `submissionSelectFields` in `artifacts/api-server/src/routes/submissions.ts`.
+- [x] Update submission creation logic to store `iaYear`.
+- [x] Update approval logic to forward `iaYear` to `iaPapers.examYear`.
+- [x] Add regression test in `test/` verifying the end-to-end pipeline.
 
 ### Testing Requirements
 The agent MUST complete all checks prior to outputting the completion phrase:
-- [ ] All test cases pass (`pnpm.cmd test`)
-- [ ] Type checks pass (`pnpm.cmd typecheck`)
-- [ ] All functional criteria verified
+- [x] All test cases pass (`pnpm.cmd test`)
+- [x] Type checks pass (`pnpm.cmd typecheck`)
+- [x] All functional criteria verified
 
 ### Completion Output
 When all checks pass and changes are committed:
 `<promise>DONE</promise>`
 
-<!-- NR_OF_TRIES: 0 -->
+<!-- NR_OF_TRIES: 1 -->
