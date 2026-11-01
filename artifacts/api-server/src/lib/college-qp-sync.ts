@@ -5,6 +5,19 @@ import { logger } from "./logger";
 export const DEFAULT_COLLEGE_LIBRARY_URL = "https://www.bitm.edu.in/library";
 export const LAST_SYNC_KEY = "last_college_qp_sync_at";
 export const LAST_SYNC_SUMMARY_KEY = "last_college_qp_sync_summary";
+export const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+
+export async function isMonthlySyncDue(): Promise<boolean> {
+  try {
+    const [record] = await db.select().from(appSettings).where(eq(appSettings.key, LAST_SYNC_KEY));
+    if (!record || !record.value) return true;
+    const lastSyncTime = new Date(record.value).getTime();
+    if (Number.isNaN(lastSyncTime)) return true;
+    return Date.now() - lastSyncTime >= ONE_MONTH_MS;
+  } catch {
+    return true;
+  }
+}
 
 export interface ParsedCollegeQp {
   examYear: string;

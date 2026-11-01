@@ -292,4 +292,35 @@ test("College QP Sync — Semester & Year Extraction", async (t) => {
     assert.equal(items[1].department, "BIOLOGY FOR ENGINEERS");
     assert.ok(items.every(it => !it.downloadUrl.includes("mba") && !it.downloadUrl.includes("mca")));
   });
+
+  await t.test("Validates 1-month sync duration check", () => {
+    const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+
+    function isDue(lastSyncIso) {
+      if (!lastSyncIso) return true;
+      const last = new Date(lastSyncIso).getTime();
+      if (Number.isNaN(last)) return true;
+      return now - last >= ONE_MONTH_MS;
+    }
+
+    // 5 days ago -> false
+    const fiveDaysAgo = new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString();
+    assert.equal(isDue(fiveDaysAgo), false);
+
+    // 29 days ago -> false
+    const twentyNineDaysAgo = new Date(now - 29 * 24 * 60 * 60 * 1000).toISOString();
+    assert.equal(isDue(twentyNineDaysAgo), false);
+
+    // 30 days ago -> true
+    const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
+    assert.equal(isDue(thirtyDaysAgo), true);
+
+    // 35 days ago -> true
+    const thirtyFiveDaysAgo = new Date(now - 35 * 24 * 60 * 60 * 1000).toISOString();
+    assert.equal(isDue(thirtyFiveDaysAgo), true);
+
+    // No prior sync -> true
+    assert.equal(isDue(null), true);
+  });
 });
