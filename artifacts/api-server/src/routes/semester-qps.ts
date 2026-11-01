@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
-import { db, ensureTables, semesterQps } from "@workspace/db";
+import { db, ensureTables, semesterQps, appSettings } from "@workspace/db";
+import { syncCollegeSemesterQps, LAST_SYNC_KEY, LAST_SYNC_SUMMARY_KEY } from "../lib/college-qp-sync";
 import { requireAdmin } from "../middlewares/auth";
 import { handleDbError } from "../lib/db-errors";
 import { logger } from "../lib/logger";
@@ -352,6 +353,50 @@ router.delete("/semester-qps/:id", requireAdmin, async (req, res) => {
       logger.error({ err }, "Error deleting semester QP");
       res.status(500).json({ error: "internal_error", message: "Failed to delete semester question paper." });
     }
+  }
+});
+
+// 6. POST /api/admin/semester-qps/sync-college (Admin only)
+router.post("/admin/semester-qps/sync-college", requireAdmin, async (req, res) => {
+  try {
+    const { sourceUrl, autoPublish } = req.body ?? {};
+    const result = await syncCollegeSemesterQps({ sourceUrl, autoPublish });
+    res.json({ success: true, ...result });
+  } catch (err: unknown) {
+    logger.error({ err }, "Error syncing semester QPs from college site");
+    res.status(500).json({
+      error: "sync_failed",
+      message: (err as Error)?.message || "Failed to sync question papers from college portal.",
+    });
+  }
+});
+
+// 7. GET /api/admin/semester-qps/sync-status (Admin only)
+router.get("/admin/semester-qps/sync-status", requireAdmin, async (_req, res) => {
+  try {
+    const records = await db
+      .select()
+      .from(appSettings)
+      .where(or(eq(appSettings.key, LAST_SYNC_KEY), eq(appSettings.key, LAST_SYNC_SUMMARY_KEY)));
+
+    let lastSyncAt: string | null = null;
+    let lastSummary: unknown = null;
+
+    for (const r of records) {
+      if (r.key === LAST_SYNC_KEY) lastSyncAt = r.value;
+      if (r.key === LAST_SYNC_SUMMARY_KEY) {
+        try {
+          lastSummary = JSON.parse(r.value);
+        } catch {
+          lastSummary = r.value;
+        }
+      }
+    }
+
+    res.json({ lastSyncAt, lastSummary });
+  } catch (err: unknown) {
+    logger.error({ err }, "Error fetching college QP sync status");
+    res.status(500).json({ error: "internal_error", message: "Failed to fetch sync status." });
   }
 });
 

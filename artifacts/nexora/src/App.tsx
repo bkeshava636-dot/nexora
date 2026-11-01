@@ -5,7 +5,7 @@ import {
   AlertTriangle, ArrowLeft, ArrowRight, BarChart3, Bug, MessageSquare, MessageSquarePlus, BadgeCheck, BookOpen, Calendar, Check, CheckCircle2, ChevronDown, ChevronRight,
   CircleAlert, Clock3, Download, ExternalLink, Eye, EyeOff, FileArchive, FileCheck, FileDown, FileText, FileUp, Filter, Flag, FolderOpen, GitBranch, GraduationCap, KeyRound, Layers3,
   LayoutDashboard, LibraryBig, Link2, Loader2, Lock, LogOut, Menu, MoreHorizontal, Pencil, Plus, RotateCcw, Search, Send, ShieldCheck,
-  SlidersHorizontal, Sparkles, Trash2, Unlink, Upload, Mail, User, Users, X, Zap,
+  RefreshCw, SlidersHorizontal, Sparkles, Trash2, Unlink, Upload, Mail, User, Users, X, Zap,
 } from "lucide-react";
 import { ApiWakeOverlay } from "@/components/api-wake-overlay";
 import { BuyMePaneerFooter } from "@/components/buy-me-paneer";
@@ -75,7 +75,7 @@ import {
   useListCurriculumTemplates,
   useListReports,
   useListResources,
-  useListSemesterQps,
+  useListSemesterQps, useSyncCollegeSemesterQps, useGetCollegeQpSyncStatus,
   useCreateFeedback,
   useListFeedback,
   useUpdateFeedback,
@@ -10544,6 +10544,34 @@ function AdminSemesterQpsSection() {
   const { data: branches = [] } = useListBranches();
 
   const updateQp = useUpdateSemesterQp();
+  const syncCollege = useSyncCollegeSemesterQps();
+  const { data: syncStatus } = useGetCollegeQpSyncStatus();
+
+  const handleSyncCollege = () => {
+    if (syncCollege.isPending) return;
+    syncCollege.mutate(undefined, {
+      onSuccess: (res) => {
+        if (res.newAdded > 0) {
+          toast({
+            title: "College sync complete!",
+            description: `Imported ${res.newAdded} new question papers. Scanned ${res.scanned} papers (${res.alreadyExisting} existing duplicates skipped).`,
+          });
+        } else {
+          toast({
+            title: "All papers up-to-date",
+            description: `Checked ${res.scanned} papers on the college portal. 0 new papers found (all duplicates skipped).`,
+          });
+        }
+      },
+      onError: (err) => {
+        toast({
+          title: "College sync failed",
+          description: getErrorMessage(err) || "Could not reach college library portal. Please try again later.",
+          variant: "destructive",
+        });
+      },
+    });
+  };
 
   const availableYears = useMemo(() => {
     const set = new Set<string>();
@@ -10662,8 +10690,28 @@ function AdminSemesterQpsSection() {
           <p className="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">
             Manage question paper archives, department links, resource types, and publish states.
           </p>
+          {syncStatus?.lastSyncAt && (
+            <div className="mt-1.5 flex items-center gap-2 text-[11px] text-[hsl(var(--muted-foreground))]">
+              <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>
+                Auto-sync active: Checked college site on {new Date(syncStatus.lastSyncAt).toLocaleDateString()} at {new Date(syncStatus.lastSyncAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {syncStatus.lastSummary && ` (${syncStatus.lastSummary.scanned} papers tracked)`}
+              </span>
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSyncCollege}
+            disabled={syncCollege.isPending}
+            className="focus-ring inline-flex items-center gap-2 rounded-xl border border-[hsl(var(--primary)/.35)] bg-[hsl(var(--primary)/.1)] px-4 py-2.5 text-xs font-bold text-[hsl(var(--primary))] transition-all hover:bg-[hsl(var(--primary)/.18)] disabled:opacity-50 cursor-pointer w-fit"
+            data-testid="button-sync-college-qps"
+            title="Scan college library portal for newly uploaded examination papers"
+          >
+            <RefreshCw size={14} className={syncCollege.isPending ? "animate-spin" : ""} />
+            {syncCollege.isPending ? "Checking College Site..." : "Sync College Site"}
+          </button>
           <button
             type="button"
             onClick={() => setDeptManagerOpen(true)}
@@ -10672,13 +10720,13 @@ function AdminSemesterQpsSection() {
             Manage Departments
           </button>
           <button
-          type="button"
-          onClick={() => setCreateOpen(true)}
-          className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--primary-foreground))] shadow-xs hover:bg-[hsl(var(--primary)/.9)] transition-colors cursor-pointer w-fit"
-          data-testid="button-add-semester-qp"
-        >
-          <Plus size={15} /> Add Semester QP
-        </button>
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="focus-ring inline-flex items-center gap-2 rounded-xl bg-[hsl(var(--primary))] px-4 py-2.5 text-xs font-bold text-[hsl(var(--primary-foreground))] shadow-xs hover:bg-[hsl(var(--primary)/.9)] transition-colors cursor-pointer w-fit"
+            data-testid="button-add-semester-qp"
+          >
+            <Plus size={15} /> Add Semester QP
+          </button>
         </div>
       </div>
       

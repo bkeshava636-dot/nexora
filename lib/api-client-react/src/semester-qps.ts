@@ -45,8 +45,39 @@ export interface ListSemesterQpsParams {
   isPublished?: string;
 }
 
+export interface CollegeSyncSummary {
+  scanned: number;
+  newAdded: number;
+  alreadyExisting: number;
+  syncedAt: string;
+}
+
+export interface CollegeSyncResponse {
+  success: boolean;
+  sourceUrl: string;
+  scanned: number;
+  newAdded: number;
+  alreadyExisting: number;
+  itemsAdded: Array<{
+    id?: number;
+    title: string;
+    examYear: string;
+    semester: string;
+    department: string;
+    downloadUrl: string;
+  }>;
+  syncedAt: string;
+}
+
+export interface CollegeSyncStatusResponse {
+  lastSyncAt: string | null;
+  lastSummary: CollegeSyncSummary | null;
+}
+
 export const getListSemesterQpsQueryKey = (params?: ListSemesterQpsParams) =>
   params ? ["/api/semester-qps", params] : ["/api/semester-qps"];
+
+export const getCollegeSyncStatusQueryKey = () => ["/api/admin/semester-qps/sync-status"];
 
 export function useListSemesterQps(
   params?: ListSemesterQpsParams,
@@ -119,6 +150,33 @@ export function useDeleteSemesterQp() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/semester-qps"] });
+    },
+  });
+}
+
+export function useGetCollegeQpSyncStatus(
+  options?: Omit<UseQueryOptions<CollegeSyncStatusResponse, Error>, "queryKey" | "queryFn">,
+) {
+  return useQuery<CollegeSyncStatusResponse, Error>({
+    queryKey: getCollegeSyncStatusQueryKey(),
+    queryFn: () => customFetch<CollegeSyncStatusResponse>("/api/admin/semester-qps/sync-status"),
+    staleTime: 1000 * 60, // 1 minute
+    ...options,
+  });
+}
+
+export function useSyncCollegeSemesterQps() {
+  const queryClient = useQueryClient();
+  return useMutation<CollegeSyncResponse, Error, { sourceUrl?: string; autoPublish?: boolean } | void>({
+    mutationFn: (payload) =>
+      customFetch<CollegeSyncResponse>("/api/admin/semester-qps/sync-college", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload ? JSON.stringify(payload) : undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/semester-qps"] });
+      queryClient.invalidateQueries({ queryKey: getCollegeSyncStatusQueryKey() });
     },
   });
 }
