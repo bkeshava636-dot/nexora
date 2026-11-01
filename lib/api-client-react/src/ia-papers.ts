@@ -4,6 +4,7 @@ import { customFetch } from "./custom-fetch";
 export interface IaPaperItem {
   id: number;
   academicYear: string;
+  examYear?: string | null;
   semester: string;
   department: string;
   iaType: string;
@@ -18,6 +19,7 @@ export interface IaPaperItem {
 
 export interface CreateIaPaperInput {
   academicYear: string;
+  examYear?: string | null;
   semester: string;
   department: string;
   iaType?: string;
@@ -30,6 +32,7 @@ export interface CreateIaPaperInput {
 
 export interface UpdateIaPaperInput {
   academicYear?: string;
+  examYear?: string | null;
   semester?: string;
   department?: string;
   iaType?: string;
@@ -41,6 +44,7 @@ export interface UpdateIaPaperInput {
 
 export interface ListIaPapersParams {
   academicYear?: string;
+  examYear?: string;
   semester?: string;
   department?: string;
   iaType?: string;

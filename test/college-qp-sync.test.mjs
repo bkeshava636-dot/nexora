@@ -32,20 +32,94 @@ function parseExamYearFromText(text) {
 
 function cleanDepartmentFromAnchor(text, href) {
   let dept = text.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
-  if (!dept || dept.length < 2) {
+  if (!dept || dept.length < 2 || /click\s+to\s+view/i.test(dept)) {
     const filename = href.split("/").pop()?.replace(/\.(zip|pdf)$/i, "") || "General";
     dept = filename;
   }
   return dept;
 }
 
+function isBePaper(rowTitle, department, downloadUrl) {
+  const combined = `${rowTitle} ${department} ${downloadUrl}`.toLowerCase();
+
+  // Strictly reject "Click to view" links/titles/departments
+  if (
+    /click\s+to\s+view/i.test(rowTitle) ||
+    /click\s+to\s+view/i.test(department) ||
+    /click\s+to\s+view/i.test(downloadUrl) ||
+    combined.includes("click to view")
+  ) {
+    return false;
+  }
+
+  const nonBePatterns = [
+    /\bmba\b/i,
+    /\bm\.b\.a\b/i,
+    /\bmca\b/i,
+    /\bm\.c\.a\b/i,
+    /\bbca\b/i,
+    /\bb\.c\.a\b/i,
+    /\bm\.?tech\b/i,
+    /\bm\.?sc\b/i,
+    /\bph\.?d\b/i,
+    /\bdiploma\b/i,
+    /\bpolytechnic\b/i,
+    /\bbba\b/i,
+    /\bb\.?com\b/i,
+    /\bb\.?ed\b/i,
+    /\bm\.?ed\b/i,
+    /\bpharm\b/i,
+    /\/mba\b/i,
+    /\/mca\b/i,
+    /\/bca\b/i,
+    /\/mtech\b/i,
+    /\/m-tech\b/i,
+    /\bmmc\d*/i,
+    /\b\d*mca\w*/i,
+    /\b\d*mba\w*/i,
+    /\b\d*bca\w*/i,
+    /\bfor managers\b/i,
+    /\bfor computer applications\b/i,
+    /\bclick\s+to\s+view\b/i,
+  ];
+
+  for (const pattern of nonBePatterns) {
+    if (pattern.test(combined)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function extractBeSectionHtml(html) {
+  const beButtonMatch = /<button[^>]*>[^<]*\bBE\b[^<]*<\/button>/i.exec(html);
+  if (beButtonMatch) {
+    const targetMatch = /data-bs-target=["']#([^"']+)["']/i.exec(beButtonMatch[0]);
+    if (targetMatch) {
+      const collapseId = targetMatch[1];
+      const startIdx = html.indexOf(`id="${collapseId}"`);
+      if (startIdx !== -1) {
+        const nextItemIdx = html.indexOf('class="accordion-item"', startIdx + 30);
+        return html.slice(startIdx, nextItemIdx !== -1 ? nextItemIdx : undefined);
+      }
+    }
+    const startIdx = beButtonMatch.index;
+    const nextAccordionIdx = html.indexOf('class="accordion-item"', startIdx + 50);
+    return html.slice(startIdx, nextAccordionIdx !== -1 ? nextAccordionIdx : undefined);
+  }
+
+  return html;
+}
+
 function parseCollegeHtml(html, baseUrl = "https://www.bitm.edu.in") {
+  const scopeHtml = extractBeSectionHtml(html);
   const trRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
   let trMatch;
   const parsedItems = [];
   const seenUrls = new Set();
 
-  while ((trMatch = trRegex.exec(html)) !== null) {
+  while ((trMatch = trRegex.exec(scopeHtml)) !== null) {
     const trContent = trMatch[1];
     if (trContent.includes(".zip") || trContent.includes(".pdf")) {
       const tdRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
@@ -75,6 +149,12 @@ function parseCollegeHtml(html, baseUrl = "https://www.bitm.edu.in") {
 
           const rawDept = aMatch[2];
           const dept = cleanDepartmentFromAnchor(rawDept, href);
+
+          // Strictly filter out non-BE papers
+          if (!isBePaper(rowTitle, dept, href)) {
+            continue;
+          }
+
           const ext = href.toLowerCase().endsWith(".pdf") ? "pdf" : "zip";
           const title = `${rowTitle} • ${dept}`;
 
@@ -140,5 +220,76 @@ test("College QP Sync — Semester & Year Extraction", async (t) => {
 
     assert.equal(items[1].downloadUrl, "https://www.bitm.edu.in/assets/frontend/zip/be-vii-ece.zip");
     assert.equal(items[1].department, "ECE");
+  });
+
+  await t.test("Strictly accepts B.E. papers and rejects non-BE (MBA, MCA, BCA, M.Tech)", () => {
+    // Should accept B.E. degree and engineering subjects
+    assert.equal(isBePaper("Seventh Semester B.E. Degree Examinations", "CSE", "https://bitm.edu.in/zip/cse.zip"), true);
+    assert.equal(isBePaper("Third/Fourth Semester B.E. Degree Examinations", "BIOLOGY FOR ENGINEERS", "https://bitm.edu.in/zip/bio.zip"), true);
+    assert.equal(isBePaper("First/Second Semester B.E. Examinations", "BEE13-23-SS", "https://bitm.edu.in/pdf/bee.pdf"), true);
+    assert.equal(isBePaper("BE 4th Sem Civil Model Question Paper", "CIVIL", "https://bitm.edu.in/zip/cv.zip"), true);
+
+    // Should reject MBA
+    assert.equal(isBePaper("Fourth Semester MBA Degree Examinations", "MBA-IV SEMESTER", "https://bitm.edu.in/zip/mba-iv.zip"), false);
+    assert.equal(isBePaper("SERVICES MARKETING", "Click To View", "https://bitm.edu.in/pdf/mba-service-marketing.pdf"), false);
+    assert.equal(isBePaper("MBA201-Aug-Sept 2025", "Click To View", "https://bitm.edu.in/pdf/mba201.pdf"), false);
+    assert.equal(isBePaper("PYTHON PROGRAMMING FOR MANAGERS", "Click To View", "https://bitm.edu.in/pdf/22mbada401.pdf"), false);
+
+    // Should reject MCA
+    assert.equal(isBePaper("Second Semester MCA Degree Examinations", "MCA-II-Sem", "https://bitm.edu.in/zip/mca-II-sem.zip"), false);
+    assert.equal(isBePaper("DATA MINING & DATA WAREHOUSING", "Click To View", "https://bitm.edu.in/zip/mca/23mca11.pdf"), false);
+    assert.equal(isBePaper("Mathematical Foundation For Computer Applications", "Click To View", "https://bitm.edu.in/pdf/mmc102.pdf"), false);
+
+    // Should reject Click To View titles and departments
+    assert.equal(isBePaper("COMPUTER VISION • Click To View", "Click To View", "https://bitm.edu.in/zip/computer-vision.pdf"), false);
+    assert.equal(isBePaper("PHYS12-22-SS-September 2025 • Click To View", "Click To View", "https://bitm.edu.in/pdf/phys.pdf"), false);
+    assert.equal(isBePaper("MACHINE LEARNING", "Click To View", "https://bitm.edu.in/zip/ml.pdf"), false);
+
+    // Should reject BCA, M.Tech, M.Sc, Ph.D, etc.
+    assert.equal(isBePaper("Second Semester BCA Degree Examinations", "BCA", "https://bitm.edu.in/zip/bca.zip"), false);
+    assert.equal(isBePaper("M.Tech Digital Communication", "MTech", "https://bitm.edu.in/zip/mtech.zip"), false);
+  });
+
+  await t.test("Filters out non-BE papers from mixed HTML tables", () => {
+    const mixedHtml = `
+      <table>
+        <tr>
+          <td>Seventh Semester B.E. Degree Examinations, December 2025/January 2026</td>
+          <td>
+            <a href="/assets/frontend/zip/be-vii-cse.zip">CSE</a>
+          </td>
+        </tr>
+        <tr>
+          <td>Fourth Semester MBA Degree Examinations, August 2026</td>
+          <td>
+            <a href="/assets/frontend/zip/mba-iv-semester.zip">MBA-IV SEMESTER</a>
+          </td>
+        </tr>
+        <tr>
+          <td>SERVICES MARKETING</td>
+          <td>
+            <a href="/assets/frontend/pdf/mba-service-marketing-2026.pdf">Click To View</a>
+          </td>
+        </tr>
+        <tr>
+          <td>Second Semester MCA Degree Examinations, August 2026</td>
+          <td>
+            <a href="/assets/frontend/zip/mca-II-sem.zip">MCA-II-Sem</a>
+          </td>
+        </tr>
+        <tr>
+          <td>Third/Fourth Semester B.E. Degree Examinations, January/February 2026</td>
+          <td>
+            <a href="/assets/frontend/zip/be-biology.zip">BIOLOGY FOR ENGINEERS</a>
+          </td>
+        </tr>
+      </table>
+    `;
+
+    const items = parseCollegeHtml(mixedHtml, "https://www.bitm.edu.in");
+    assert.equal(items.length, 2, "Only the 2 B.E. papers must be extracted");
+    assert.equal(items[0].department, "CSE");
+    assert.equal(items[1].department, "BIOLOGY FOR ENGINEERS");
+    assert.ok(items.every(it => !it.downloadUrl.includes("mba") && !it.downloadUrl.includes("mca")));
   });
 });

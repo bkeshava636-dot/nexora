@@ -9549,20 +9549,36 @@ function PyqsSemesterSection() {
     search: search.trim() || undefined,
   });
 
+  const beQps = useMemo(() => {
+    return qps.filter((q) => {
+      const text = `${q.title || ""} ${q.department || ""} ${q.downloadUrl || ""}`.toLowerCase();
+      return (
+        !text.includes("click to view") &&
+        !text.includes("mba") &&
+        !text.includes("mca") &&
+        !text.includes("bca") &&
+        !text.includes("m.tech") &&
+        !text.includes("mtech") &&
+        !text.includes("for managers") &&
+        !text.includes("for computer applications")
+      );
+    });
+  }, [qps]);
+
   const availableYears = useMemo(() => {
     const set = new Set<string>();
-    for (const qp of qps) {
+    for (const qp of beQps) {
       if (qp.examYear) set.add(qp.examYear);
     }
     for (const y of POPULAR_YEARS) {
       if (y !== "All") set.add(y);
     }
     return ["All", ...Array.from(set).sort((a, b) => b.localeCompare(a))];
-  }, [qps]);
+  }, [beQps]);
 
   const availableSemesters = useMemo(() => {
     const set = new Set<string>();
-    for (const qp of qps) {
+    for (const qp of beQps) {
       if (qp.semester) set.add(qp.semester);
     }
     for (const s of POPULAR_SEMESTERS) {
@@ -9587,7 +9603,7 @@ function PyqsSemesterSection() {
       if (idxA !== -1 && idxB !== -1) return idxA - idxB;
       return a.localeCompare(b);
     });
-  }, [qps]);
+  }, [beQps]);
 
   const availableDepartments = useMemo(() => {
     const set = new Set<string>();
@@ -9595,15 +9611,15 @@ function PyqsSemesterSection() {
       if (b.name) set.add(b.name);
       if (b.shortName) set.add(b.shortName);
     }
-    for (const qp of qps) {
+    for (const qp of beQps) {
       if (qp.department) set.add(qp.department);
     }
     return ["All", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
-  }, [branches, qps]);
+  }, [branches, beQps]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, { examYear: string; semester: string; items: SemesterQpItem[] }>();
-    for (const item of qps) {
+    for (const item of beQps) {
       const key = `${item.examYear}__${item.semester}`;
       const existing = map.get(key);
       if (existing) {
@@ -9617,7 +9633,7 @@ function PyqsSemesterSection() {
       if (yearComp !== 0) return yearComp;
       return a.semester.localeCompare(b.semester);
     });
-  }, [qps]);
+  }, [beQps]);
 
   const syncUrlParams = (year: string, sem: string, dept: string, qText: string) => {
     if (typeof window !== "undefined") {
@@ -9769,7 +9785,7 @@ function PyqsSemesterSection() {
       </div>
 
       {/* Content / Groups */}
-      {isLoading && qps.length === 0 ? (
+      {isLoading && beQps.length === 0 ? (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-44 animate-pulse rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)]" />
@@ -10573,20 +10589,36 @@ function AdminSemesterQpsSection() {
     });
   };
 
+  const beQps = useMemo(() => {
+    return qps.filter((q) => {
+      const text = `${q.title || ""} ${q.department || ""} ${q.downloadUrl || ""}`.toLowerCase();
+      return (
+        !text.includes("click to view") &&
+        !text.includes("mba") &&
+        !text.includes("mca") &&
+        !text.includes("bca") &&
+        !text.includes("m.tech") &&
+        !text.includes("mtech") &&
+        !text.includes("for managers") &&
+        !text.includes("for computer applications")
+      );
+    });
+  }, [qps]);
+
   const availableYears = useMemo(() => {
     const set = new Set<string>();
-    for (const qp of qps) {
+    for (const qp of beQps) {
       if (qp.examYear) set.add(qp.examYear);
     }
     for (const y of POPULAR_YEARS) {
       if (y !== "All") set.add(y);
     }
     return ["All", ...Array.from(set).sort((a, b) => b.localeCompare(a))];
-  }, [qps]);
+  }, [beQps]);
 
   const availableSemesters = useMemo(() => {
     const set = new Set<string>();
-    for (const qp of qps) {
+    for (const qp of beQps) {
       if (qp.semester) set.add(qp.semester);
     }
     for (const s of POPULAR_SEMESTERS) {
@@ -10610,7 +10642,7 @@ function AdminSemesterQpsSection() {
       if (idxA !== -1 && idxB !== -1) return idxA - idxB;
       return a.localeCompare(b);
     });
-  }, [qps]);
+  }, [beQps]);
 
   const availableDepartments = useMemo(() => {
     const set = new Set<string>();
@@ -10618,14 +10650,14 @@ function AdminSemesterQpsSection() {
       if (b.name) set.add(b.name);
       if (b.shortName) set.add(b.shortName);
     }
-    for (const qp of qps) {
+    for (const qp of beQps) {
       if (qp.department) set.add(qp.department);
     }
     return ["All", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
-  }, [branches, qps]);
+  }, [branches, beQps]);
 
   const filteredQps = useMemo(() => {
-    return qps.filter((qp) => {
+    return beQps.filter((qp) => {
       if (yearFilter !== "All" && qp.examYear !== yearFilter) return false;
       if (semesterFilter !== "All" && qp.semester !== semesterFilter) return false;
       if (departmentFilter !== "All" && qp.department !== departmentFilter) return false;
@@ -10816,7 +10848,7 @@ function AdminSemesterQpsSection() {
 
         {hasActiveFilters && (
           <div className="flex items-center justify-between pt-1 border-t border-[hsl(var(--border)/.5)] text-xs text-[hsl(var(--muted-foreground))]">
-            <span>Showing {filteredQps.length} of {qps.length} question papers</span>
+            <span>Showing {filteredQps.length} of {beQps.length} question papers</span>
             <button
               type="button"
               onClick={resetFilters}

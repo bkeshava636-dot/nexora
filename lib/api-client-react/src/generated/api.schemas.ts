@@ -264,6 +264,7 @@ export interface Submission {
 }
 
 export interface SubmissionInput {
+  iaYear?: string | null;
   branchId?: number;
   yearId?: number;
   semesterId?: number;

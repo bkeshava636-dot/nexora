@@ -10,11 +10,13 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-// Automatically ensure tables exist and seed initial QPs on startup
+// Automatically ensure tables exist, seed initial QPs, and clean non-BE QPs on startup
 ensureTables()
   .then(async () => {
     logger.info("Database tables verified");
     await seedSemesterQps();
+    const { cleanupNonBeSemesterQps } = await import("./lib/college-qp-sync");
+    await cleanupNonBeSemesterQps();
   })
   .catch((err) => {
     logger.warn({ err }, "Database table check warning");

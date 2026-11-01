@@ -940,7 +940,8 @@ export const CreateSubmissionBody = zod.object({
   "iaAcademicYear": zod.string().optional(),
   "iaSemester": zod.string().optional(),
   "iaDepartment": zod.string().optional(),
-  "iaType": zod.string().optional()
+  "iaType": zod.string().optional(),
+  "iaYear": zod.string().nullish()
 })
 
 export const CreateSubmissionResponse = zod.object({

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { db, ensureTables, semesterQps, appSettings } from "@workspace/db";
-import { syncCollegeSemesterQps, LAST_SYNC_KEY, LAST_SYNC_SUMMARY_KEY } from "../lib/college-qp-sync";
+import { syncCollegeSemesterQps, LAST_SYNC_KEY, LAST_SYNC_SUMMARY_KEY, isBePaper, cleanupNonBeSemesterQps } from "../lib/college-qp-sync";
 import { requireAdmin } from "../middlewares/auth";
 import { handleDbError } from "../lib/db-errors";
 import { logger } from "../lib/logger";
@@ -73,7 +73,10 @@ router.get("/semester-qps", async (req, res) => {
         desc(semesterQps.createdAt),
       );
 
-    res.json(rows);
+    // Strictly ensure only Bachelor of Engineering (B.E.) papers are delivered to users
+    const beRows = rows.filter((r) => isBePaper(r.title, r.department, r.downloadUrl || ""));
+
+    res.json(beRows);
   } catch (err: unknown) {
     if (!handleDbError(err, res)) {
       logger.error({ err }, "Error fetching semester QPs");
@@ -397,6 +400,17 @@ router.get("/admin/semester-qps/sync-status", requireAdmin, async (_req, res) =>
   } catch (err: unknown) {
     logger.error({ err }, "Error fetching college QP sync status");
     res.status(500).json({ error: "internal_error", message: "Failed to fetch sync status." });
+  }
+});
+
+// 8. POST /api/semester-qps/cleanup-non-be (Purges non-BE question papers)
+router.post("/semester-qps/cleanup-non-be", async (_req, res) => {
+  try {
+    const result = await cleanupNonBeSemesterQps();
+    res.json({ success: true, ...result });
+  } catch (err: unknown) {
+    logger.error({ err }, "Error during non-BE semester QPs cleanup");
+    res.status(500).json({ error: "internal_error", message: "Failed to clean up non-BE semester QPs." });
   }
 });
 
