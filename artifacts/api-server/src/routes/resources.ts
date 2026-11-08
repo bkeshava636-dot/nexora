@@ -311,33 +311,27 @@ router.delete(
       return;
     }
 
-    const [resource] = await db.select().from(resources).where(eq(resources.id, id));
-    if (!resource) {
-      res.status(404).json({ error: "not_found", message: "Resource not found." });
-      return;
-    }
+    const outcome = await db.transaction(async (tx) => {
+      const [resource] = await tx.select().from(resources).where(eq(resources.id, id)).for("update");
+      if (!resource) {
+        return "resource_not_found" as const;
+      }
 
-    const activeLinks = await db
-      .select({ subjectId: resourceSubjects.subjectId })
-      .from(resourceSubjects)
-      .where(eq(resourceSubjects.resourceId, id));
+      const activeLinks = await tx
+        .select({ subjectId: resourceSubjects.subjectId })
+        .from(resourceSubjects)
+        .where(eq(resourceSubjects.resourceId, id));
 
-    const isLinked = activeLinks.some((l) => l.subjectId === subjectId);
-    if (!isLinked) {
-      res.status(404).json({ error: "not_found", message: "This resource is not linked to the specified subject." });
-      return;
-    }
+      const isLinked = activeLinks.some((l) => l.subjectId === subjectId);
+      if (!isLinked) {
+        return "not_linked" as const;
+      }
 
-    // Guard against orphan state: prevent removing the sole remaining subject link
-    if (activeLinks.length <= 1) {
-      res.status(400).json({
-        error: "invalid_request",
-        message: "Cannot remove the sole subject link for this resource. Link an alternative subject first.",
-      });
-      return;
-    }
+      // Guard against orphan state: prevent removing the sole remaining subject link
+      if (activeLinks.length <= 1) {
+        return "sole_link" as const;
+      }
 
-    await db.transaction(async (tx) => {
       await tx
         .delete(resourceSubjects)
         .where(and(eq(resourceSubjects.resourceId, id), eq(resourceSubjects.subjectId, subjectId)));
@@ -352,7 +346,25 @@ router.delete(
             .where(eq(resources.id, id));
         }
       }
+
+      return "ok" as const;
     });
+
+    if (outcome === "resource_not_found") {
+      res.status(404).json({ error: "not_found", message: "Resource not found." });
+      return;
+    }
+    if (outcome === "not_linked") {
+      res.status(404).json({ error: "not_found", message: "This resource is not linked to the specified subject." });
+      return;
+    }
+    if (outcome === "sole_link") {
+      res.status(400).json({
+        error: "invalid_request",
+        message: "Cannot remove the sole subject link for this resource. Link an alternative subject first.",
+      });
+      return;
+    }
 
     res.status(204).end();
   },

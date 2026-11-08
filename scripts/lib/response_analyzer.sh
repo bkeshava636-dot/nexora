@@ -74,8 +74,10 @@ analyze_response() {
     fi
 
     # 4. Check for errors in output
-    local error_count=$(grep -c -i "error\|exception\|fatal\|failed" "$output_file" 2>/dev/null || echo "0")
-    error_count=$(echo "$error_count" | tr -d ' ')
+    local error_count
+    error_count=$(grep -c -i "error\|exception\|fatal\|failed" "$output_file" 2>/dev/null || true)
+    error_count=$(echo "$error_count" | tr -d ' ' | head -n 1)
+    error_count=${error_count:-0}
     if [[ $error_count -gt 5 ]]; then
         has_errors=true
     fi

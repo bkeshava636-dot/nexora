@@ -403,8 +403,8 @@ router.get("/admin/semester-qps/sync-status", requireAdmin, async (_req, res) =>
   }
 });
 
-// 8. POST /api/semester-qps/cleanup-non-be (Purges non-BE question papers)
-router.post("/semester-qps/cleanup-non-be", async (_req, res) => {
+// 8. POST /api/semester-qps/cleanup-non-be (Admin only: purges non-BE question papers)
+router.post("/semester-qps/cleanup-non-be", requireAdmin, async (_req, res) => {
   try {
     const result = await cleanupNonBeSemesterQps();
     res.json({ success: true, ...result });

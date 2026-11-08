@@ -52,14 +52,14 @@ export function parseSemesterFromText(text: string): string {
   if (t.includes("third/fourth") || t.includes("3rd/4th") || t.includes("iii/iv") || t.includes("iii & iv")) {
     return "3rd Semester";
   }
-  if (t.includes("eighth") || t.includes("8th") || t.includes("viii")) return "8th Semester";
-  if (t.includes("seventh") || t.includes("7th") || t.includes("vii")) return "7th Semester";
-  if (t.includes("sixth") || t.includes("6th") || t.includes("vi")) return "6th Semester";
-  if (t.includes("fifth") || t.includes("5th") || t.includes("v")) return "5th Semester";
-  if (t.includes("fourth") || t.includes("4th") || t.includes("iv")) return "4th Semester";
-  if (t.includes("third") || t.includes("3rd") || t.includes("iii")) return "3rd Semester";
-  if (t.includes("second") || t.includes("2nd") || t.includes("ii")) return "2nd Semester";
-  if (t.includes("first") || t.includes("1st") || t.includes("i sem")) return "1st Semester";
+  if (/\b(eighth|8th|viii)\b/.test(t)) return "8th Semester";
+  if (/\b(seventh|7th|vii)\b/.test(t)) return "7th Semester";
+  if (/\b(sixth|6th|vi)\b/.test(t)) return "6th Semester";
+  if (/\b(fifth|5th|v)\b/.test(t)) return "5th Semester";
+  if (/\b(fourth|4th|iv)\b/.test(t)) return "4th Semester";
+  if (/\b(third|3rd|iii)\b/.test(t)) return "3rd Semester";
+  if (/\b(second|2nd|ii)\b/.test(t)) return "2nd Semester";
+  if (/\b(first|1st)\b/.test(t) || /\bi sem\b/.test(t)) return "1st Semester";
   return "All Semesters";
 }
 

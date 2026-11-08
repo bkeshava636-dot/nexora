@@ -24,7 +24,7 @@ get_root_specs() {
         return 0
     fi
 
-    find "$specs_dir" -maxdepth 1 -type f -name "*.md" | sort
+    find "$specs_dir" -maxdepth 1 -type f -name "*.md" ! -name "SPEC_TEMPLATE.md" ! -name "*template*.md" | sort
 }
 
 is_root_spec_complete() {

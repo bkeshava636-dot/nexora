@@ -186,11 +186,7 @@ export async function ensureTables(): Promise<void> {
       `CREATE INDEX IF NOT EXISTS "site_visits_semester_idx" ON "site_visits" ("semester");`,
       `ALTER TABLE "submissions" ADD COLUMN IF NOT EXISTS "ia_year" text;`,
       `ALTER TABLE "ia_papers" ADD COLUMN IF NOT EXISTS "exam_year" text;`,
-      `CREATE INDEX IF NOT EXISTS "ia_papers_exam_year_idx" ON "ia_papers" ("exam_year");`,
-      `DELETE FROM "semester_qps"
-       WHERE lower("title") ~* '(mba|mca|bca|m\\.tech|mtech|m\\.sc|ph\\.d|for managers|for computer applications)'
-          OR lower("department") ~* '(mba|mca|bca|m\\.tech|mtech|m\\.sc|ph\\.d)'
-          OR lower("download_url") ~* '(\\/mba\\/|\\/mca\\/|\\/bca\\/|mba-|mca-|22mba|23mca|22mca|mmc)';`
+      `CREATE INDEX IF NOT EXISTS "ia_papers_exam_year_idx" ON "ia_papers" ("exam_year");`
     ];
 
     for (const q of ddlQueries) {

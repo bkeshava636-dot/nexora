@@ -6,6 +6,7 @@ function Get-RootSpecs {
     }
 
     Get-ChildItem -LiteralPath $SpecsDir -File -Filter "*.md" |
+        Where-Object { $_.Name -ne "SPEC_TEMPLATE.md" -and -not $_.Name.EndsWith(".template.md") } |
         Sort-Object -Property Name
 }
 
