@@ -301,8 +301,20 @@ router.post("/marketplace", async (req, res) => {
     res.status(400).json({ error: "invalid_request", message: "Seller name is required." });
     return;
   }
-  if (!sellerContact || typeof sellerContact !== "string" || sellerContact.trim().length < 5) {
-    res.status(400).json({ error: "invalid_request", message: "Seller contact (phone/WhatsApp) is required." });
+
+  const cleanContact = typeof sellerContact === "string" && sellerContact.trim().length >= 5
+    ? sellerContact.trim().slice(0, 50)
+    : "";
+
+  const cleanInstagram = typeof sellerInstagram === "string" && sellerInstagram.trim()
+    ? sellerInstagram.trim().replace(/^@/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//, "").replace(/\/.*$/, "")
+    : null;
+
+  if (!cleanContact && !cleanInstagram) {
+    res.status(400).json({
+      error: "invalid_request",
+      message: "At least one contact method (WhatsApp phone number or Instagram handle) is required.",
+    });
     return;
   }
 
@@ -320,10 +332,6 @@ router.post("/marketplace", async (req, res) => {
     ? (condition as MarketplaceCondition)
     : "Good";
 
-  const cleanInstagram = typeof sellerInstagram === "string" && sellerInstagram.trim()
-    ? sellerInstagram.trim().replace(/^@/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//, "").replace(/\/.*$/, "")
-    : null;
-
   const payload = {
     title: title.trim().slice(0, 150),
     description: description.trim().slice(0, 1500),
@@ -331,7 +339,7 @@ router.post("/marketplace", async (req, res) => {
     price: Math.round(rawPrice),
     condition: validCondition,
     sellerName: sellerName.trim().slice(0, 80),
-    sellerContact: sellerContact.trim().slice(0, 50),
+    sellerContact: cleanContact,
     sellerInstagram: cleanInstagram,
     sellerEmail: typeof sellerEmail === "string" && sellerEmail.trim() ? sellerEmail.trim().slice(0, 100) : null,
     campusLocation: typeof campusLocation === "string" && campusLocation.trim() ? campusLocation.trim().slice(0, 80) : "Campus Library",
@@ -421,6 +429,142 @@ router.patch("/marketplace/:id/sold", async (req, res) => {
 
 // 5. DELETE /api/marketplace/:id (Admin moderation only)
 router.delete("/marketplace/:id", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "invalid_request", message: "id must be a positive integer." });
+    return;
+  }
+
+  const memIdx = inMemoryItems.findIndex((i) => i.id === id);
+  if (memIdx !== -1) {
+    inMemoryItems.splice(memIdx, 1);
+  }
+
+  if (!process.env.DATABASE_URL) {
+    res.status(204).end();
+    return;
+  }
+
+  try {
+    await db.delete(marketplaceItems).where(eq(marketplaceItems.id, id));
+    res.status(204).end();
+  } catch (err: unknown) {
+    res.status(204).end();
+  }
+});
+
+// 6. GET /api/admin/marketplace (Admin view all listings)
+router.get("/admin/marketplace", requireAdmin, async (req, res) => {
+  const { category, search, branch, semester, condition, status } = req.query;
+
+  if (!process.env.DATABASE_URL) {
+    res.json(getFilteredInMemoryItems(req.query, true));
+    return;
+  }
+
+  try {
+    const conditions = [];
+
+    if (typeof status === "string" && status.trim() && status !== "all") {
+      conditions.push(eq(marketplaceItems.status, status.trim()));
+    }
+
+    if (typeof category === "string" && category.trim() && category.trim().toLowerCase() !== "all") {
+      conditions.push(eq(marketplaceItems.category, category.trim()));
+    }
+
+    if (typeof branch === "string" && branch.trim() && branch.trim().toLowerCase() !== "all") {
+      conditions.push(eq(marketplaceItems.branch, branch.trim()));
+    }
+
+    if (typeof semester === "string" && semester.trim() && semester.trim().toLowerCase() !== "all") {
+      conditions.push(eq(marketplaceItems.semester, semester.trim()));
+    }
+
+    if (typeof condition === "string" && condition.trim() && condition.trim().toLowerCase() !== "all") {
+      conditions.push(eq(marketplaceItems.condition, condition.trim()));
+    }
+
+    if (typeof search === "string" && search.trim()) {
+      const q = `%${search.trim()}%`;
+      conditions.push(
+        or(
+          ilike(marketplaceItems.title, q),
+          ilike(marketplaceItems.description, q),
+          ilike(marketplaceItems.campusLocation, q),
+          ilike(marketplaceItems.category, q),
+          ilike(marketplaceItems.sellerName, q),
+          ilike(marketplaceItems.sellerContact, q),
+          ilike(marketplaceItems.sellerInstagram, q),
+        ),
+      );
+    }
+
+    const where = conditions.length > 0 ? and(...conditions) : undefined;
+    const rows = await db
+      .select()
+      .from(marketplaceItems)
+      .where(where)
+      .orderBy(desc(marketplaceItems.createdAt));
+
+    res.json(rows);
+  } catch (err: unknown) {
+    logger.warn({ err }, "Admin database fetch failed; serving in-memory marketplace items");
+    res.json(getFilteredInMemoryItems(req.query, true));
+  }
+});
+
+// 7. PATCH /api/admin/marketplace/:id/status (Admin toggle active/sold)
+router.patch("/admin/marketplace/:id/status", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  const { status } = req.body ?? {};
+
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "invalid_request", message: "id must be a positive integer." });
+    return;
+  }
+
+  const validStatus = status === "sold" ? "sold" : "active";
+
+  const memItem = inMemoryItems.find((i) => i.id === id);
+  if (memItem) {
+    memItem.status = validStatus;
+    memItem.updatedAt = new Date();
+  }
+
+  if (!process.env.DATABASE_URL) {
+    if (!memItem) {
+      res.status(404).json({ error: "not_found", message: "Item not found." });
+      return;
+    }
+    res.json(memItem);
+    return;
+  }
+
+  try {
+    const [updated] = await db
+      .update(marketplaceItems)
+      .set({ status: validStatus, updatedAt: new Date() })
+      .where(eq(marketplaceItems.id, id))
+      .returning();
+
+    if (!updated && !memItem) {
+      res.status(404).json({ error: "not_found", message: "Item not found." });
+      return;
+    }
+
+    res.json(updated || memItem);
+  } catch (err: unknown) {
+    if (memItem) {
+      res.json(memItem);
+      return;
+    }
+    res.status(500).json({ error: "internal_error", message: "Failed to update item status." });
+  }
+});
+
+// 8. DELETE /api/admin/marketplace/:id (Admin delete alias)
+router.delete("/admin/marketplace/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     res.status(400).json({ error: "invalid_request", message: "id must be a positive integer." });

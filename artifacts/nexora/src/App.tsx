@@ -14,6 +14,7 @@ import { AiAssistantModal } from "@/components/ai-assistant-modal";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { AdSenseAd } from "@/components/adsense-ad";
 import { MarketplacePage } from "@/components/marketplace-page";
+import { AdminMarketplace } from "@/components/admin-marketplace";
 const AdminAnalytics = lazy(() => import("@/components/admin-analytics").then((m) => ({ default: m.AdminAnalytics })));
 import { AnalyticsTracker, setStudentAcademicContext } from "@/components/analytics-tracker";
 import { getAvailableExamYears, getPopularExamYears } from "@/lib/academic-years";
@@ -3559,6 +3560,7 @@ function AdminLayout({ children }: { children: ReactNode }) {
     { href: "/admin/quick-links", label: "Quick Links", testId: "link-admin-quick-links" },
     { href: "/admin/reports", label: "Reports", testId: "link-admin-reports" },
     { href: "/admin/feedback", label: "Feedback", testId: "link-admin-feedback" },
+    { href: "/admin/marketplace", label: "Campus Trade", testId: "link-admin-marketplace" },
   ];
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-7 sm:py-12">
@@ -4265,6 +4267,23 @@ function AdminOverview() {
                 <div className="mt-4">
                   <p className="text-xs font-bold text-[hsl(var(--foreground))]">Review Reports</p>
                   <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">{pendingReports.length ? `${pendingReports.length} issue(s)` : "All clear"}</p>
+                </div>
+              </Link>
+
+              <Link
+                href="/admin/marketplace"
+                className="focus-ring card-lift group flex flex-col justify-between rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 transition-colors hover:border-[hsl(var(--secondary))]"
+                data-testid="quick-action-manage-marketplace"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[hsl(var(--muted))] text-[hsl(var(--primary))] group-hover:bg-[hsl(var(--secondary)/.2)]">
+                    <ShoppingBag size={18} />
+                  </div>
+                  <ArrowRight size={14} className="text-[hsl(var(--muted-foreground))] transition-transform group-hover:translate-x-0.5" />
+                </div>
+                <div className="mt-4">
+                  <p className="text-xs font-bold text-[hsl(var(--foreground))]">Campus Trade</p>
+                  <p className="mt-0.5 text-[11px] text-[hsl(var(--muted-foreground))]">Moderate listings</p>
                 </div>
               </Link>
             </div>
@@ -12987,6 +13006,7 @@ function AppRouter() {
     <Route path="/admin/quick-links"><RequireAdmin><AdminLayout><AdminQuickLinks /></AdminLayout></RequireAdmin></Route>
     <Route path="/admin/reports"><RequireAdmin><AdminReports /></RequireAdmin></Route>
     <Route path="/admin/feedback"><RequireAdmin><AdminFeedback /></RequireAdmin></Route>
+    <Route path="/admin/marketplace"><RequireAdmin><AdminLayout><AdminMarketplace /></AdminLayout></RequireAdmin></Route>
     <Route component={NotFound} />
   </Switch></RoutedErrorBoundary>;
 }

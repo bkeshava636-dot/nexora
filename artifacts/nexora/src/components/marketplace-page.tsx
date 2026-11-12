@@ -463,10 +463,12 @@ export function MarketplacePage() {
                                   });
                                 }}
                                 title={`Instagram: @${instaHandle}`}
-                                className="focus-ring inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 px-3 py-2 text-xs font-bold text-white shadow-xs hover:opacity-95 transition-opacity cursor-pointer"
+                                className={`focus-ring inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-rose-500 px-3 py-2 text-xs font-bold text-white shadow-xs hover:opacity-95 transition-opacity cursor-pointer ${
+                                  waUrl ? "" : "flex-1"
+                                }`}
                               >
                                 <Instagram size={14} />
-                                <span className={waUrl ? "hidden sm:inline" : ""}>Instagram</span>
+                                <span>Instagram</span>
                               </button>
                             )}
 
@@ -903,8 +905,16 @@ function SellItemDialog({
       toast({ title: "Validation Error", description: "Description must be at least 5 characters.", variant: "destructive" });
       return;
     }
-    if (!sellerName.trim() || !sellerContact.trim()) {
-      toast({ title: "Validation Error", description: "Seller name and contact number are required.", variant: "destructive" });
+    if (!sellerName.trim()) {
+      toast({ title: "Validation Error", description: "Seller name is required.", variant: "destructive" });
+      return;
+    }
+    if (!sellerContact.trim() && !sellerInstagram.trim()) {
+      toast({
+        title: "Contact Method Required",
+        description: "Please provide at least one contact method (WhatsApp phone number or Instagram handle) so buyers can reach you.",
+        variant: "destructive"
+      });
       return;
     }
 
@@ -1176,7 +1186,12 @@ function SellItemDialog({
 
           {/* Seller Contact Info & Instagram */}
           <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)] p-3.5 space-y-3">
-            <p className="text-xs font-bold text-[hsl(var(--foreground))]">Seller Contact Details</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold text-[hsl(var(--foreground))]">Seller Contact Details</p>
+              <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                WhatsApp or Instagram required
+              </span>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">Your Name *</label>
@@ -1190,10 +1205,14 @@ function SellItemDialog({
                 />
               </div>
               <div>
-                <label className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))]">WhatsApp Phone *</label>
+                <label className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))] flex items-center justify-between">
+                  <span>WhatsApp Phone</span>
+                  <span className="text-[10px] text-[hsl(var(--muted-foreground)/.8)]">
+                    {sellerInstagram.trim() ? "Optional" : "At least one"}
+                  </span>
+                </label>
                 <input
                   type="tel"
-                  required
                   value={sellerContact}
                   onChange={(e) => setSellerContact(e.target.value)}
                   placeholder="e.g. 9876543210"
@@ -1204,8 +1223,13 @@ function SellItemDialog({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))] flex items-center gap-1">
-                  <Instagram size={11} className="text-pink-600" /> Instagram Handle
+                <label className="text-[11px] font-semibold text-[hsl(var(--muted-foreground))] flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Instagram size={11} className="text-pink-600" /> Instagram Handle
+                  </span>
+                  <span className="text-[10px] text-[hsl(var(--muted-foreground)/.8)]">
+                    {sellerContact.trim() ? "Optional" : "At least one"}
+                  </span>
                 </label>
                 <input
                   type="text"

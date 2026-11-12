@@ -28,7 +28,7 @@ export const marketplaceItems = pgTable(
     price: integer("price").notNull().default(0),
     condition: text("condition").notNull().default("Good"),
     sellerName: text("seller_name").notNull(),
-    sellerContact: text("seller_contact").notNull(),
+    sellerContact: text("seller_contact").notNull().default(""),
     sellerInstagram: text("seller_instagram"),
     sellerEmail: text("seller_email"),
     campusLocation: text("campus_location").notNull().default("Campus Library"),
