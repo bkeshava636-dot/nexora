@@ -20,6 +20,8 @@ import {
   AlertTriangle,
   X,
   Sparkles,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import {
   Dialog,
@@ -29,7 +31,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { customFetch, type MarketplaceItem } from "@workspace/api-client-react";
+import {
+  customFetch,
+  useGetFeatureBanner,
+  useUpdateFeatureBanner,
+  type MarketplaceItem,
+} from "@workspace/api-client-react";
 
 export function AdminMarketplace() {
   const [search, setSearch] = useState("");
@@ -38,6 +45,8 @@ export function AdminMarketplace() {
   const [deleteTargetItem, setDeleteTargetItem] = useState<MarketplaceItem | null>(null);
 
   const queryClient = useQueryClient();
+  const { data: bannerConfig } = useGetFeatureBanner();
+  const updateBannerMutation = useUpdateFeatureBanner();
 
   // Fetch admin marketplace items with credentials and remote base URL support
   const { data: items = [], isLoading, isError, refetch } = useQuery<MarketplaceItem[]>({
@@ -189,6 +198,86 @@ export function AdminMarketplace() {
           >
             <ExternalLink size={13} /> View Live Storefront
           </Link>
+        </div>
+      </div>
+
+      {/* Homepage Announcement Banner Control Card */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-xs">
+        <div className="flex items-start gap-3">
+          <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+            bannerConfig?.enabled !== false
+              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+              : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
+          }`}>
+            <Sparkles size={16} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-[hsl(var(--foreground))]">
+                Home Page Feature Announcement Banner
+              </span>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                bannerConfig?.enabled !== false
+                  ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                  : "bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]"
+              }`}>
+                {bannerConfig?.enabled !== false ? "Visible on Home" : "Hidden"}
+              </span>
+            </div>
+            <p className="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">
+              {bannerConfig?.enabled !== false
+                ? "The 'Check out Campus Trade' banner is currently visible on the home page for students. You can remove it anytime."
+                : "The feature announcement banner is currently hidden from all students."}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+          <button
+            type="button"
+            disabled={updateBannerMutation.isPending}
+            onClick={() => {
+              const nextEnabled = bannerConfig?.enabled === false ? true : false;
+              updateBannerMutation.mutate(
+                { data: { enabled: nextEnabled } },
+                {
+                  onSuccess: (updated) => {
+                    toast({
+                      title: updated.enabled ? "Banner Enabled" : "Banner Removed",
+                      description: updated.enabled
+                        ? "The Campus Trade announcement banner is now live on the home page."
+                        : "The announcement banner has been removed from the home page.",
+                    });
+                  },
+                  onError: (err) => {
+                    toast({
+                      title: "Update Failed",
+                      description: err.message || "Could not change banner setting.",
+                      variant: "destructive",
+                    });
+                  },
+                }
+              );
+            }}
+            className={`focus-ring inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 ${
+              bannerConfig?.enabled !== false
+                ? "border border-rose-500/30 bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 dark:text-rose-400"
+                : "border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))] hover:border-[hsl(var(--primary))]"
+            }`}
+          >
+            {updateBannerMutation.isPending ? (
+              <>
+                <Loader2 size={13} className="animate-spin" /> Updating...
+              </>
+            ) : bannerConfig?.enabled !== false ? (
+              <>
+                <EyeOff size={13} /> Remove from Home
+              </>
+            ) : (
+              <>
+                <Eye size={13} /> Show on Home
+              </>
+            )}
+          </button>
         </div>
       </div>
 

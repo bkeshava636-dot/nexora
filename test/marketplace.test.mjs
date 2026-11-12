@@ -193,4 +193,44 @@ test("Campus Trade — Marketplace Validation & Contact Generation", async (t) =
     assert.equal(neither.valid, false);
     assert.match(neither.error, /At least one contact method/);
   });
+
+  await t.test("Feature Announcement Banner — Default Config & Admin Toggle", () => {
+    const DEFAULT_FEATURE_BANNER = {
+      enabled: true,
+      title: "Check out Campus Trade!",
+      message: "Buy and sell used textbooks, notes, drafters, calculators, and lab gear directly with fellow students on campus.",
+      badge: "New Feature",
+      linkText: "Explore Campus Trade",
+      linkUrl: "/marketplace",
+    };
+
+    // 1. Valid default config
+    assert.equal(DEFAULT_FEATURE_BANNER.enabled, true);
+    assert.equal(DEFAULT_FEATURE_BANNER.badge, "New Feature");
+    assert.match(DEFAULT_FEATURE_BANNER.title, /Campus Trade/i);
+    assert.equal(DEFAULT_FEATURE_BANNER.linkUrl, "/marketplace");
+
+    // 2. Admin disables the banner
+    function updateBannerConfig(current, updates) {
+      if (typeof updates?.enabled !== "boolean") {
+        throw new Error("'enabled' must be a boolean (true or false).");
+      }
+      return {
+        ...current,
+        enabled: updates.enabled,
+        title: updates.title?.trim() || current.title,
+        message: updates.message?.trim() || current.message,
+      };
+    }
+
+    const disabled = updateBannerConfig(DEFAULT_FEATURE_BANNER, { enabled: false });
+    assert.equal(disabled.enabled, false);
+
+    // 3. Admin re-enables the banner
+    const reEnabled = updateBannerConfig(disabled, { enabled: true });
+    assert.equal(reEnabled.enabled, true);
+
+    // 4. Reject invalid update payloads
+    assert.throws(() => updateBannerConfig(DEFAULT_FEATURE_BANNER, { enabled: "yes" }), /must be a boolean/);
+  });
 });

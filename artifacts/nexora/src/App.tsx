@@ -15,6 +15,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { AdSenseAd } from "@/components/adsense-ad";
 import { MarketplacePage } from "@/components/marketplace-page";
 import { AdminMarketplace } from "@/components/admin-marketplace";
+import { FeatureAnnouncementBanner } from "@/components/feature-announcement-banner";
 const AdminAnalytics = lazy(() => import("@/components/admin-analytics").then((m) => ({ default: m.AdminAnalytics })));
 import { AnalyticsTracker, setStudentAcademicContext } from "@/components/analytics-tracker";
 import { getAvailableExamYears, getPopularExamYears } from "@/lib/academic-years";
@@ -863,6 +864,7 @@ function Home() {
   return (
     <div className="hero-wash">
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-7 sm:py-12 lg:py-16">
+        <FeatureAnnouncementBanner />
         <section className="soft-grid relative overflow-hidden rounded-[28px] border border-[hsl(var(--border))] bg-[hsl(var(--card)/.7)] px-5 py-10 sm:px-10 sm:py-14 lg:px-16">
           <div className="relative max-w-2xl fade-up">
             <div className="mb-5 flex flex-wrap items-center gap-2.5">
