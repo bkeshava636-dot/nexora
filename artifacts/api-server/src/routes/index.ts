@@ -19,6 +19,7 @@ import iaDepartmentsRouter from "./ia-departments";
 import feedbackRouter from "./feedback";
 import quickLinksRouter from "./quick-links";
 import aiRouter from "./ai";
+import marketplaceRouter from "./marketplace";
 import { readSession } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -47,5 +48,6 @@ router.use(semesterQpDepartmentsRouter);
 router.use(iaDepartmentsRouter);
 router.use(feedbackRouter);
 router.use(quickLinksRouter);
+router.use(marketplaceRouter);
 router.use(aiRouter);
 export default router;

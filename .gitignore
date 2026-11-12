@@ -13,6 +13,8 @@ dist/public/
 
 # Logs
 *.log
+logs/
+scratch/
 npm-debug.log*
 pnpm-debug.log*
 

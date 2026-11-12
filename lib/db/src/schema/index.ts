@@ -15,3 +15,4 @@ export * from "./feedback";
 export * from "./important-links";
 export * from "./resource-subjects";
 export * from "./analytics";
+export * from "./marketplace";

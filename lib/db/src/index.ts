@@ -4,17 +4,23 @@ import * as schema from "./schema";
 
 const { Pool } = pg;
 
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
-}
+const connectionString = process.env.DATABASE_URL || "postgres://postgres:postgres@localhost:5432/nexora";
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+export const pool = new Pool({ connectionString });
 export const db = drizzle(pool, { schema });
 
 export async function ensureTables(): Promise<void> {
-  const client = await pool.connect();
+  if (!process.env.DATABASE_URL) {
+    console.warn("DATABASE_URL is not set. Skipping ensureTables in local environment.");
+    return;
+  }
+  let client;
+  try {
+    client = await pool.connect();
+  } catch (connErr) {
+    console.warn("Could not connect to database in ensureTables:", (connErr as Error).message);
+    return;
+  }
   try {
     const ddlQueries = [
       `CREATE TABLE IF NOT EXISTS "reports" (
@@ -186,7 +192,30 @@ export async function ensureTables(): Promise<void> {
       `CREATE INDEX IF NOT EXISTS "site_visits_semester_idx" ON "site_visits" ("semester");`,
       `ALTER TABLE "submissions" ADD COLUMN IF NOT EXISTS "ia_year" text;`,
       `ALTER TABLE "ia_papers" ADD COLUMN IF NOT EXISTS "exam_year" text;`,
-      `CREATE INDEX IF NOT EXISTS "ia_papers_exam_year_idx" ON "ia_papers" ("exam_year");`
+      `CREATE INDEX IF NOT EXISTS "ia_papers_exam_year_idx" ON "ia_papers" ("exam_year");`,
+      `CREATE TABLE IF NOT EXISTS "marketplace_items" (
+        "id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        "title" text NOT NULL,
+        "description" text NOT NULL,
+        "category" text NOT NULL DEFAULT 'Textbooks',
+        "price" integer NOT NULL DEFAULT 0,
+        "condition" text NOT NULL DEFAULT 'Good',
+        "seller_name" text NOT NULL,
+        "seller_contact" text NOT NULL,
+        "seller_email" text,
+        "campus_location" text NOT NULL DEFAULT 'Campus Library',
+        "branch" text,
+        "semester" text,
+        "image_url" text,
+        "status" text NOT NULL DEFAULT 'active',
+        "created_at" timestamp with time zone NOT NULL DEFAULT now(),
+        "updated_at" timestamp with time zone NOT NULL DEFAULT now()
+      );`,
+      `CREATE INDEX IF NOT EXISTS "marketplace_items_category_idx" ON "marketplace_items" ("category");`,
+      `CREATE INDEX IF NOT EXISTS "marketplace_items_status_idx" ON "marketplace_items" ("status");`,
+      `CREATE INDEX IF NOT EXISTS "marketplace_items_branch_idx" ON "marketplace_items" ("branch");`,
+      `CREATE INDEX IF NOT EXISTS "marketplace_items_created_at_idx" ON "marketplace_items" ("created_at");`,
+      `ALTER TABLE "marketplace_items" ADD COLUMN IF NOT EXISTS "seller_instagram" text;`
     ];
 
     for (const q of ddlQueries) {

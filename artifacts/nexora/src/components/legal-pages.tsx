@@ -49,6 +49,9 @@ export function PrivacyPage() {
                 <strong>Resource Submissions:</strong> When contributing study materials or notes, students may optionally include a name and email for contributor attribution. This information is used solely to display credit and verify file authenticity.
               </li>
               <li>
+                <strong>Campus Trade Classifieds:</strong> When listing an item for sale (e.g., used textbooks, calculators, lab coats, handwritten notes), information provided by the seller—including item description, asking price, item photo, campus pickup location, seller name, WhatsApp contact number, and optional Instagram handle—is publicly displayed on the platform so interested buyers can initiate direct contact. Uploaded images are compressed client-side before submission. The developer does not observe, log, or store private communications or financial transactions conducted between buyers and sellers outside the platform.
+              </li>
+              <li>
                 <strong>Feedback Submissions:</strong> Information submitted through the feedback dialog is utilized strictly by the developer to fix reported bugs and improve catalog features.
               </li>
               <li>
@@ -85,7 +88,10 @@ export function PrivacyPage() {
           <section>
             <h2 className="text-base font-bold text-[hsl(var(--foreground))] mb-2">5. Data Deletion and Correction Rights</h2>
             <p>
-              In line with the DPDP Act 2023, any student has the right to request access to their submitted information, request corrections, or ask for the immediate removal (erasure) of any contributed notes or feedback.
+              In line with the DPDP Act 2023, any student has the right to request access to their submitted information, request corrections, or ask for the immediate removal (erasure) of any contributed notes, feedback, or classifieds listings.
+            </p>
+            <p className="mt-2">
+              For <strong>Campus Trade</strong> listings, sellers can mark an item as sold or permanently delete the listing and its associated image at any time using the secret deletion passkey created at listing time. If a passkey is lost, the developer will delete the listing upon receiving a brief verification request.
             </p>
           </section>
 
@@ -173,14 +179,55 @@ export function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-base font-bold text-[hsl(var(--foreground))] mb-2">4. Disclaimer of Warranties</h2>
+            <h2 className="text-base font-bold text-[hsl(var(--foreground))] mb-2">4. Campus Trade — Intermediary Safe Harbor & Student Trading Rules</h2>
+            <div className="rounded-2xl border border-red-500/25 bg-red-500/10 p-4 text-xs text-red-900 dark:text-red-200 mb-3">
+              <p className="font-bold mb-1">Notice of Intermediary Status & Zero Financial Liability</p>
+              Campus Trade is an unmonetized, student-to-student notice board provided solely for campus convenience. The developer is <strong>NOT</strong> a seller, buyer, broker, retailer, payment processor, escrow agent, or party to any contract or exchange. The developer assumes <strong>ABSOLUTELY NO RESPONSIBILITY OR LIABILITY</strong> for any transactions, goods, payments, or interactions between users.
+            </div>
+            <ul className="list-disc pl-5 space-y-2 text-xs">
+              <li>
+                <strong>Intermediary Protection under IT Act 2000 (Section 79):</strong> Nexora functions purely as an intermediary facilitating peer-to-peer communication. The developer does not initiate transmission, select recipients, or modify listed information submitted by users.
+              </li>
+              <li>
+                <strong>No Handling of Funds:</strong> The platform does not handle payments, take transaction fees or commissions, or provide escrow protection. All financial arrangements (cash, UPI) take place directly between students outside the platform.
+              </li>
+              <li>
+                <strong>Disclaimer of Condition and Authenticity:</strong> All items listed (textbooks, calculators, lab coats, components, notes) are listed &quot;as is, where is&quot; by third-party student users. The developer does not inspect, test, sanitize, verify, or guarantee any item&apos;s physical condition, functionality, edition, authenticity, or safety.
+              </li>
+              <li>
+                <strong>Limitation of Liability:</strong> Under no circumstances shall the developer be liable for any direct, indirect, incidental, punitive, or consequential damages resulting from scams, fraud, non-payment, defective equipment, misrepresentation, missed meetings, disputes, or physical injuries occurring before, during, or after a transaction.
+              </li>
+              <li>
+                <strong>Prohibited Items:</strong> Users are strictly prohibited from posting, selling, or soliciting:
+                <ul className="list-circle pl-5 mt-1 space-y-1">
+                  <li>Live, confidential, or leaked academic examination question papers, test solutions, or grading rubrics;</li>
+                  <li>Academic ghostwriting, assignment fabrication, or examination impersonation services;</li>
+                  <li>Prescription drugs, tobacco, nicotine, alcohol, firearms, fireworks, or hazardous chemicals;</li>
+                  <li>Stolen property, pirated textbooks/software license keys, counterfeit items, or illegal substances;</li>
+                  <li>Harassing, defamatory, obscene, or fraudulent listings.</li>
+                </ul>
+              </li>
+              <li>
+                <strong>Campus Meeting Safety Guidelines:</strong> Buyers and sellers are strongly advised to meet strictly during daylight hours in busy, public campus areas (e.g., college library entrance, student food court, academic foyer). Always inspect the physical condition of goods thoroughly before transferring money. Never send advance deposits to strangers.
+              </li>
+              <li>
+                <strong>Indemnification:</strong> By creating or replying to a listing on Campus Trade, each user explicitly agrees to defend, indemnify, and hold harmless the developer against any claims, losses, damages, liabilities, and legal costs arising from their listing, conduct, transactions, or breach of these terms.
+              </li>
+              <li>
+                <strong>Takedown of Infringing Listings:</strong> The developer reserves the right to immediately remove any listing, ban any contact information, or report fraudulent behavior to campus authorities upon receiving notice or evidence of violation.
+              </li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-base font-bold text-[hsl(var(--foreground))] mb-2">5. Disclaimer of Warranties</h2>
             <p>
               While cataloged materials are reviewed for basic relevance, all resources and AI assistant responses are provided &quot;as is&quot; for study reference. Students should cross-verify specific module contents, formulas, and autonomous scheme guidelines with official institutional notices and academic circulars.
             </p>
           </section>
 
           <section>
-            <h2 className="text-base font-bold text-[hsl(var(--foreground))] mb-2">5. Updates to Terms</h2>
+            <h2 className="text-base font-bold text-[hsl(var(--foreground))] mb-2">6. Updates to Terms</h2>
             <p>
               These Terms may be updated periodically to maintain compliance with applicable educational guidelines and technology laws.
             </p>

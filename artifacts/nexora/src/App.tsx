@@ -4,7 +4,7 @@ import { Link, Redirect, Route, Switch, Router as WouterRouter, useLocation, use
 import {
   AlertTriangle, ArrowLeft, ArrowRight, BarChart3, Bug, MessageSquare, MessageSquarePlus, BadgeCheck, BookOpen, Calendar, Check, CheckCircle2, ChevronDown, ChevronRight,
   CircleAlert, Clock3, Download, ExternalLink, Eye, EyeOff, FileArchive, FileCheck, FileDown, FileText, FileUp, Filter, Flag, FolderOpen, GitBranch, GraduationCap, KeyRound, Layers3,
-  LayoutDashboard, LibraryBig, Link2, Loader2, Lock, LogOut, Menu, MoreHorizontal, Pencil, Plus, RotateCcw, Search, Send, ShieldCheck,
+  LayoutDashboard, LibraryBig, Link2, Loader2, Lock, LogOut, Menu, MoreHorizontal, Pencil, Plus, RotateCcw, Search, Send, ShieldCheck, ShoppingBag,
   RefreshCw, SlidersHorizontal, Sparkles, Trash2, Unlink, Upload, Mail, User, Users, X, Zap,
 } from "lucide-react";
 import { ApiWakeOverlay } from "@/components/api-wake-overlay";
@@ -13,6 +13,7 @@ import { FeedbackDialog } from "@/components/feedback-dialog";
 import { AiAssistantModal } from "@/components/ai-assistant-modal";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { AdSenseAd } from "@/components/adsense-ad";
+import { MarketplacePage } from "@/components/marketplace-page";
 const AdminAnalytics = lazy(() => import("@/components/admin-analytics").then((m) => ({ default: m.AdminAnalytics })));
 import { AnalyticsTracker, setStudentAcademicContext } from "@/components/analytics-tracker";
 import { getAvailableExamYears, getPopularExamYears } from "@/lib/academic-years";
@@ -308,6 +309,7 @@ function Shell({ children }: { children: ReactNode }) {
     { href: "/", label: "Home", icon: LayoutDashboard },
     { href: "/resources", label: "Resource library", icon: LibraryBig },
     { href: "/pyqs", label: "PYQs", icon: GraduationCap },
+    { href: "/marketplace", label: "Campus Trade", icon: ShoppingBag },
     { href: "/quick-links", label: "Quick Links", icon: Link2 },
     { href: "/contribute", label: "Contribute", icon: Upload },
   ];
@@ -12964,6 +12966,8 @@ function AppRouter() {
     <Route path="/resources"><ResourcesPage /></Route>
     <Route path="/search"><ResourcesPage /></Route>
     <Route path="/pyqs"><PyqsPage /></Route>
+    <Route path="/marketplace"><MarketplacePage /></Route>
+    <Route path="/bazaar"><MarketplacePage /></Route>
     <Route path="/quick-links"><QuickLinksPage /></Route>
     <Route path="/branch/:branchId"><BranchPage /></Route>
     <Route path="/subject/:subjectId"><SubjectPage /></Route>
