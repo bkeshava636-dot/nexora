@@ -40,26 +40,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-
-export interface MarketplaceItem {
-  id: number;
-  title: string;
-  description: string;
-  category: "Textbooks" | "Notes & Binders" | "Lab Equipment" | "Electronics & Gadgets" | "Other Campus Items";
-  price: number;
-  condition: "Brand New" | "Like New" | "Good" | "Fair";
-  sellerName: string;
-  sellerContact: string;
-  sellerInstagram?: string | null;
-  sellerEmail?: string | null;
-  campusLocation: string;
-  branch?: string | null;
-  semester?: string | null;
-  imageUrl?: string | null;
-  status: "active" | "sold" | "hidden";
-  createdAt: string;
-  updatedAt: string;
-}
+import { customFetch, type MarketplaceItem } from "@workspace/api-client-react";
+export type { MarketplaceItem };
 
 const CATEGORIES = [
   "All",
@@ -146,24 +128,18 @@ export function MarketplacePage() {
   } | null>(null);
   const [buyerAgreed, setBuyerAgreed] = useState<boolean>(false);
 
-  // Fetch marketplace items
-  const { data: items = [], isLoading } = useQuery<MarketplaceItem[]>({
+  // Fetch marketplace items using customFetch with remote base URL support
+  const { data: items = [], isLoading, isError, refetch } = useQuery<MarketplaceItem[]>({
     queryKey: ["marketplace", showSold ? "sold" : "active"],
     queryFn: async () => {
-      const res = await fetch(`/api/marketplace?status=${showSold ? "sold" : "active"}`);
-      if (!res.ok) {
-        throw new Error("Failed to load marketplace items");
-      }
-      return res.json();
+      return customFetch<MarketplaceItem[]>(`/api/marketplace?status=${showSold ? "sold" : "active"}`);
     },
   });
 
   // Mark as sold mutation
   const markSoldMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/marketplace/${id}/sold`, { method: "PATCH" });
-      if (!res.ok) throw new Error("Failed to mark item as sold");
-      return res.json();
+      return customFetch<MarketplaceItem>(`/api/marketplace/${id}/sold`, { method: "PATCH" });
     },
     onSuccess: () => {
       toast({
@@ -171,6 +147,9 @@ export function MarketplacePage() {
         description: "Your listing has been updated to sold status.",
       });
       queryClient.invalidateQueries({ queryKey: ["marketplace"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-marketplace"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/marketplace"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/marketplace"] });
       setSoldTargetItem(null);
     },
     onError: (err: Error) => {
@@ -260,7 +239,9 @@ export function MarketplacePage() {
         <section className="mt-8 space-y-4 fade-up fade-up-delay-1">
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" size={16} />
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-[hsl(var(--muted-foreground))]">
+                <Search size={16} />
+              </div>
               <input
                 type="search"
                 value={search}
@@ -316,6 +297,18 @@ export function MarketplacePage() {
             <div className="flex h-64 flex-col items-center justify-center gap-3 text-[hsl(var(--muted-foreground))]">
               <Loader2 className="h-8 w-8 animate-spin text-[hsl(var(--primary))]" />
               <p className="text-sm">Loading campus listings...</p>
+            </div>
+          ) : isError ? (
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-[hsl(var(--border))] bg-rose-500/5 p-8 text-center">
+              <AlertCircle className="h-8 w-8 text-rose-600 dark:text-rose-400 mb-2" />
+              <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">Failed to load marketplace listings.</p>
+              <button
+                type="button"
+                onClick={() => refetch()}
+                className="mt-3 rounded-lg bg-[hsl(var(--card))] px-3 py-1.5 text-xs font-bold border border-[hsl(var(--border))] hover:bg-[hsl(var(--muted))] transition-colors cursor-pointer"
+              >
+                Retry
+              </button>
             </div>
           ) : filteredItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--card)/.4)] px-6 py-16 text-center">
@@ -928,7 +921,7 @@ function SellItemDialog({
 
     setIsSubmitting(true);
     try {
-      const res = await fetch("/api/marketplace", {
+      await customFetch<MarketplaceItem>("/api/marketplace", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -947,11 +940,6 @@ function SellItemDialog({
           imageUrl: finalImage,
         }),
       });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || "Failed to create listing.");
-      }
 
       toast({
         title: "Listing Created!",

@@ -29,7 +29,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import type { MarketplaceItem } from "./marketplace-page";
+import { customFetch, type MarketplaceItem } from "@workspace/api-client-react";
 
 export function AdminMarketplace() {
   const [search, setSearch] = useState("");
@@ -39,7 +39,7 @@ export function AdminMarketplace() {
 
   const queryClient = useQueryClient();
 
-  // Fetch admin marketplace items with credentials included
+  // Fetch admin marketplace items with credentials and remote base URL support
   const { data: items = [], isLoading, isError, refetch } = useQuery<MarketplaceItem[]>({
     queryKey: ["admin-marketplace", filterStatus],
     queryFn: async () => {
@@ -48,48 +48,37 @@ export function AdminMarketplace() {
         : `/api/admin/marketplace?status=${filterStatus}`;
 
       try {
-        const res = await fetch(adminUrl, { credentials: "include" });
-        if (res.ok) {
-          return await res.json();
-        }
+        return await customFetch<MarketplaceItem[]>(adminUrl);
       } catch {
-        // Continue to fallback
+        // Fallback to public route if admin endpoint is unauthorized or unmounted
       }
 
-      // Public fallback route with credentials included
+      // Public fallback route
       const fallbackUrl = filterStatus === "all"
         ? "/api/marketplace?status=all"
         : `/api/marketplace?status=${filterStatus}`;
-      const fallbackRes = await fetch(fallbackUrl, { credentials: "include" });
-      if (!fallbackRes.ok) {
-        throw new Error("Failed to load marketplace listings");
-      }
-      return await fallbackRes.json();
+      return await customFetch<MarketplaceItem[]>(fallbackUrl);
     },
   });
 
   // Toggle status mutation (active <-> sold)
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ id, newStatus }: { id: number; newStatus: "active" | "sold" }) => {
-      const res = await fetch(`/api/admin/marketplace/${id}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (!res.ok) {
+      try {
+        return await customFetch<MarketplaceItem>(`/api/admin/marketplace/${id}/status`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: newStatus }),
+        });
+      } catch (err) {
         // Fallback to /api/marketplace/:id/sold
         if (newStatus === "sold") {
-          const fallbackRes = await fetch(`/api/marketplace/${id}/sold`, {
+          return await customFetch<MarketplaceItem>(`/api/marketplace/${id}/sold`, {
             method: "PATCH",
-            credentials: "include",
           });
-          if (!fallbackRes.ok) throw new Error("Failed to update status");
-          return fallbackRes.json();
         }
-        throw new Error("Failed to update status");
+        throw err;
       }
-      return res.json();
     },
     onSuccess: (_, variables) => {
       toast({
@@ -98,6 +87,8 @@ export function AdminMarketplace() {
       });
       queryClient.invalidateQueries({ queryKey: ["admin-marketplace"] });
       queryClient.invalidateQueries({ queryKey: ["marketplace"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/marketplace"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/marketplace"] });
     },
     onError: (err: Error) => {
       toast({
@@ -111,16 +102,14 @@ export function AdminMarketplace() {
   // Delete listing mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/admin/marketplace/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const fallbackRes = await fetch(`/api/marketplace/${id}`, {
+      try {
+        return await customFetch<{ success: boolean }>(`/api/admin/marketplace/${id}`, {
           method: "DELETE",
-          credentials: "include",
         });
-        if (!fallbackRes.ok) throw new Error("Failed to delete listing");
+      } catch {
+        return await customFetch<{ success: boolean }>(`/api/marketplace/${id}`, {
+          method: "DELETE",
+        });
       }
     },
     onSuccess: () => {
@@ -130,6 +119,8 @@ export function AdminMarketplace() {
       });
       queryClient.invalidateQueries({ queryKey: ["admin-marketplace"] });
       queryClient.invalidateQueries({ queryKey: ["marketplace"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/marketplace"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/marketplace"] });
       setDeleteTargetItem(null);
     },
     onError: (err: Error) => {

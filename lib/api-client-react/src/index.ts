@@ -1,7 +1,7 @@
 export * from "./generated/api";
 export * from "./generated/api.schemas";
-export { setBaseUrl, setAuthTokenGetter } from "./custom-fetch";
-export type { AuthTokenGetter } from "./custom-fetch";
+export { customFetch, setBaseUrl, setAuthTokenGetter } from "./custom-fetch";
+export type { CustomFetchOptions, AuthTokenGetter } from "./custom-fetch";
 export * from "./reports";
 export * from "./auth-ext";
 export * from "./curriculum-templates";
@@ -12,3 +12,4 @@ export * from "./semester-qps";
 export * from "./ia-papers";
 export * from "./quick-links";
 export * from "./ai";
+export * from "./marketplace";
