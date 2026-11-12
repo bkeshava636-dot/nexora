@@ -14,8 +14,12 @@ import {
   Phone,
   Mail,
   Tag,
+  Package,
+  IndianRupee,
   Loader2,
   AlertTriangle,
+  X,
+  Sparkles,
 } from "lucide-react";
 import {
   Dialog,
@@ -35,21 +39,32 @@ export function AdminMarketplace() {
 
   const queryClient = useQueryClient();
 
-  // Fetch admin marketplace items
+  // Fetch admin marketplace items with credentials included
   const { data: items = [], isLoading, isError, refetch } = useQuery<MarketplaceItem[]>({
     queryKey: ["admin-marketplace", filterStatus],
     queryFn: async () => {
-      const url = filterStatus === "all"
+      const adminUrl = filterStatus === "all"
         ? "/api/admin/marketplace?status=all"
         : `/api/admin/marketplace?status=${filterStatus}`;
-      const res = await fetch(url);
-      if (!res.ok) {
-        // Fallback to public endpoint if needed
-        const fallbackRes = await fetch(`/api/marketplace?status=${filterStatus}`);
-        if (!fallbackRes.ok) throw new Error("Failed to load marketplace listings");
-        return fallbackRes.json();
+
+      try {
+        const res = await fetch(adminUrl, { credentials: "include" });
+        if (res.ok) {
+          return await res.json();
+        }
+      } catch {
+        // Continue to fallback
       }
-      return res.json();
+
+      // Public fallback route with credentials included
+      const fallbackUrl = filterStatus === "all"
+        ? "/api/marketplace?status=all"
+        : `/api/marketplace?status=${filterStatus}`;
+      const fallbackRes = await fetch(fallbackUrl, { credentials: "include" });
+      if (!fallbackRes.ok) {
+        throw new Error("Failed to load marketplace listings");
+      }
+      return await fallbackRes.json();
     },
   });
 
@@ -59,12 +74,16 @@ export function AdminMarketplace() {
       const res = await fetch(`/api/admin/marketplace/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ status: newStatus }),
       });
       if (!res.ok) {
         // Fallback to /api/marketplace/:id/sold
         if (newStatus === "sold") {
-          const fallbackRes = await fetch(`/api/marketplace/${id}/sold`, { method: "PATCH" });
+          const fallbackRes = await fetch(`/api/marketplace/${id}/sold`, {
+            method: "PATCH",
+            credentials: "include",
+          });
           if (!fallbackRes.ok) throw new Error("Failed to update status");
           return fallbackRes.json();
         }
@@ -92,9 +111,15 @@ export function AdminMarketplace() {
   // Delete listing mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/admin/marketplace/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/marketplace/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
       if (!res.ok) {
-        const fallbackRes = await fetch(`/api/marketplace/${id}`, { method: "DELETE" });
+        const fallbackRes = await fetch(`/api/marketplace/${id}`, {
+          method: "DELETE",
+          credentials: "include",
+        });
         if (!fallbackRes.ok) throw new Error("Failed to delete listing");
       }
     },
@@ -158,7 +183,7 @@ export function AdminMarketplace() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-xs font-bold text-[hsl(var(--muted-foreground))]">
-            <ShoppingBag size={14} className="text-[hsl(var(--primary))]" /> Classifieds Management
+            <ShoppingBag size={15} className="text-[hsl(var(--primary))]" /> Classifieds Management
           </div>
           <h2 className="mt-1 text-2xl font-bold tracking-tight">Campus Trade Moderation</h2>
           <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
@@ -176,72 +201,113 @@ export function AdminMarketplace() {
         </div>
       </div>
 
-      {/* Metrics Row */}
+      {/* Metrics Row with matching design system icon badges */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-xs">
-          <p className="text-[11px] font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Total Listings</p>
-          <p className="mt-1 text-2xl font-bold text-[hsl(var(--foreground))]">{counts.total}</p>
+          <div className="flex items-center justify-between text-[hsl(var(--muted-foreground))]">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Total Listings</span>
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[hsl(var(--muted))] text-[hsl(var(--foreground))]">
+              <Package size={14} />
+            </div>
+          </div>
+          <p className="mt-2 text-2xl font-bold tracking-tight text-[hsl(var(--foreground))]">{counts.total}</p>
           <p className="mt-0.5 text-[10px] text-[hsl(var(--muted-foreground))]">All registered items</p>
         </div>
+
         <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-xs">
-          <p className="text-[11px] font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Active Listings</p>
-          <p className="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{counts.active}</p>
+          <div className="flex items-center justify-between text-[hsl(var(--muted-foreground))]">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Active Listings</span>
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle size={14} />
+            </div>
+          </div>
+          <p className="mt-2 text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">{counts.active}</p>
           <p className="mt-0.5 text-[10px] text-[hsl(var(--muted-foreground))]">Currently browsable</p>
         </div>
+
         <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-xs">
-          <p className="text-[11px] font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Sold Archive</p>
-          <p className="mt-1 text-2xl font-bold text-amber-600 dark:text-amber-400">{counts.sold}</p>
+          <div className="flex items-center justify-between text-[hsl(var(--muted-foreground))]">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Sold Archive</span>
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
+              <Tag size={14} />
+            </div>
+          </div>
+          <p className="mt-2 text-2xl font-bold tracking-tight text-amber-600 dark:text-amber-400">{counts.sold}</p>
           <p className="mt-0.5 text-[10px] text-[hsl(var(--muted-foreground))]">Completed trades</p>
         </div>
+
         <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-xs">
-          <p className="text-[11px] font-bold text-[hsl(var(--muted-foreground))] uppercase tracking-wider">Catalog Value</p>
-          <p className="mt-1 text-2xl font-bold text-[hsl(var(--primary))]">₹{counts.totalValue.toLocaleString()}</p>
+          <div className="flex items-center justify-between text-[hsl(var(--muted-foreground))]">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Catalog Value</span>
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[hsl(var(--primary)/.15)] text-[hsl(var(--primary))]">
+              <IndianRupee size={14} />
+            </div>
+          </div>
+          <p className="mt-2 text-2xl font-bold tracking-tight text-[hsl(var(--primary))]">₹{counts.totalValue.toLocaleString()}</p>
           <p className="mt-0.5 text-[10px] text-[hsl(var(--muted-foreground))]">Combined asking price</p>
         </div>
       </div>
 
-      {/* Search & Status Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" size={15} />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by title, seller, phone, Instagram, or location..."
-            className="input-style h-10 w-full !pl-10 pr-4 text-xs"
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Status Tabs */}
-          <div className="flex rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-1">
-            {(["all", "active", "sold"] as const).map((s) => (
+      {/* Search & Status Filters Bar (Fixed Alignment and Centered Icons) */}
+      <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 sm:p-4 shadow-xs">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          {/* Search Input with properly flex-centered icon */}
+          <div className="relative flex-1 max-w-xl">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-[hsl(var(--muted-foreground))]">
+              <Search size={15} />
+            </div>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by title, seller, phone, Instagram, or location..."
+              className="input-style h-10 w-full !pl-10 !pr-9 text-xs"
+            />
+            {search && (
               <button
-                key={s}
                 type="button"
-                onClick={() => setFilterStatus(s)}
-                className={`focus-ring rounded-lg px-3 py-1 text-xs font-bold capitalize transition-colors cursor-pointer ${
-                  filterStatus === s
-                    ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]"
-                    : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-                }`}
+                onClick={() => setSearch("")}
+                className="focus-ring absolute inset-y-0 right-0 flex items-center pr-3 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] cursor-pointer"
+                title="Clear search"
               >
-                {s} {s === "active" && counts.active > 0 ? `(${counts.active})` : ""}
+                <X size={14} />
               </button>
-            ))}
+            )}
           </div>
 
-          {/* Category Dropdown */}
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="input-style h-10 px-3 text-xs cursor-pointer"
-          >
-            {categories.map((cat) => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
+          {/* Right Controls: Status Tabs & Category Dropdown */}
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            {/* Status Tabs */}
+            <div className="flex rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted)/.4)] p-1">
+              {(["all", "active", "sold"] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setFilterStatus(s)}
+                  className={`focus-ring rounded-lg px-3 py-1.5 text-xs font-bold capitalize transition-colors cursor-pointer ${
+                    filterStatus === s
+                      ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-xs"
+                      : "text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+                  }`}
+                >
+                  {s} {s === "active" && counts.active > 0 ? `(${counts.active})` : ""}
+                </button>
+              ))}
+            </div>
+
+            {/* Category Dropdown */}
+            <div className="min-w-[140px]">
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="input-style h-10 w-full px-3 text-xs cursor-pointer"
+              >
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -263,7 +329,7 @@ export function AdminMarketplace() {
           <p className="text-sm font-bold text-[hsl(var(--foreground))]">No Listings Found</p>
           <p className="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
             {search || filterCategory !== "All" || filterStatus !== "all"
-              ? "No items match your active filters. Try broadening your search."
+              ? "No items match your active filters. Try broadening your search query."
               : "No campus trade items have been posted yet."}
           </p>
         </div>
@@ -360,7 +426,7 @@ export function AdminMarketplace() {
                         </span>
                       )}
                       {instaHandle && (
-                        <span className="inline-flex items-center gap-1 text-pink-600 dark:text-pink-400">
+                        <span className="inline-flex items-center gap-1 text-pink-600 dark:text-pink-400 font-medium">
                           <Instagram size={10} /> @{instaHandle}
                         </span>
                       )}

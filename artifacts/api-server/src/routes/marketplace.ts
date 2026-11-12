@@ -125,6 +125,8 @@ function getFilteredInMemoryItems(query: any, isAdmin: boolean) {
       if (!isAdmin) {
         if (status === "sold") {
           if (item.status !== "sold") return false;
+        } else if (status === "all") {
+          // Allow all items (both active and sold)
         } else {
           if (item.status !== "active") return false;
         }
@@ -180,6 +182,8 @@ router.get("/marketplace", async (req, res) => {
     if (!req.admin) {
       if (typeof status === "string" && status === "sold") {
         conditions.push(eq(marketplaceItems.status, "sold"));
+      } else if (typeof status === "string" && status === "all") {
+        // Return both active and sold items
       } else {
         conditions.push(eq(marketplaceItems.status, "active"));
       }
