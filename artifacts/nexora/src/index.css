@@ -492,3 +492,21 @@ button:active:not(:disabled), a.focus-ring:active { transform: scale(0.97); }
   .mobile-scroll { scrollbar-width: none; }
   .mobile-scroll::-webkit-scrollbar { display: none; }
 }
+
+/* Suppress all third-party ad iframes and overlays on admin views */
+body[data-admin-view="true"] [id*="monetag"],
+body[data-admin-view="true"] [class*="monetag"],
+body[data-admin-view="true"] [id*="vignette"],
+body[data-admin-view="true"] [class*="vignette"],
+body[data-admin-view="true"] iframe[src*="5gvci.com"],
+body[data-admin-view="true"] iframe[src*="nap5k.com"],
+body[data-admin-view="true"] iframe[src*="n6wxm.com"],
+body[data-admin-view="true"] div[style*="z-index: 2147483647"],
+body[data-admin-view="true"] div[style*="z-index:2147483647"],
+body[data-admin-view="true"] div[style*="z-index: 999999"],
+body[data-admin-view="true"] div[style*="z-index:999999"] {
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}

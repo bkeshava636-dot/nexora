@@ -16,6 +16,7 @@ interface AdSenseAdProps {
 let scriptInjected = false;
 function ensureAdSenseScript() {
   if (typeof window === "undefined" || scriptInjected) return;
+  if (window.location.pathname.startsWith("/admin") || window.location.pathname.startsWith("/login")) return;
   if (document.querySelector('script[src*="pagead2.googlesyndication.com"]')) {
     scriptInjected = true;
     return;
@@ -38,6 +39,10 @@ export function AdSenseAd({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const insRef = useRef<HTMLModElement | null>(null);
   const [isVisible, setIsVisible] = useState(false);
+
+  if (typeof window !== "undefined" && (window.location.pathname.startsWith("/admin") || window.location.pathname.startsWith("/login"))) {
+    return null;
+  }
 
   useEffect(() => {
     if (!containerRef.current || typeof window === "undefined") return;

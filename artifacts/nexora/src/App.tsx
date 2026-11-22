@@ -16,6 +16,7 @@ import { AdSenseAd } from "@/components/adsense-ad";
 import { MarketplacePage } from "@/components/marketplace-page";
 import { AdminMarketplace } from "@/components/admin-marketplace";
 import { FeatureAnnouncementBanner } from "@/components/feature-announcement-banner";
+import { AdminAdGuard } from "@/components/admin-ad-guard";
 const AdminAnalytics = lazy(() => import("@/components/admin-analytics").then((m) => ({ default: m.AdminAnalytics })));
 import { AnalyticsTracker, setStudentAcademicContext } from "@/components/analytics-tracker";
 import { getAvailableExamYears, getPopularExamYears } from "@/lib/academic-years";
@@ -13014,7 +13015,7 @@ function AppRouter() {
 }
 
 function App() {
-  return <QueryClientProvider client={queryClient}><AuthProvider><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}><AnalyticsTracker /><Shell><AppRouter /></Shell></WouterRouter><ApiWakeOverlay /><Toaster /></TooltipProvider></AuthProvider></QueryClientProvider>;
+  return <QueryClientProvider client={queryClient}><AuthProvider><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}><AnalyticsTracker /><AdminAdGuard /><Shell><AppRouter /></Shell></WouterRouter><ApiWakeOverlay /><Toaster /></TooltipProvider></AuthProvider></QueryClientProvider>;
 }
 
 export default App;
